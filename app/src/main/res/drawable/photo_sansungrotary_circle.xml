@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Circle background -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#FFFFFF" />
+            <stroke android:width="3dp" android:color="#FF5722" />
+            <size android:width="60dp" android:height="60dp" />
+        </shape>
+    </item>
+    
+    <!-- Photo image as circle -->
+    <item android:top="3dp" android:bottom="3dp" 
+          android:left="3dp" android:right="3dp">
+        <shape android:shape="oval">
+            <solid android:color="#FF5722" />
+        </shape>
+    </item>
+</layer-list> 

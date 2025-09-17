@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    <!-- Walking trail (yellow) -->
+    <path
+        android:pathData="M30,100 Q60,60 90,100"
+        android:strokeColor="#FFD600"
+        android:strokeWidth="10"/>
+    <!-- Clover (green) -->
+    <path
+        android:pathData="M60,60 Q65,45 80,50 Q70,60 60,60"
+        android:fillColor="#43A047"/>
+    <!-- Footprint circle - left -->
+    <path
+        android:pathData="M47,90 a7,7 0 1,0 -14,0 a7,7 0 1,0 14,0"
+        android:fillColor="#1976D2"/>
+    <!-- Footprint circle - right -->
+    <path
+        android:pathData="M87,90 a7,7 0 1,0 -14,0 a7,7 0 1,0 14,0"
+        android:fillColor="#1976D2"/>
+</vector> 

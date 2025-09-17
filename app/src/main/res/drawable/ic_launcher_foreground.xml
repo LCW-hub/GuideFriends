@@ -1,0 +1,63 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- 배경 원 -->
+    <path
+        android:fillColor="#F9FBE7"
+        android:pathData="M54,54m-45,0a45,45 0,1 1,90 0a45,45 0,1 1,-90 0" />
+    
+    <!-- 산 모양 (현대적) -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M18,72 L32,54 L45,63 L59,45 L72,59 L90,72 Z" />
+    
+    <!-- 산책로 (현대적 곡선) -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M23,68 Q36,59 50,68 Q63,59 77,68"
+        android:strokeColor="#8D6E63"
+        android:strokeWidth="3" />
+    
+    <!-- 사람 아이콘 (현대적) -->
+    <path
+        android:fillColor="#1976D2"
+        android:pathData="M50,41 L50,50 L45,50 L45,41 Z" />
+    <path
+        android:fillColor="#1976D2"
+        android:pathData="M47,36 L53,36 L53,41 L47,41 Z" />
+    <path
+        android:fillColor="#1976D2"
+        android:pathData="M45,50 L55,50 L55,59 L45,59 Z" />
+    
+    <!-- 태양 (현대적) -->
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M77,23 L81,23 L81,27 L77,27 Z" />
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M78,21 L79,21 L79,24 L78,24 Z" />
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M75,24 L78,24 L78,25 L75,25 Z" />
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M79,25 L82,25 L82,26 L79,26 Z" />
+    
+    <!-- 나무 (현대적) -->
+    <path
+        android:fillColor="#2E7D32"
+        android:pathData="M27,68 L29,59 L31,68 Z" />
+    <path
+        android:fillColor="#2E7D32"
+        android:pathData="M68,63 L70,54 L72,63 Z" />
+    
+    <!-- 테두리 (현대적) -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,54m-50,0a50,50 0,1 1,100 0a50,50 0,1 1,-100 0"
+        android:strokeColor="#4CAF50"
+        android:strokeWidth="2" />
+</vector>

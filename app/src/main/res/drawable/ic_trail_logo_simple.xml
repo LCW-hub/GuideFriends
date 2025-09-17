@@ -1,0 +1,55 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    
+    <!-- Background circle -->
+    <path
+        android:fillColor="#F1F8E9"
+        android:pathData="M60,60m-50,0a50,50 0,1 1,100 0a50,50 0,1 1,-100 0" />
+    
+    <!-- Mountain shape (simple) -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M20,80 L50,40 L80,60 L100,80 Z" />
+    
+    <!-- Trail path -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M30,70 L50,50 L70,70 L90,60"
+        android:strokeColor="#8D6E63"
+        android:strokeWidth="4" />
+    
+    <!-- Person figure (simple) -->
+    <path
+        android:fillColor="#1976D2"
+        android:pathData="M55,45 L55,55 L50,55 L50,45 Z" />
+    <path
+        android:fillColor="#1976D2"
+        android:pathData="M52,40 L58,40 L58,45 L52,45 Z" />
+    <path
+        android:fillColor="#1976D2"
+        android:pathData="M50,55 L60,55 L60,65 L50,65 Z" />
+    
+    <!-- Sun -->
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M85,25 L90,25 L90,30 L85,30 Z" />
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M87,23 L88,23 L88,27 L87,27 Z" />
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M83,27 L87,27 L87,28 L83,28 Z" />
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M88,28 L92,28 L92,29 L88,29 Z" />
+    
+    <!-- Border circle -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M60,60m-55,0a55,55 0,1 1,110 0a55,55 0,1 1,-110 0"
+        android:strokeColor="#4CAF50"
+        android:strokeWidth="3" />
+</vector> 
