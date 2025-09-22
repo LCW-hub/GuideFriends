@@ -78,4 +78,4 @@ router.get('/nearby/search', (req, res) => {
     }
 });
 
-module.exports = router; 
+module.exports = router;

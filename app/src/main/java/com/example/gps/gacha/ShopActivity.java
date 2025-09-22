@@ -10,6 +10,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
 import com.example.gps.R;
+import com.example.gps.manager.UserManager;
 
 import java.util.Random;
 
@@ -50,6 +51,7 @@ public class ShopActivity extends AppCompatActivity {
         }
         
         initViews();
+        loadUserCoins();
         updateUI();
         setupClickListeners();
     }
@@ -61,6 +63,17 @@ public class ShopActivity extends AppCompatActivity {
         btnSingleGacha = findViewById(R.id.btn_single_gacha);
         btnMultiGacha = findViewById(R.id.btn_multi_gacha);
         ivGachaResult = findViewById(R.id.iv_gacha_result);
+    }
+    
+    private void loadUserCoins() {
+        UserManager userManager = UserManager.getInstance(this);
+        if (userManager.isLoggedIn()) {
+            coins = userManager.getCoins();
+        } else {
+            // 비회원인 경우 기본 코인 0개
+            coins = 1000;
+            Toast.makeText(this, "회원만 상점을 이용할 수 있습니다", Toast.LENGTH_SHORT).show();
+        }
     }
     
     private void updateUI() {
@@ -88,6 +101,12 @@ public class ShopActivity extends AppCompatActivity {
     }
     
     private void performGacha(int count) {
+        UserManager userManager = UserManager.getInstance(this);
+        if (!userManager.isLoggedIn()) {
+            Toast.makeText(this, "회원만 상점을 이용할 수 있습니다", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
         int cost = count * 100; // 1회당 100코인
         
         if (coins < cost) {
@@ -95,21 +114,37 @@ public class ShopActivity extends AppCompatActivity {
             return;
         }
         
-        coins -= cost;
-        updateUI();
-        
-        if (count == 1) {
-            String result = getRandomItem();
-            processItemReward(result);
-            startCapsuleFlow(false, new String[]{ result });
-        } else {
-            String[] results = new String[10];
-            for (int i = 0; i < 10; i++) {
-                results[i] = getRandomItem();
-                processItemReward(results[i]);
+        // 코인 차감
+        int newCoins = coins - cost;
+        userManager.updateCoins(newCoins, new UserManager.CoinUpdateCallback() {
+            @Override
+            public void onSuccess(int updatedCoins) {
+                runOnUiThread(() -> {
+                    coins = updatedCoins;
+                    updateUI();
+                    
+                    if (count == 1) {
+                        String result = getRandomItem();
+                        processItemReward(result);
+                        startCapsuleFlow(false, new String[]{ result });
+                    } else {
+                        String[] results = new String[10];
+                        for (int i = 0; i < 10; i++) {
+                            results[i] = getRandomItem();
+                            processItemReward(results[i]);
+                        }
+                        startCapsuleFlow(true, results);
+                    }
+                });
             }
-            startCapsuleFlow(true, results);
-        }
+
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> {
+                    Toast.makeText(ShopActivity.this, "코인 업데이트 실패: " + error, Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
     }
     
     private String getRandomItem() {
@@ -127,12 +162,32 @@ public class ShopActivity extends AppCompatActivity {
     
     private void processItemReward(String item) {
         // 코인 추가 아이템 처리
+        int rewardCoins = 0;
         if (item.contains("코인 100개 추가")) {
-            coins += 100;
+            rewardCoins = 100;
         } else if (item.contains("코인 200개 추가")) {
-            coins += 200;
+            rewardCoins = 200;
         } else if (item.contains("코인 500개 추가")) {
-            coins += 500;
+            rewardCoins = 500;
+        }
+        
+        if (rewardCoins > 0) {
+            UserManager userManager = UserManager.getInstance(this);
+            int newCoins = coins + rewardCoins;
+            userManager.updateCoins(newCoins, new UserManager.CoinUpdateCallback() {
+                @Override
+                public void onSuccess(int updatedCoins) {
+                    runOnUiThread(() -> {
+                        coins = updatedCoins;
+                        updateUI();
+                    });
+                }
+
+                @Override
+                public void onError(String error) {
+                    // 코인 보상 실패는 조용히 처리 (이미 뽑기는 완료됨)
+                }
+            });
         }
         // 꽝은 아무것도 하지 않음
         // 기프티콘은 실제로는 사용자가 직접 사용해야 함

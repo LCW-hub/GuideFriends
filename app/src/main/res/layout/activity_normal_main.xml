@@ -4,6 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
+    android:background="@drawable/bg_gradient_spring"
     android:gravity="center"
     android:padding="24dp">
 
@@ -11,6 +12,8 @@
         android:id="@+id/text_admin_welcome"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Welcome User"
-        android:textSize="20sp"/>
+        android:text="봄 산책을 시작해보세요! 🌸"
+        android:textSize="20sp"
+        android:textColor="@color/textPrimary"
+        android:textStyle="bold"/>
 </LinearLayout>

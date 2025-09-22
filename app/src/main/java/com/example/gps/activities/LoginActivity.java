@@ -11,13 +11,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import com.example.gps.R;
-import com.example.gps.api.ApiClient;
-import com.example.gps.api.UserApi;
-import com.example.gps.model.User;
-import java.util.Map;
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
+import com.example.gps.manager.UserManager;
 
 public class LoginActivity extends AppCompatActivity {
 
@@ -45,9 +39,9 @@ public class LoginActivity extends AppCompatActivity {
         textViewFindId = findViewById(R.id.tvFindId);
         textViewFindPassword = findViewById(R.id.tvFindPw);
 
-        // 기본값 자동 입력
+        // 기본값 자동 입력 (테스트 계정)
         editTextUsername.setText("testuser");
-        editTextPassword.setText("1234");
+        editTextPassword.setText("test123");
 
         // 로그인 버튼 클릭 리스너
         buttonLogin.setOnClickListener(new View.OnClickListener() {
@@ -89,44 +83,62 @@ public class LoginActivity extends AppCompatActivity {
                 startActivity(new Intent(LoginActivity.this, FindPwActivity.class));
             }
         });
+
+        // 게스트 모드 버튼 클릭 리스너
+        buttonGuestMode.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(LoginActivity.this, MapsActivity.class);
+                startActivity(intent);
+                Toast.makeText(LoginActivity.this, "🚶 게스트 모드로 시작합니다!", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void login() {
-        String username = editTextUsername.getText().toString();
-        String password = editTextPassword.getText().toString();
+        String username = editTextUsername.getText().toString().trim();
+        String password = editTextPassword.getText().toString().trim();
 
-        if (username.isEmpty() || password.isEmpty()) {
-            Toast.makeText(this, "사용자 이름과 비밀번호를 입력하세요", Toast.LENGTH_SHORT).show();
+        // 입력 유효성 검사
+        if (username.isEmpty()) {
+            editTextUsername.setError("아이디를 입력해주세요");
+            editTextUsername.requestFocus();
             return;
         }
 
-        // API 호출
-        UserApi userApi = ApiClient.getClient().create(UserApi.class);
-        User user = new User(username, password, "", "");
+        if (password.isEmpty()) {
+            editTextPassword.setError("비밀번호를 입력해주세요");
+            editTextPassword.requestFocus();
+            return;
+        }
 
-        Call<Map<String, String>> call = userApi.login(user);
-        call.enqueue(new Callback<Map<String, String>>() {
-            @Override
-            public void onResponse(Call<Map<String, String>> call, Response<Map<String, String>> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    Map<String, String> result = response.body();
-                    if ("success".equals(result.get("status"))) {
-                        Toast.makeText(LoginActivity.this, "로그인 성공", Toast.LENGTH_SHORT).show();
+        // 관리자 계정 체크
+        if (username.equals("admin") && password.equals("1234")) {
+            Toast.makeText(this, "🔑 관리자 로그인 성공!", Toast.LENGTH_SHORT).show();
+            Intent intent = new Intent(LoginActivity.this, com.example.gps.activities.AdminMain.class);
+            startActivity(intent);
+            finish();
+        } else {
+            // 일반 회원 로그인 (UserManager를 통한 로그인)
+            UserManager userManager = UserManager.getInstance(this);
+            userManager.login(username, password, new UserManager.LoginCallback() {
+                @Override
+                public void onSuccess(String message) {
+                    runOnUiThread(() -> {
+                        Toast.makeText(LoginActivity.this, "✨ " + message, Toast.LENGTH_SHORT).show();
                         startActivity(new Intent(LoginActivity.this, NormalMain.class));
                         finish();
-                    } else {
-                        Toast.makeText(LoginActivity.this, "로그인 실패: " + result.get("message"), Toast.LENGTH_SHORT).show();
-                    }
-                } else {
-                    Toast.makeText(LoginActivity.this, "서버 오류가 발생했습니다", Toast.LENGTH_SHORT).show();
+                    });
                 }
-            }
 
-            @Override
-            public void onFailure(Call<Map<String, String>> call, Throwable t) {
-                Toast.makeText(LoginActivity.this, "네트워크 오류가 발생했습니다", Toast.LENGTH_SHORT).show();
-            }
-        });
+                @Override
+                public void onError(String error) {
+                    runOnUiThread(() -> {
+                        Toast.makeText(LoginActivity.this, "❌ " + error, Toast.LENGTH_SHORT).show();
+                    });
+                }
+            });
+        }
     }
 
     @Override

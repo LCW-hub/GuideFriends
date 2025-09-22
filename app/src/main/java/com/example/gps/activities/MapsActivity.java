@@ -44,6 +44,7 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.example.gps.fragments.WeatherBottomSheetFragment;
 import com.example.gps.adapters.SearchResultAdapter;
 import com.example.gps.model.SearchResult;
+import com.example.gps.manager.UserManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.naver.maps.map.CameraAnimation;
@@ -1826,19 +1827,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             .setItems(options, (dialog, which) -> {
                 switch (which) {
                     case 0: // 로그인
-                        // Intent loginIntent = new Intent(this, LoginActivity.class);
-                        // startActivity(loginIntent);
-                        Toast.makeText(this, "로그인 기능은 준비 중입니다", Toast.LENGTH_SHORT).show();
+                        Intent loginIntent = new Intent(this, LoginActivity.class);
+                        startActivity(loginIntent);
                         break;
                     case 1: // 회원가입
-                        // Intent signupIntent = new Intent(this, SignupActivity.class);
-                        // startActivity(signupIntent);
-                        Toast.makeText(this, "회원가입 기능은 준비 중입니다", Toast.LENGTH_SHORT).show();
+                        Intent signupIntent = new Intent(this, SignupActivity.class);
+                        startActivity(signupIntent);
                         break;
                     case 2: // 게스트 모드
-                        // Intent guestIntent = new Intent(this, GuestMain.class);
-                        // startActivity(guestIntent);
-                        Toast.makeText(this, "게스트 모드 기능은 준비 중입니다", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, "🚶 게스트 모드로 시작합니다!", Toast.LENGTH_SHORT).show();
+                        // 게스트 모드는 현재 화면에서 계속 사용
                         break;
                 }
             })
@@ -1857,7 +1855,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             .setItems(options, (dialog, which) -> {
                 switch (which) {
                     case 0: // 내 정보
-                        Toast.makeText(this, "내 정보 기능은 준비 중입니다", Toast.LENGTH_SHORT).show();
+                        showUserInfo();
                         break;
                     case 1: // 설정
                         Toast.makeText(this, "설정 기능은 준비 중입니다", Toast.LENGTH_SHORT).show();
@@ -1882,6 +1880,31 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         editor.apply();
         
         Toast.makeText(this, "로그아웃되었습니다", Toast.LENGTH_SHORT).show();
+    }
+
+    /**
+     * 사용자 정보 표시
+     */
+    private void showUserInfo() {
+        UserManager userManager = UserManager.getInstance(this);
+        if (userManager.isLoggedIn()) {
+            String username = userManager.getUsername();
+            int coins = userManager.getCoins();
+            int totalSteps = userManager.getTotalSteps();
+            
+            String message = String.format(
+                "👤 사용자명: %s\n💰 보유 코인: %d개\n🚶 총 걸음수: %d걸음",
+                username, coins, totalSteps
+            );
+            
+            new AlertDialog.Builder(this)
+                .setTitle("내 정보")
+                .setMessage(message)
+                .setPositiveButton("확인", null)
+                .show();
+        } else {
+            Toast.makeText(this, "로그인이 필요합니다", Toast.LENGTH_SHORT).show();
+        }
     }
 
     /**
@@ -2063,10 +2086,39 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         long duration = System.currentTimeMillis() - stepCounterStartTime;
         long minutes = duration / (1000 * 60);
         
-        Toast.makeText(this, 
-            String.format("만보기를 중지했습니다\n총 %d걸음, %.2fkm, %.1fkcal\n소요시간: %d분", 
-                currentSteps, currentDistance / 1000.0, currentCalories, minutes), 
-            Toast.LENGTH_LONG).show();
+        // 로그인한 사용자에게만 코인 보상 제공
+        UserManager userManager = UserManager.getInstance(this);
+        if (userManager.isLoggedIn() && currentSteps > 0) {
+            // 만보기 보상 요청
+            userManager.requestStepReward(currentSteps, new UserManager.StepRewardCallback() {
+                @Override
+                public void onSuccess(int rewardCoins, int totalCoins, String message) {
+                    runOnUiThread(() -> {
+                        String rewardMessage = String.format("만보기를 중지했습니다\n총 %d걸음, %.2fkm, %.1fkcal\n소요시간: %d분\n\n%s", 
+                            currentSteps, currentDistance / 1000.0, currentCalories, minutes, message);
+                        Toast.makeText(MapsActivity.this, rewardMessage, Toast.LENGTH_LONG).show();
+                    });
+                }
+
+                @Override
+                public void onError(String error) {
+                    runOnUiThread(() -> {
+                        String stopMessage = String.format("만보기를 중지했습니다\n총 %d걸음, %.2fkm, %.1fkcal\n소요시간: %d분\n\n보상 오류: %s", 
+                            currentSteps, currentDistance / 1000.0, currentCalories, minutes, error);
+                        Toast.makeText(MapsActivity.this, stopMessage, Toast.LENGTH_LONG).show();
+                    });
+                }
+            });
+        } else {
+            // 비회원이거나 걸음수가 0인 경우
+            String message = userManager.isLoggedIn() ? 
+                "만보기를 중지했습니다\n총 %d걸음, %.2fkm, %.1fkcal\n소요시간: %d분" :
+                "만보기를 중지했습니다\n총 %d걸음, %.2fkm, %.1fkcal\n소요시간: %d분\n\n회원만 코인 보상을 받을 수 있습니다";
+            
+            Toast.makeText(this, 
+                String.format(message, currentSteps, currentDistance / 1000.0, currentCalories, minutes), 
+                Toast.LENGTH_LONG).show();
+        }
     }
     
     /**
