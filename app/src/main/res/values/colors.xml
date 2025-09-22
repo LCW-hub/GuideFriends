@@ -6,6 +6,7 @@
     <!-- 메인 색상 - 봄 계절 시원하고 청량한 색상 -->
     <color name="colorPrimary">#4CAF50</color>
     <color name="colorPrimaryDark">#388E3C</color>
+    <color name="colorPrimaryLight">#C8E6C9</color>
     <color name="colorAccent">#81C784</color>
     
     <!-- 보조 색상들 - 봄 계절 시원하고 청량한 색상 -->

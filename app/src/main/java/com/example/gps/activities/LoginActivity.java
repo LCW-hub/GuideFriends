@@ -84,15 +84,6 @@ public class LoginActivity extends AppCompatActivity {
             }
         });
 
-        // 게스트 모드 버튼 클릭 리스너
-        buttonGuestMode.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent intent = new Intent(LoginActivity.this, MapsActivity.class);
-                startActivity(intent);
-                Toast.makeText(LoginActivity.this, "🚶 게스트 모드로 시작합니다!", Toast.LENGTH_SHORT).show();
-            }
-        });
     }
 
     private void login() {

@@ -92,7 +92,7 @@ public class WeatherActivity extends AppCompatActivity {
             public void onResponse(Call<WeatherForecast> call, Response<WeatherForecast> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     WeatherForecast forecast = response.body();
-                    forecastAdapter.setForecastItems(forecast.getForecastItems());
+                    // forecastAdapter.updateData(forecast.getForecastItems());
                 } else {
                     Toast.makeText(WeatherActivity.this, "예보 정보를 가져오는데 실패했습니다.", Toast.LENGTH_SHORT).show();
                 }

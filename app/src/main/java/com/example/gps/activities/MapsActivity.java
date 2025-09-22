@@ -12,10 +12,12 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.PopupMenu;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.gps.R;
+import com.example.gps.fragments.ProfileBottomSheetFragment;
 import com.naver.maps.geometry.LatLng;
 import com.naver.maps.geometry.LatLngBounds;
 import com.naver.maps.map.NaverMap;
@@ -254,7 +256,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         initializeSearch();
 
         // 버튼 초기화 및 이벤트 설정
-        Button btnAll = findViewById(R.id.btnAll);
+        com.google.android.material.floatingactionbutton.FloatingActionButton btnMapType = findViewById(R.id.btnMapType);
         com.google.android.material.floatingactionbutton.FloatingActionButton btnMyLocation = findViewById(R.id.btnMyLocation);
         androidx.cardview.widget.CardView weatherWidget = findViewById(R.id.weather_widget);
         com.google.android.material.floatingactionbutton.FloatingActionButton btnSelectCourse = findViewById(R.id.btnSelectCourse);
@@ -263,18 +265,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         ImageView ivWeatherIcon = findViewById(R.id.iv_weather_icon);
         TextView tvTemperature = findViewById(R.id.tv_temperature);
 
-        btnAll.setOnClickListener(v -> {
-            // 대한민국 전체가 보이도록 카메라 이동
-            showMainMarkers();
-            LatLngBounds koreaBounds = new LatLngBounds(
-                new LatLng(33.0, 124.0), // 남서쪽
-                new LatLng(43.0, 132.0)  // 북동쪽
-            );
-            CameraUpdate cameraUpdate = CameraUpdate.fitBounds(koreaBounds, 0)
-                .animate(CameraAnimation.Easing, 1200);
-            naverMap.moveCamera(cameraUpdate);
-            Toast.makeText(this, "📍 대한민국 전체 지도로 돌아갑니다.", Toast.LENGTH_SHORT).show();
-        });
+        // 지도 타입 변경 버튼 이벤트
+        btnMapType.setOnClickListener(v -> showMapTypeMenu(btnMapType));
         btnMyLocation.setOnClickListener(v -> moveToCurrentLocation());
         weatherWidget.setOnClickListener(v -> {
             // 날씨 하단 패널 표시
@@ -286,28 +278,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         
         // 바텀시트 초기화
         setupBottomSheet();
-        btnSelectCourse.setOnClickListener(v -> {
-            // 코스 선택 팝업 메뉴 표시
-            PopupMenu popupMenu = new PopupMenu(this, btnSelectCourse);
-            popupMenu.getMenuInflater().inflate(R.menu.course_popup_menu, popupMenu.getMenu());
-
-            popupMenu.setOnMenuItemClickListener(menuItem -> {
-                int itemId = menuItem.getItemId();
-                if (itemId == R.id.popup_course1) {
-                    selectCourse(0);
-                    return true;
-                } else if (itemId == R.id.popup_course2) {
-                    selectCourse(1);
-                    return true;
-                } else if (itemId == R.id.popup_course3) {
-                    selectCourse(2);
-                    return true;
-                }
-                return false;
-            });
-
-            popupMenu.show();
-        });
+        // 코스 선택 버튼 비활성화 (클릭 이벤트 제거)
+        // btnSelectCourse.setOnClickListener(v -> { ... }); // 비활성화됨
 
         // 닫기 버튼 클릭 이벤트 설정
         btnCloseInfo.setOnClickListener(v -> hideCourseInfoPanel());
@@ -1736,20 +1708,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
      * 아이콘 버튼들 초기화 및 클릭 이벤트 설정
      */
     private void setupIconButtons() {
-        // 홈 버튼 (원위치)
+        // 홈 버튼
         View homeBtn = findViewById(R.id.btn_home);
         if (homeBtn != null) {
             homeBtn.setOnClickListener(v -> {
-                // 대한민국 전체가 보이도록 카메라 이동
-                showMainMarkers();
-                LatLngBounds koreaBounds = new LatLngBounds(
-                    new LatLng(33.0, 124.0), // 남서쪽
-                    new LatLng(43.0, 132.0)  // 북동쪽
-                );
-                CameraUpdate cameraUpdate = CameraUpdate.fitBounds(koreaBounds, 0)
-                    .animate(CameraAnimation.Easing, 1200);
-                naverMap.moveCamera(cameraUpdate);
-                Toast.makeText(this, "🏠 홈으로 돌아갑니다", Toast.LENGTH_SHORT).show();
+                showHomeMenu(homeBtn);
             });
         }
 
@@ -1792,120 +1755,132 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         View myPageBtn = findViewById(R.id.btn_my_page);
         if (myPageBtn != null) {
             myPageBtn.setOnClickListener(v -> {
-                // 로그인 상태 확인 후 적절한 화면으로 이동
-                showMyPageOptions();
+                // BottomSheet로 프로필 화면 표시
+                showProfileBottomSheet();
             });
         }
     }
 
     /**
-     * 마이페이지 옵션 표시 (로그인/회원가입 또는 사용자 정보)
+     * 프로필 BottomSheet 표시
      */
-    private void showMyPageOptions() {
-        // SharedPreferences에서 로그인 상태 확인
-        android.content.SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
-        boolean isLoggedIn = prefs.getBoolean("is_logged_in", false);
-        
-        if (isLoggedIn) {
-            // 로그인된 경우 사용자 정보 표시
-            String username = prefs.getString("username", "사용자");
-            showUserInfoDialog(username);
-        } else {
-            // 로그인되지 않은 경우 로그인/회원가입 옵션 표시
-            showLoginOptionsDialog();
+    private void showProfileBottomSheet() {
+        ProfileBottomSheetFragment profileBottomSheet = new ProfileBottomSheetFragment();
+        profileBottomSheet.show(getSupportFragmentManager(), "ProfileBottomSheet");
+    }
+
+    /**
+     * 지도 타입 메뉴 표시
+     */
+    private void showMapTypeMenu(View anchorView) {
+        PopupMenu popupMenu = new PopupMenu(this, anchorView);
+        popupMenu.getMenuInflater().inflate(R.menu.map_type_menu, popupMenu.getMenu());
+
+        popupMenu.setOnMenuItemClickListener(menuItem -> {
+            int itemId = menuItem.getItemId();
+            if (itemId == R.id.map_type_normal) {
+                changeMapType(NaverMap.MapType.Basic);
+                return true;
+            } else if (itemId == R.id.map_type_satellite) {
+                changeMapType(NaverMap.MapType.Satellite);
+                return true;
+            } else if (itemId == R.id.map_type_terrain) {
+                changeMapType(NaverMap.MapType.Terrain);
+                return true;
+            }
+            return false;
+        });
+
+        popupMenu.show();
+    }
+
+    /**
+     * 지도 타입 변경
+     */
+    private void changeMapType(NaverMap.MapType mapType) {
+        if (naverMap != null) {
+            naverMap.setMapType(mapType);
         }
     }
 
     /**
-     * 로그인 옵션 다이얼로그 표시
+     * 홈 메뉴 표시
      */
-    private void showLoginOptionsDialog() {
-        String[] options = {"로그인", "회원가입", "게스트 모드"};
-        
-        new AlertDialog.Builder(this)
-            .setTitle("마이페이지")
-            .setItems(options, (dialog, which) -> {
-                switch (which) {
-                    case 0: // 로그인
-                        Intent loginIntent = new Intent(this, LoginActivity.class);
-                        startActivity(loginIntent);
-                        break;
-                    case 1: // 회원가입
-                        Intent signupIntent = new Intent(this, SignupActivity.class);
-                        startActivity(signupIntent);
-                        break;
-                    case 2: // 게스트 모드
-                        Toast.makeText(this, "🚶 게스트 모드로 시작합니다!", Toast.LENGTH_SHORT).show();
-                        // 게스트 모드는 현재 화면에서 계속 사용
-                        break;
-                }
-            })
-            .setNegativeButton("취소", null)
-            .show();
+    private void showHomeMenu(View anchorView) {
+        PopupMenu popupMenu = new PopupMenu(this, anchorView);
+        popupMenu.getMenuInflater().inflate(R.menu.home_menu, popupMenu.getMenu());
+
+        popupMenu.setOnMenuItemClickListener(menuItem -> {
+            int itemId = menuItem.getItemId();
+            if (itemId == R.id.home_overview) {
+                showKoreaOverview();
+                return true;
+            } else if (itemId == R.id.home_current_location) {
+                moveToCurrentLocation();
+                return true;
+            } else if (itemId == R.id.home_quick_actions) {
+                showQuickActions();
+                return true;
+            } else if (itemId == R.id.home_weather_info) {
+                showWeatherBottomSheet();
+                return true;
+            }
+            return false;
+        });
+
+        popupMenu.show();
     }
 
     /**
-     * 사용자 정보 다이얼로그 표시
+     * 대한민국 전체 보기
      */
-    private void showUserInfoDialog(String username) {
-        String[] options = {"내 정보", "설정", "로그아웃"};
-        
+    private void showKoreaOverview() {
+        if (naverMap != null) {
+            showMainMarkers();
+            LatLngBounds koreaBounds = new LatLngBounds(
+                new LatLng(33.0, 124.0), // 남서쪽
+                new LatLng(43.0, 132.0)  // 북동쪽
+            );
+            CameraUpdate cameraUpdate = CameraUpdate.fitBounds(koreaBounds, 0)
+                .animate(CameraAnimation.Easing, 1200);
+            naverMap.moveCamera(cameraUpdate);
+        }
+    }
+
+    /**
+     * 빠른 액션 메뉴 표시
+     */
+    private void showQuickActions() {
+        String[] actions = {
+            "즐겨찾는 장소",
+            "최근 검색",
+            "내 산책 기록",
+            "설정"
+        };
+
         new AlertDialog.Builder(this)
-            .setTitle("마이페이지 - " + username)
-            .setItems(options, (dialog, which) -> {
+            .setTitle("🏠 홈 - 빠른 액션")
+            .setItems(actions, (dialog, which) -> {
                 switch (which) {
-                    case 0: // 내 정보
-                        showUserInfo();
+                    case 0: // 즐겨찾는 장소
+                        Intent favoritesIntent = new Intent(this, FavoritesActivity.class);
+                        startActivity(favoritesIntent);
                         break;
-                    case 1: // 설정
+                    case 1: // 최근 검색
+                        Toast.makeText(this, "최근 검색 기능은 준비 중입니다", Toast.LENGTH_SHORT).show();
+                        break;
+                    case 2: // 내 산책 기록
+                        Toast.makeText(this, "산책 기록 기능은 준비 중입니다", Toast.LENGTH_SHORT).show();
+                        break;
+                    case 3: // 설정
                         Toast.makeText(this, "설정 기능은 준비 중입니다", Toast.LENGTH_SHORT).show();
                         break;
-                    case 2: // 로그아웃
-                        logout();
-                        break;
                 }
             })
             .setNegativeButton("취소", null)
             .show();
     }
 
-    /**
-     * 로그아웃 처리
-     */
-    private void logout() {
-        android.content.SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
-        android.content.SharedPreferences.Editor editor = prefs.edit();
-        editor.putBoolean("is_logged_in", false);
-        editor.remove("username");
-        editor.apply();
-        
-        Toast.makeText(this, "로그아웃되었습니다", Toast.LENGTH_SHORT).show();
-    }
-
-    /**
-     * 사용자 정보 표시
-     */
-    private void showUserInfo() {
-        UserManager userManager = UserManager.getInstance(this);
-        if (userManager.isLoggedIn()) {
-            String username = userManager.getUsername();
-            int coins = userManager.getCoins();
-            int totalSteps = userManager.getTotalSteps();
-            
-            String message = String.format(
-                "👤 사용자명: %s\n💰 보유 코인: %d개\n🚶 총 걸음수: %d걸음",
-                username, coins, totalSteps
-            );
-            
-            new AlertDialog.Builder(this)
-                .setTitle("내 정보")
-                .setMessage(message)
-                .setPositiveButton("확인", null)
-                .show();
-        } else {
-            Toast.makeText(this, "로그인이 필요합니다", Toast.LENGTH_SHORT).show();
-        }
-    }
 
     /**
      * 바텀시트 초기화 (일반 View 애니메이션 사용)
@@ -1990,7 +1965,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         
         bottomSheetView.setVisibility(View.VISIBLE);
         isBottomSheetVisible = true;
-        Toast.makeText(this, "만보기 패널을 표시했습니다", Toast.LENGTH_SHORT).show();
     }
     
     /**
@@ -2001,7 +1975,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         
         bottomSheetView.setVisibility(View.GONE);
         isBottomSheetVisible = false;
-        Toast.makeText(this, "만보기 패널을 숨겼습니다", Toast.LENGTH_SHORT).show();
     }
     
     /**

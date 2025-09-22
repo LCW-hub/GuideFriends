@@ -49,9 +49,9 @@ public class ForecastAdapter extends RecyclerView.Adapter<ForecastAdapter.ViewHo
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
-            tvTime = itemView.findViewById(R.id.tv_forecast_time);
-            ivIcon = itemView.findViewById(R.id.iv_forecast_icon);
-            tvTemp = itemView.findViewById(R.id.tv_forecast_temp);
+            tvTime = itemView.findViewById(R.id.tv_time);
+            ivIcon = itemView.findViewById(R.id.iv_weather_icon);
+            tvTemp = itemView.findViewById(R.id.tv_temperature);
         }
 
         public void bind(WeatherBottomSheetFragment.WeatherData data) {

@@ -48,7 +48,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="봄 산책의 시작, 산책해찌! 🌸"
+                    android:text="봄 산책의 시작! 🌸"
                     android:textSize="22sp"
                     android:textStyle="bold"
                     android:textColor="@color/textPrimary"
@@ -70,7 +70,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="24dp"
-                app:cardBackgroundColor="@color/cardBackgroundSpring"
+                app:cardBackgroundColor="@android:color/white"
                 app:cardCornerRadius="25dp"
                 app:cardElevation="12dp">
 
@@ -135,36 +135,32 @@
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- 로그인 버튼 -->
-                    <com.google.android.material.button.MaterialButton
+                    <Button
                         android:id="@+id/btnLogin"
                         android:layout_width="match_parent"
                         android:layout_height="56dp"
                         android:text="로그인 🌿"
-                        android:textSize="16sp"
+                        android:textSize="18sp"
                         android:textStyle="bold"
-                        android:background="@drawable/btn_spring_primary"
-                        app:cornerRadius="28dp"
-                        app:icon="@drawable/ic_login"
-                        app:iconGravity="textStart"
-                        app:iconPadding="8dp" />
+                        android:textColor="@android:color/white"
+                        android:background="@drawable/button_login_background"
+                        android:elevation="6dp"
+                        android:layout_marginBottom="16dp" />
 
                 </LinearLayout>
 
             </androidx.cardview.widget.CardView>
 
             <!-- 게스트 모드 버튼 -->
-            <com.google.android.material.button.MaterialButton
+            <Button
                 android:id="@+id/btnGuest"
                 android:layout_width="match_parent"
                 android:layout_height="56dp"
-                        android:text="게스트 모드로 시작 🌸"
+                android:text="게스트 모드로 시작 🌸"
                 android:textSize="16sp"
-                android:textColor="@color/textSecondary"
-                        android:background="@drawable/btn_spring_secondary"
-                app:cornerRadius="28dp"
-                app:icon="@drawable/ic_person"
-                app:iconGravity="textStart"
-                app:iconPadding="8dp"
+                android:textColor="@color/colorPrimary"
+                android:background="@drawable/button_guest_background"
+                android:elevation="4dp"
                 android:layout_marginBottom="32dp" />
 
             <!-- 링크들 -->
