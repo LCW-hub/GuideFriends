@@ -1,5 +1,5 @@
 //비번찾기
-package com.example.gps.activities;
+package com.example.gps.activities.Register_Login;
 
 import android.os.Bundle;
 import android.view.View;

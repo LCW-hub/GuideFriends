@@ -7,6 +7,8 @@ import android.location.Location;
 import android.os.Bundle;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+
+import android.os.UserManager;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -20,6 +22,8 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.gps.R;
+import com.example.gps.activities.Register_Login.LoginActivity;
+import com.example.gps.activities.Register_Login.RegisterActivity;
 import com.example.gps.fragments.ProfileBottomSheetFragment;
 import com.naver.maps.geometry.LatLng;
 import com.naver.maps.geometry.LatLngBounds;
@@ -40,7 +44,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.MotionEvent;
-import android.widget.PopupMenu;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.view.GravityCompat;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
@@ -49,7 +52,6 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.example.gps.fragments.WeatherBottomSheetFragment;
 import com.example.gps.adapters.SearchResultAdapter;
 import com.example.gps.model.SearchResult;
-import com.example.gps.manager.UserManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.naver.maps.map.CameraAnimation;
@@ -73,7 +75,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import android.view.animation.AccelerateDecelerateInterpolator;
-import android.widget.ImageView;
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback {
 
@@ -1768,6 +1769,35 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     /**
+     * 로그인 옵션 다이얼로그 표시
+     */
+    private void showLoginOptionsDialog() {
+        String[] options = {"로그인", "회원가입", "게스트 모드"};
+
+        new AlertDialog.Builder(this)
+                .setTitle("마이페이지")
+                .setItems(options, (dialog, which) -> {
+                    switch (which) {
+                        case 0: // 로그인
+                            Intent loginIntent = new Intent(this, LoginActivity.class);
+                            startActivity(loginIntent);
+
+                            break;
+                        case 1: // 회원가입
+                            Intent signupIntent = new Intent(this, RegisterActivity.class);
+                            startActivity(signupIntent);
+                            break;
+                        case 2: // 게스트 모드
+                            Intent guestIntent = new Intent(this, GuestMain.class);
+                            startActivity(guestIntent);
+                            break;
+                    }
+                })
+                .setNegativeButton("취소", null)
+                .show();
+    }
+
+    /**
      * 프로필 BottomSheet 표시
      */
     private void showProfileBottomSheet() {
@@ -2065,41 +2095,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         long duration = System.currentTimeMillis() - stepCounterStartTime;
         long minutes = duration / (1000 * 60);
         
-        // 로그인한 사용자에게만 코인 보상 제공
-        UserManager userManager = UserManager.getInstance(this);
-        if (userManager.isLoggedIn() && currentSteps > 0) {
-            // 만보기 보상 요청
-            userManager.requestStepReward(currentSteps, new UserManager.StepRewardCallback() {
-                @Override
-                public void onSuccess(int rewardCoins, int totalCoins, String message) {
-                    runOnUiThread(() -> {
-                        String rewardMessage = String.format("만보기를 중지했습니다\n총 %d걸음, %.2fkm, %.1fkcal\n소요시간: %d분\n\n%s", 
-                            currentSteps, currentDistance / 1000.0, currentCalories, minutes, message);
-                        Toast.makeText(MapsActivity.this, rewardMessage, Toast.LENGTH_LONG).show();
-                    });
-                }
-
-                @Override
-                public void onError(String error) {
-                    runOnUiThread(() -> {
-                        String stopMessage = String.format("만보기를 중지했습니다\n총 %d걸음, %.2fkm, %.1fkcal\n소요시간: %d분\n\n보상 오류: %s", 
-                            currentSteps, currentDistance / 1000.0, currentCalories, minutes, error);
-                        Toast.makeText(MapsActivity.this, stopMessage, Toast.LENGTH_LONG).show();
-                    });
-                }
-            });
-        } else {
-            // 비회원이거나 걸음수가 0인 경우
-            String message = userManager.isLoggedIn() ? 
-                "만보기를 중지했습니다\n총 %d걸음, %.2fkm, %.1fkcal\n소요시간: %d분" :
-                "만보기를 중지했습니다\n총 %d걸음, %.2fkm, %.1fkcal\n소요시간: %d분\n\n회원만 코인 보상을 받을 수 있습니다";
-            
-            Toast.makeText(this, 
-                String.format(message, currentSteps, currentDistance / 1000.0, currentCalories, minutes), 
-                Toast.LENGTH_LONG).show();
-        }
+        Toast.makeText(this, "만보기를 중지했습니다. 총 " + minutes + "분 동안 " + currentSteps + "걸음을 걸었습니다.", Toast.LENGTH_LONG).show();
     }
-    
+
     /**
      * 만보기 UI 업데이트
      */

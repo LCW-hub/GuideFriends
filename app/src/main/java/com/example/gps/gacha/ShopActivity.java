@@ -1,5 +1,6 @@
 package com.example.gps.gacha;
 
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.content.Intent;
 import android.widget.Button;
@@ -10,7 +11,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
 import com.example.gps.R;
-import com.example.gps.manager.UserManager;
 
 import java.util.Random;
 
@@ -66,13 +66,17 @@ public class ShopActivity extends AppCompatActivity {
     }
     
     private void loadUserCoins() {
-        UserManager userManager = UserManager.getInstance(this);
-        if (userManager.isLoggedIn()) {
-            coins = userManager.getCoins();
+        // SharedPreferences를 통해 사용자 정보 확인
+        SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+        boolean isLoggedIn = prefs.getBoolean("is_logged_in", false);
+        
+        if (isLoggedIn) {
+            // 로그인된 사용자의 경우 저장된 코인 정보 사용 (기본값 1000)
+            coins = prefs.getInt("user_coins", 1000);
         } else {
-            // 비회원인 경우 기본 코인 0개
+            // 비회원인 경우 기본 코인 1000개 (데모용)
             coins = 1000;
-            Toast.makeText(this, "회원만 상점을 이용할 수 있습니다", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "게스트 모드로 상점을 이용합니다", Toast.LENGTH_SHORT).show();
         }
     }
     
@@ -101,9 +105,12 @@ public class ShopActivity extends AppCompatActivity {
     }
     
     private void performGacha(int count) {
-        UserManager userManager = UserManager.getInstance(this);
-        if (!userManager.isLoggedIn()) {
-            Toast.makeText(this, "회원만 상점을 이용할 수 있습니다", Toast.LENGTH_SHORT).show();
+        // SharedPreferences를 통해 로그인 상태 확인
+        SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+        boolean isLoggedIn = prefs.getBoolean("is_logged_in", false);
+        
+        if (!isLoggedIn) {
+            Toast.makeText(this, "게스트 모드에서는 가챠를 이용할 수 없습니다", Toast.LENGTH_SHORT).show();
             return;
         }
         
@@ -116,35 +123,29 @@ public class ShopActivity extends AppCompatActivity {
         
         // 코인 차감
         int newCoins = coins - cost;
-        userManager.updateCoins(newCoins, new UserManager.CoinUpdateCallback() {
-            @Override
-            public void onSuccess(int updatedCoins) {
-                runOnUiThread(() -> {
-                    coins = updatedCoins;
-                    updateUI();
-                    
-                    if (count == 1) {
-                        String result = getRandomItem();
-                        processItemReward(result);
-                        startCapsuleFlow(false, new String[]{ result });
-                    } else {
-                        String[] results = new String[10];
-                        for (int i = 0; i < 10; i++) {
-                            results[i] = getRandomItem();
-                            processItemReward(results[i]);
-                        }
-                        startCapsuleFlow(true, results);
-                    }
-                });
+        coins = newCoins; // 로컬 변수 업데이트
+        
+        // SharedPreferences에 코인 정보 저장
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putInt("user_coins", newCoins);
+        editor.apply();
+        
+        // UI 업데이트
+        updateUI();
+        
+        // 가챠 실행
+        if (count == 1) {
+            String result = getRandomItem();
+            processItemReward(result);
+            startCapsuleFlow(false, new String[]{ result });
+        } else {
+            String[] results = new String[10];
+            for (int i = 0; i < 10; i++) {
+                results[i] = getRandomItem();
+                processItemReward(results[i]);
             }
-
-            @Override
-            public void onError(String error) {
-                runOnUiThread(() -> {
-                    Toast.makeText(ShopActivity.this, "코인 업데이트 실패: " + error, Toast.LENGTH_SHORT).show();
-                });
-            }
-        });
+            startCapsuleFlow(true, results);
+        }
     }
     
     private String getRandomItem() {
@@ -172,22 +173,17 @@ public class ShopActivity extends AppCompatActivity {
         }
         
         if (rewardCoins > 0) {
-            UserManager userManager = UserManager.getInstance(this);
             int newCoins = coins + rewardCoins;
-            userManager.updateCoins(newCoins, new UserManager.CoinUpdateCallback() {
-                @Override
-                public void onSuccess(int updatedCoins) {
-                    runOnUiThread(() -> {
-                        coins = updatedCoins;
-                        updateUI();
-                    });
-                }
-
-                @Override
-                public void onError(String error) {
-                    // 코인 보상 실패는 조용히 처리 (이미 뽑기는 완료됨)
-                }
-            });
+            coins = newCoins;
+            
+            // SharedPreferences에 코인 정보 저장
+            SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putInt("user_coins", newCoins);
+            editor.apply();
+            
+            // UI 업데이트
+            updateUI();
         }
         // 꽝은 아무것도 하지 않음
         // 기프티콘은 실제로는 사용자가 직접 사용해야 함

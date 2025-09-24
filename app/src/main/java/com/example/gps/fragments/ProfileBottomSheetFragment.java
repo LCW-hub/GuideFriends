@@ -1,5 +1,6 @@
 package com.example.gps.fragments;
 
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
@@ -16,9 +17,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.example.gps.R;
-import com.example.gps.activities.LoginActivity;
-import com.example.gps.activities.SignupActivity;
-import com.example.gps.manager.UserManager;
+import com.example.gps.activities.Register_Login.LoginActivity;
+import com.example.gps.activities.Register_Login.RegisterActivity;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 
 public class ProfileBottomSheetFragment extends BottomSheetDialogFragment {
@@ -73,7 +73,7 @@ public class ProfileBottomSheetFragment extends BottomSheetDialogFragment {
         });
 
         signupButton.setOnClickListener(v -> {
-            Intent intent = new Intent(getContext(), SignupActivity.class);
+            Intent intent = new Intent(getContext(), RegisterActivity.class);
             startActivity(intent);
             dismiss();
         });
@@ -92,7 +92,7 @@ public class ProfileBottomSheetFragment extends BottomSheetDialogFragment {
     }
 
     private void updateUI() {
-        SharedPreferences prefs = getContext().getSharedPreferences("user_prefs", 0);
+        SharedPreferences prefs = getContext().getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
         boolean isLoggedIn = prefs.getBoolean("is_logged_in", false);
 
         if (isLoggedIn) {
@@ -135,10 +135,17 @@ public class ProfileBottomSheetFragment extends BottomSheetDialogFragment {
     }
 
     private void showUserInfo() {
-        UserManager userManager = UserManager.getInstance(getContext());
-        if (userManager.isLoggedIn()) {
+        // SharedPreferences를 통해 로그인 상태 확인
+        SharedPreferences prefs = getContext().getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+        boolean isLoggedIn = prefs.getBoolean("is_logged_in", false);
+        
+        if (isLoggedIn) {
             // 사용자 정보 표시 로직
-            Toast.makeText(getContext(), "사용자 정보를 불러오는 중...", Toast.LENGTH_SHORT).show();
+            String username = prefs.getString("username", "");
+            String email = prefs.getString("email", "");
+            Toast.makeText(getContext(), "사용자: " + username + "\n이메일: " + email, Toast.LENGTH_LONG).show();
+        } else {
+            Toast.makeText(getContext(), "로그인이 필요합니다", Toast.LENGTH_SHORT).show();
         }
     }
 
