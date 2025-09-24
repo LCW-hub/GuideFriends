@@ -79,7 +79,7 @@
                 android:id="@+id/map_view"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:layout_margin="8dp" />
+                android:layout_margin="10dp" />
 
             <!-- 좌측 하단 날씨 위젯 (카카오맵 스타일) -->
             <androidx.cardview.widget.CardView

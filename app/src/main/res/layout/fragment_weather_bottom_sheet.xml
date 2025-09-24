@@ -36,7 +36,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_centerInParent="true"
-                android:text="부천시 소사구 괴안동"
+                android:text="위치를 찾는 중..."
                 android:textColor="@android:color/black"
                 android:textSize="18sp"
                 android:textStyle="bold" />
@@ -80,7 +80,7 @@
                     android:id="@+id/tv_current_temperature"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="24.9°"
+                    android:text="--°"
                     android:textColor="@android:color/black"
                     android:textSize="48sp"
                     android:textStyle="bold"
@@ -91,7 +91,7 @@
                 android:id="@+id/tv_current_weather_status"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="흐림. 어제보다 3° 낮아요"
+                android:text="위치 정보를 가져오는 중..."
                 android:textColor="@android:color/black"
                 android:textSize="16sp"
                 android:layout_marginBottom="8dp" />
@@ -115,7 +115,7 @@
                     android:id="@+id/tv_fine_dust_status"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="좋음"
+                    android:text="--"
                     android:textColor="@android:color/white"
                     android:textSize="12sp"
                     android:paddingHorizontal="8dp"
@@ -135,7 +135,7 @@
                     android:id="@+id/tv_ultrafine_dust_status"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="좋음"
+                    android:text="--"
                     android:textColor="@android:color/white"
                     android:textSize="12sp"
                     android:paddingHorizontal="8dp"
@@ -214,16 +214,6 @@
                     android:textColor="@color/textColorSecondary"
                     android:textSize="12sp" />
             </LinearLayout>
-
-            <TextView
-                android:id="@+id/tv_more_info"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignParentEnd="true"
-                android:layout_centerVertical="true"
-                android:text="더보기>"
-                android:textColor="@color/textColorSecondary"
-                android:textSize="14sp" />
         </RelativeLayout>
 
     </LinearLayout>

@@ -54,6 +54,19 @@ android {
             exclude(group = "androidx.annotation", module = "annotation-experimental")
         }
     }
+    
+    // 리소스 충돌 해결
+    packagingOptions {
+        resources {
+            excludes += setOf(
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt"
+            )
+        }
+    }
 }
 
 dependencies {

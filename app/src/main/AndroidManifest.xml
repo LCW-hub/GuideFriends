@@ -52,9 +52,7 @@
         <activity android:name=".activities.GuestMain" />
         <activity android:name=".activities.NormalMain" />
         <activity android:name=".activities.RegisterActivity" />
-        <activity android:name=".activities.WeatherActivity" />
         <activity android:name=".community.CommunityActivity" />
-        <activity android:name=".activities.TipsActivity" />
         <activity android:name=".activities.FavoritesActivity" />
         <activity android:name=".gacha.CapsuleAnimationActivity" />
         <activity android:name=".gacha.GachaResultActivity" />

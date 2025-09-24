@@ -1,5 +1,7 @@
 package com.example.gps.fragments;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -9,6 +11,9 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -37,7 +42,8 @@ public class WeatherBottomSheetFragment extends BottomSheetDialogFragment {
     private static final String WEATHER_API_KEY = "7a4aa78797771aa887fe9b14a9be94e5";
 
     private TextView tvLocationName, tvCurrentTemp, tvWeatherStatus, tvFineDustStatus, tvUltrafineDustStatus;
-    private TextView tvTabHourly, tvTabDaily, tvUpdateTime, tvWeatherSource, tvMoreInfo;
+    private TextView tvTabHourly, tvTabDaily, tvUpdateTime, tvWeatherSource;
+    // private TextView tvMoreInfo; // 해당 ID가 레이아웃에 없음
     private ImageView ivCloseButton, ivCurrentWeatherIcon;
     private RecyclerView rvHourlyForecast;
     private WeatherForecastAdapter forecastAdapter;
@@ -62,10 +68,24 @@ public class WeatherBottomSheetFragment extends BottomSheetDialogFragment {
         super.onViewCreated(view, savedInstanceState);
         initializeViews(view);
         setupClickListeners();
+        
+        // 위치 정보 확인
         if (getArguments() != null) {
             double lat = getArguments().getDouble(ARG_LAT);
             double lon = getArguments().getDouble(ARG_LON);
-            fetchWeatherData(lat, lon);
+            Log.d("WeatherBottomSheet", "받은 위치 정보: " + lat + ", " + lon);
+            
+            // 위치 권한 확인
+            if (checkLocationPermission()) {
+                fetchWeatherData(lat, lon);
+            } else {
+                // 위치 권한이 없을 때 기본 데이터 표시
+                updateUIWithDefaultData();
+            }
+        } else {
+            Log.w("WeatherBottomSheet", "위치 정보가 전달되지 않음");
+            // 위치 정보가 없을 때 기본 데이터 표시
+            updateUIWithDefaultData();
         }
     }
 
@@ -94,7 +114,7 @@ public class WeatherBottomSheetFragment extends BottomSheetDialogFragment {
         // 하단 정보
         tvUpdateTime = view.findViewById(R.id.tv_update_time);
         tvWeatherSource = view.findViewById(R.id.tv_weather_source);
-        tvMoreInfo = view.findViewById(R.id.tv_more_info);
+        // tvMoreInfo = view.findViewById(R.id.tv_more_info); // 해당 ID가 레이아웃에 없음
     }
     
     private void setupClickListeners() {
@@ -114,8 +134,32 @@ public class WeatherBottomSheetFragment extends BottomSheetDialogFragment {
             tvTabHourly.setBackground(null);
         });
     }
+    
+    // 위치 권한 확인
+    private boolean checkLocationPermission() {
+        Log.d("WeatherBottomSheet", "위치 권한 확인 중...");
+        
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) 
+                != PackageManager.PERMISSION_GRANTED) {
+            Log.w("WeatherBottomSheet", "위치 권한이 없습니다");
+            Toast.makeText(getContext(), "위치 권한이 필요합니다. 설정에서 권한을 허용해주세요.", Toast.LENGTH_LONG).show();
+            return false;
+        }
+        
+        Log.d("WeatherBottomSheet", "위치 권한이 있습니다");
+        return true;
+    }
 
     private void fetchWeatherData(double lat, double lon) {
+        Log.d("WeatherBottomSheet", "날씨 데이터 요청 시작: " + lat + ", " + lon);
+        
+        // 위치 권한 재확인
+        if (!checkLocationPermission()) {
+            Log.w("WeatherBottomSheet", "위치 권한이 없어서 날씨 데이터를 가져올 수 없습니다");
+            updateUIWithDefaultData();
+            return;
+        }
+        
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Handler handler = new Handler(Looper.getMainLooper());
         executor.execute(() -> {
@@ -124,23 +168,40 @@ public class WeatherBottomSheetFragment extends BottomSheetDialogFragment {
                         "https://api.openweathermap.org/data/2.5/forecast?lat=%f&lon=%f&appid=%s&units=metric&lang=kr&cnt=8",
                         lat, lon, WEATHER_API_KEY
                 );
+                Log.d("WeatherBottomSheet", "API URL: " + urlString);
+                
                 URL url = new URL(urlString);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
-                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                StringBuilder response = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    response.append(line);
+                conn.setConnectTimeout(10000); // 10초 타임아웃
+                conn.setReadTimeout(10000); // 10초 타임아웃
+                
+                int responseCode = conn.getResponseCode();
+                Log.d("WeatherBottomSheet", "HTTP 응답 코드: " + responseCode);
+                
+                if (responseCode == 200) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
+                    }
+                    reader.close();
+                    
+                    JSONObject json = new JSONObject(response.toString());
+                    final FullWeatherData fullData = parseForecastData(json);
+                    handler.post(() -> {
+                        Log.d("WeatherBottomSheet", "날씨 데이터 파싱 완료");
+                        updateUI(fullData);
+                    });
+                } else {
+                    Log.e("WeatherBottomSheet", "HTTP 오류: " + responseCode);
+                    handler.post(() -> {
+                        updateUIWithDefaultData();
+                    });
                 }
-                reader.close();
-                JSONObject json = new JSONObject(response.toString());
-                final FullWeatherData fullData = parseForecastData(json);
-                handler.post(() -> {
-                    updateUI(fullData);
-                });
             } catch (Exception e) {
-                Log.e("WeatherAPI", "날씨 정보 로드 실패", e);
+                Log.e("WeatherBottomSheet", "날씨 정보 로드 실패", e);
                 handler.post(() -> {
                     // 기본 데이터로 UI 업데이트
                     updateUIWithDefaultData();
@@ -197,27 +258,29 @@ public class WeatherBottomSheetFragment extends BottomSheetDialogFragment {
     }
     
     private void updateUIWithDefaultData() {
-        tvLocationName.setText("부천시 소사구 괴안동");
-        tvCurrentTemp.setText("24.9°");
-        tvWeatherStatus.setText("흐림. 어제보다 3° 낮아요");
-        tvFineDustStatus.setText("좋음");
-        tvUltrafineDustStatus.setText("좋음");
+        Log.d("WeatherBottomSheet", "기본 데이터로 UI 업데이트");
         
-        // 기본 예보 데이터
-        List<WeatherData> defaultForecast = new ArrayList<>();
-        defaultForecast.add(new WeatherData(25, "20%", "Clouds", 0, 0, "16시"));
-        defaultForecast.add(new WeatherData(24, "30%", "Clouds", 0, 0, "17시"));
-        defaultForecast.add(new WeatherData(23, "30%", "Rain", 0, 0, "18시"));
-        defaultForecast.add(new WeatherData(22, "40%", "Rain", 0, 0, "19시"));
-        defaultForecast.add(new WeatherData(21, "20%", "Clouds", 0, 0, "20시"));
-        defaultForecast.add(new WeatherData(20, "10%", "Clouds", 0, 0, "21시"));
-        defaultForecast.add(new WeatherData(19, "5%", "Clear", 0, 0, "22시"));
+        // 기본 위치 정보 표시
+        tvLocationName.setText("📍 위치 정보를 가져오는 중...");
+        tvCurrentTemp.setText("--°");
+        tvWeatherStatus.setText("위치 정보를 확인하는 중...");
+        tvFineDustStatus.setText("--");
+        tvUltrafineDustStatus.setText("--");
         
-        forecastAdapter.updateData(defaultForecast);
+        // 빈 예보 데이터
+        List<WeatherData> emptyForecast = new ArrayList<>();
+        forecastAdapter.updateData(emptyForecast);
         
         // 업데이트 시간 설정
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd. a hh:mm", Locale.KOREA);
         tvUpdateTime.setText("업데이트 " + sdf.format(new Date()));
+        
+        // 3초 후에 서울 기본 위치로 날씨 정보 요청
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            Log.d("WeatherBottomSheet", "기본 위치(서울)로 날씨 정보 요청");
+            tvLocationName.setText("📍 서울");
+            fetchWeatherData(37.5665, 126.9780);
+        }, 3000);
     }
     
     private int getWeatherIconResource(String weatherMain) {

@@ -1,9 +1,12 @@
 package com.example.gps.activities;
 
+import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -216,6 +219,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
 
+        // 위치 권한 확인
+        checkLocationPermission();
 
         // DrawerLayout 초기화
         coordinatorLayout = findViewById(R.id.coordinator_layout);
@@ -1583,6 +1588,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 // 권한이 승인된 경우
+                Toast.makeText(this, "위치 권한이 허용되었습니다.", Toast.LENGTH_SHORT).show();
                 if (locationSource != null) {
                     locationSource.onRequestPermissionsResult(requestCode, permissions, grantResults);
                 }
@@ -1592,7 +1598,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 }
             } else {
                 // 권한이 거부된 경우
-                Toast.makeText(this, "위치 권한이 필요합니다.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "위치 권한이 필요합니다. 설정에서 권한을 허용해주세요.", Toast.LENGTH_LONG).show();
             }
         }
     }
@@ -2346,4 +2352,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             imm.hideSoftInputFromWindow(etSearch.getWindowToken(), 0);
         }
     }
+    
+    /**
+     * 위치 권한 확인
+     */
+    private void checkLocationPermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) 
+                != PackageManager.PERMISSION_GRANTED) {
+            // 권한이 없으면 요청
+            ActivityCompat.requestPermissions(this, 
+                new String[]{Manifest.permission.ACCESS_FINE_LOCATION, 
+                           Manifest.permission.ACCESS_COARSE_LOCATION}, 
+                LOCATION_PERMISSION_REQUEST_CODE);
+        }
+    }
+    
 }
