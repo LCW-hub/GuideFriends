@@ -49,7 +49,7 @@ public class LoginActivity extends AppCompatActivity {
         textViewFindPassword = findViewById(R.id.tvFindPw);
 
         // 기본값 자동 입력
-        editTextUsername.setText("testuser");
+        editTextUsername.setText("test");
         editTextPassword.setText("1234");
 
         // 로그인 버튼 클릭 리스너
@@ -103,7 +103,25 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
 
-        // API 호출
+        // 임시 계정 체크 (서버 없이 로그인)
+        if ("test".equals(username) && "1234".equals(password)) {
+            // 임시 계정으로 로그인 성공
+            SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putBoolean("is_logged_in", true);
+            editor.putString("username", username);
+            editor.putString("email", "test@example.com");
+            editor.putString("name", "테스트 사용자");
+            editor.putInt("user_coins", 1000);
+            editor.apply();
+            
+            Toast.makeText(this, "임시 계정으로 로그인 성공!", Toast.LENGTH_SHORT).show();
+            startActivity(new Intent(this, NormalMain.class));
+            finish();
+            return;
+        }
+
+        // 기존 API 호출 (임시 계정이 아닌 경우)
         UserApi userApi = ApiClient.getClient().create(UserApi.class);
         User user = new User(username, password, "", "");
 
