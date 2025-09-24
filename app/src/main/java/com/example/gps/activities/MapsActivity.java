@@ -16,7 +16,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.gps.R;
 import com.example.gps.activities.Register_Login.LoginActivity;
-import com.example.gps.activities.Register_Login.SignupActivity;
+import com.example.gps.activities.Register_Login.RegisterActivity;
 import com.naver.maps.geometry.LatLng;
 import com.naver.maps.geometry.LatLngBounds;
 import com.naver.maps.map.NaverMap;
@@ -1829,7 +1829,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                         break;
                     case 1: // 회원가입
-                        Intent signupIntent = new Intent(this, SignupActivity.class);
+                        Intent signupIntent = new Intent(this, RegisterActivity.class);
                         startActivity(signupIntent);
                         break;
                     case 2: // 게스트 모드
