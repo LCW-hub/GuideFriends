@@ -9,17 +9,27 @@ import retrofit2.Call;
 import retrofit2.http.Body;
 import retrofit2.http.GET;
 import retrofit2.http.POST;
+import retrofit2.http.PUT;
+import retrofit2.http.Path;
 
 public interface UserApi {
 
     @POST("/api/users/signup")
-    Call<Map<String, String>> signup(@Body User user);
+    Call<Map<String, Object>> signup(@Body User user);
 
-    // ✅ 이 부분 교체
     @POST("/api/users/login")
-    Call<Map<String, String>> login(@Body User user);
+    Call<Map<String, Object>> login(@Body User user);
 
-    @GET("users/list")
-    Call<List<User>> getUserList();
+    @GET("/api/users/{userId}")
+    Call<Map<String, Object>> getUser(@Path("userId") int userId);
+
+    @PUT("/api/users/{userId}/coins")
+    Call<Map<String, Object>> updateCoins(@Path("userId") int userId, @Body Map<String, Integer> coinData);
+
+    @POST("/api/users/{userId}/step-reward")
+    Call<Map<String, Object>> requestStepReward(@Path("userId") int userId, @Body Map<String, Object> stepData);
+
+    @GET("/api/users")
+    Call<Map<String, Object>> getUserList();
 
 }

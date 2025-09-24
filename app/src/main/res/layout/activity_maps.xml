@@ -79,7 +79,7 @@
                 android:id="@+id/map_view"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:layout_margin="8dp" />
+                android:layout_margin="10dp" />
 
             <!-- 좌측 하단 날씨 위젯 (카카오맵 스타일) -->
             <androidx.cardview.widget.CardView
@@ -135,19 +135,18 @@
                 app:tint="@color/colorPrimary"
                 app:fabSize="mini" />
 
-            <!-- 좌측 상단 원위치 버튼 -->
-            <Button
-                android:id="@+id/btnAll"
+            <!-- 좌측 상단 지도 타입 버튼 -->
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/btnMapType"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="top|start"
                 android:layout_margin="16dp"
-                android:text="원위치"
-                android:textSize="12sp"
-                android:background="@drawable/bg_button_round"
-                android:textColor="@android:color/white" />
+                android:src="@drawable/ic_map"
+                app:backgroundTint="@color/colorPrimary"
+                app:tint="@android:color/white" />
 
-            <!-- 우측 상단 코스 선택 버튼 -->
+            <!-- 우측 상단 코스 선택 버튼 (비활성화) -->
             <com.google.android.material.floatingactionbutton.FloatingActionButton
                 android:id="@+id/btnSelectCourse"
                 android:layout_width="wrap_content"
@@ -155,7 +154,9 @@
                 android:layout_gravity="top|end"
                 android:layout_margin="16dp"
                 android:src="@drawable/ic_chart"
-                app:backgroundTint="@color/colorButton"
+                android:alpha="0.3"
+                android:enabled="false"
+                app:backgroundTint="@color/textColorSecondary"
                 app:tint="@android:color/white" />
 
             <!-- 코스 정보 패널 -->
@@ -285,7 +286,7 @@
                 android:padding="16dp"
                 android:gravity="center">
 
-                <!-- 원위치 버튼 -->
+                <!-- 홈 버튼 -->
                 <LinearLayout
                     android:id="@+id/btn_home"
                     android:layout_width="0dp"
