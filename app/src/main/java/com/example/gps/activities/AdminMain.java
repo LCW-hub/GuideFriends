@@ -10,7 +10,7 @@ import com.example.gps.R;
 public class AdminMain extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+            super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_admin_main);
 
         TextView textView = findViewById(R.id.text_admin_welcome);

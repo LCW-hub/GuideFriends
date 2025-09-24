@@ -5,7 +5,6 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
 import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -16,6 +15,8 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.gps.R;
+import com.example.gps.activities.Register_Login.LoginActivity;
+import com.example.gps.activities.Register_Login.SignupActivity;
 import com.naver.maps.geometry.LatLng;
 import com.naver.maps.geometry.LatLngBounds;
 import com.naver.maps.map.NaverMap;
@@ -37,10 +38,8 @@ import android.util.Log;
 import android.view.MotionEvent;
 import android.widget.PopupMenu;
 import androidx.appcompat.app.AlertDialog;
-import androidx.core.view.GravityCompat;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
 
-import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.example.gps.fragments.WeatherBottomSheetFragment;
 import com.example.gps.adapters.SearchResultAdapter;
 import com.example.gps.model.SearchResult;
@@ -67,7 +66,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import android.view.animation.AccelerateDecelerateInterpolator;
-import android.widget.ImageView;
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback {
 
@@ -1826,19 +1824,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             .setItems(options, (dialog, which) -> {
                 switch (which) {
                     case 0: // 로그인
-                        // Intent loginIntent = new Intent(this, LoginActivity.class);
-                        // startActivity(loginIntent);
-                        Toast.makeText(this, "로그인 기능은 준비 중입니다", Toast.LENGTH_SHORT).show();
+                        Intent loginIntent = new Intent(this, LoginActivity.class);
+                        startActivity(loginIntent);
+
                         break;
                     case 1: // 회원가입
-                        // Intent signupIntent = new Intent(this, SignupActivity.class);
-                        // startActivity(signupIntent);
-                        Toast.makeText(this, "회원가입 기능은 준비 중입니다", Toast.LENGTH_SHORT).show();
+                        Intent signupIntent = new Intent(this, SignupActivity.class);
+                        startActivity(signupIntent);
                         break;
                     case 2: // 게스트 모드
-                        // Intent guestIntent = new Intent(this, GuestMain.class);
-                        // startActivity(guestIntent);
-                        Toast.makeText(this, "게스트 모드 기능은 준비 중입니다", Toast.LENGTH_SHORT).show();
+                        Intent guestIntent = new Intent(this, GuestMain.class);
+                        startActivity(guestIntent);
                         break;
                 }
             })

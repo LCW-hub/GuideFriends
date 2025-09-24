@@ -1,5 +1,5 @@
 //로그인 화면
-package com.example.gps.activities;
+package com.example.gps.activities.Register_Login;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -11,6 +11,8 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import com.example.gps.R;
+import com.example.gps.activities.GuestMain;
+import com.example.gps.activities.NormalMain;
 import com.example.gps.api.ApiClient;
 import com.example.gps.api.UserApi;
 import com.example.gps.model.User;
@@ -70,7 +72,7 @@ public class LoginActivity extends AppCompatActivity {
         textViewSignup.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                startActivity(new Intent(LoginActivity.this, SignupActivity.class));
+                startActivity(new Intent(LoginActivity.this, com.example.gps.activities.Register_Login.SignupActivity.class));
             }
         });
 
