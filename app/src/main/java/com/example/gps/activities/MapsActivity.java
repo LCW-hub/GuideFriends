@@ -18,6 +18,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.gps.R;
 import com.example.gps.fragments.ProfileBottomSheetFragment;
+import com.example.gps.fragments.SearchResultDetailFragment; // [추가됨] 검색 결과 상세 정보창
 import com.naver.maps.geometry.LatLng;
 import com.naver.maps.geometry.LatLngBounds;
 import com.naver.maps.map.NaverMap;
@@ -37,12 +38,9 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.MotionEvent;
-import android.widget.PopupMenu;
 import androidx.appcompat.app.AlertDialog;
-import androidx.core.view.GravityCompat;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
 
-import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.example.gps.fragments.WeatherBottomSheetFragment;
 import com.example.gps.adapters.SearchResultAdapter;
 import com.example.gps.model.SearchResult;
@@ -70,7 +68,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import android.view.animation.AccelerateDecelerateInterpolator;
-import android.widget.ImageView;
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback {
 
@@ -82,10 +79,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // private FacilityManager facilityManager;
 
     private androidx.cardview.widget.CardView courseInfoPanel;
-    
+
     // 메뉴 관련 - 설정 메뉴만 유지
     private Menu optionsMenu;
-    
+
     // 코스 정보 패널 뷰들
     private TextView courseTitle;
     private TextView courseRecommendation;
@@ -100,43 +97,45 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private JSONArray coursesJSON;
     private final List<Marker> activeMarkers = new ArrayList<>();
-    
+
     // API 캐싱 및 제어를 위한 변수들
     private final Map<String, List<LatLng>> routeCache = new HashMap<>();
     private final AtomicInteger pendingApiCalls = new AtomicInteger(0);
     private static final int MAX_CONCURRENT_API_CALLS = 2; // 동시 API 호출 제한 더 엄격하게
     private static final long API_DELAY_MS = 500; // API 호출 간격 증가 (500ms)
     private static final int MAX_RETRY_COUNT = 3; // 최대 재시도 횟수
-    
+
     // 드래그 관련 변수들
     private float initialTouchY = 0f;
     private float initialPanelY = 0f;
     private boolean isDragging = false;
-    
+
     // 바텀시트 관련 변수들 (일반 View 애니메이션 사용)
     private View bottomSheetView = null;
     private boolean isBottomSheetVisible = false;
     private static final float PANEL_VISIBLE_Y = 0f;
     private static final float DRAG_THRESHOLD = 80f; // 드래그 임계값 조정
-    
+
     // 코스별 패널 숨김 위치 (각 코스의 패널 높이에 맞춰 조정)
     private static final float[] PANEL_HIDDEN_Y_VALUES = {
-        745f,  // 1코스 - 핸들 부분만 보이도록 큰 값으로 조정
-        680f,  // 2코스 - 중간 길이 설명에 맞춰 조정
-        800f   // 3코스 - 긴 설명에 맞춰 가장 크게 조정
+            745f,  // 1코스 - 핸들 부분만 보이도록 큰 값으로 조정
+            680f,  // 2코스 - 중간 길이 설명에 맞춰 조정
+            800f   // 3코스 - 긴 설명에 맞춰 가장 크게 조정
     };
-    
+
     private int currentCourseIndex = -1; // 현재 선택된 코스 인덱스
-    
+
     // 검색 관련 변수들
     private EditText etSearch;
     private ImageView ivSearchIcon;
     private RecyclerView rvSearchResults;
     private SearchResultAdapter searchResultAdapter;
-    // 네이버 클라우드 플랫폼 API Gateway 키 (실제 키로 교체 필요)
-    private static final String NAVER_CLIENT_ID = "YOUR_NCP_CLIENT_ID";
-    private static final String NAVER_CLIENT_SECRET = "YOUR_NCP_CLIENT_SECRET";
-    
+    private Marker searchResultMarker = null; // [추가됨] 검색 결과 마커를 관리하기 위한 변수
+
+
+    private static final String NAVER_CLIENT_ID = "OAQnuwhbAL34Of8mlxve";
+    private static final String NAVER_CLIENT_SECRET = "4roXQDJBpc";
+
     // 코스별 정보 데이터
     private static class CourseInfo {
         String title;
@@ -146,9 +145,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         String difficulty;
         String description;
         int titleColor;
-        
-        CourseInfo(String title, String recommendation, String distance, String duration, 
-                  String difficulty, String description, int titleColor) {
+
+        CourseInfo(String title, String recommendation, String distance, String duration,
+                   String difficulty, String description, int titleColor) {
             this.title = title;
             this.recommendation = recommendation;
             this.distance = distance;
@@ -158,35 +157,35 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             this.titleColor = titleColor;
         }
     }
-    
+
     private CourseInfo[] courseInfos = {
-        new CourseInfo(
-            "둘레길 1코스 - 역사 탐방길",
-            "👨‍👩‍👧‍👦 가족 단위, 초보자 추천",
-            "📏 거리: 3.2km",
-            "⏱️ 소요시간: 1시간30분",
-            "⭐ 난이도: 쉬움",
-            "남한산성의 대표적인 입문 코스로, 주요 성문과 역사적 건물들을 둘러볼 수 있습니다. 경사가 완만하여 어린이나 어르신도 부담 없이 걸을 수 있으며, 조선시대 역사와 문화를 체험할 수 있는 최적의 코스입니다.",
-            0xFFFF5722
-        ),
-        new CourseInfo(
-            "둘레길 2코스 - 문화 체험길",
-            "🎭 중급자, 문화 애호가 추천",
-            "📏 거리: 2.8km",
-            "⏱️ 소요시간: 2시간",
-            "⭐⭐ 난이도: 보통",
-            "남한산성의 문화유산을 집중적으로 탐방할 수 있는 코스입니다. 영월정, 수어장대 등 조선시대 건축물과 국청사, 숭렬전 등 역사적 의미가 깊은 장소들을 만날 수 있어 역사 공부에 최적입니다.",
-            0xFF2196F3
-        ),
-        new CourseInfo(
-            "둘레길 3코스 - 자연 힐링길",
-            "🏔️ 고급자, 자연 애호가 추천",
-            "📏 거리: 4.1km",
-            "⏱️ 소요시간: 2시간30분",
-            "⭐⭐⭐ 난이도: 어려움",
-            "남한산성의 자연경관을 만끽할 수 있는 코스입니다. 벌봉 정상에서의 탁 트인 전망과 깊은 숲길, 계곡을 따라 걸으며 사계절 아름다운 자연을 느낄 수 있습니다. 체력적으로 도전적이지만 그만큼 큰 만족감을 줍니다.",
-            0xFF4CAF50
-        )
+            new CourseInfo(
+                    "둘레길 1코스 - 역사 탐방길",
+                    "👨‍👩‍👧‍👦 가족 단위, 초보자 추천",
+                    "📏 거리: 3.2km",
+                    "⏱️ 소요시간: 1시간30분",
+                    "⭐ 난이도: 쉬움",
+                    "남한산성의 대표적인 입문 코스로, 주요 성문과 역사적 건물들을 둘러볼 수 있습니다. 경사가 완만하여 어린이나 어르신도 부담 없이 걸을 수 있으며, 조선시대 역사와 문화를 체험할 수 있는 최적의 코스입니다.",
+                    0xFFFF5722
+            ),
+            new CourseInfo(
+                    "둘레길 2코스 - 문화 체험길",
+                    "🎭 중급자, 문화 애호가 추천",
+                    "📏 거리: 2.8km",
+                    "⏱️ 소요시간: 2시간",
+                    "⭐⭐ 난이도: 보통",
+                    "남한산성의 문화유산을 집중적으로 탐방할 수 있는 코스입니다. 영월정, 수어장대 등 조선시대 건축물과 국청사, 숭렬전 등 역사적 의미가 깊은 장소들을 만날 수 있어 역사 공부에 최적입니다.",
+                    0xFF2196F3
+            ),
+            new CourseInfo(
+                    "둘레길 3코스 - 자연 힐링길",
+                    "🏔️ 고급자, 자연 애호가 추천",
+                    "📏 거리: 4.1km",
+                    "⏱️ 소요시간: 2시간30분",
+                    "⭐⭐⭐ 난이도: 어려움",
+                    "남한산성의 자연경관을 만끽할 수 있는 코스입니다. 벌봉 정상에서의 탁 트인 전망과 깊은 숲길, 계곡을 따라 걸으며 사계절 아름다운 자연을 느낄 수 있습니다. 체력적으로 도전적이지만 그만큼 큰 만족감을 줍니다.",
+                    0xFF4CAF50
+            )
     };
 
     private boolean isDangerZonesVisible = true;
@@ -201,7 +200,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private double accumulatedDistance = 0.0;
     private LatLng lastMovedPosition = null;
-    
+
     // 만보기 관련 변수들
     private boolean isStepCounterRunning = false;
     private int currentSteps = 0;
@@ -248,7 +247,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         // 코스 데이터 로드
         loadCoursesFromJSON();
-        
+
         // 날씨 정보 로드
         loadWeatherData();
 
@@ -260,7 +259,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         com.google.android.material.floatingactionbutton.FloatingActionButton btnMyLocation = findViewById(R.id.btnMyLocation);
         androidx.cardview.widget.CardView weatherWidget = findViewById(R.id.weather_widget);
         com.google.android.material.floatingactionbutton.FloatingActionButton btnSelectCourse = findViewById(R.id.btnSelectCourse);
-        
+
         // 날씨 위젯 뷰들
         ImageView ivWeatherIcon = findViewById(R.id.iv_weather_icon);
         TextView tvTemperature = findViewById(R.id.tv_temperature);
@@ -275,7 +274,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         // 아이콘 버튼들 초기화 및 이벤트 설정
         setupIconButtons();
-        
+
         // 바텀시트 초기화
         setupBottomSheet();
         // 코스 선택 버튼 비활성화 (클릭 이벤트 제거)
@@ -293,7 +292,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // 시뮬레이션 중지 메서드
     private void stopSimulation() {
         isSimulationRunning = false;
-        
+
         // 현재위치 마커 제거
         for (int i = activeMarkers.size() - 1; i >= 0; i--) {
             Marker marker = activeMarkers.get(i);
@@ -310,7 +309,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         locationSource = new FusedLocationSource(this, LOCATION_PERMISSION_REQUEST_CODE);
         naverMap.setLocationSource(locationSource);
         naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
-        
+
         // loadDangerZones();
         // loadFacilities();
 
@@ -396,7 +395,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 sb.append(line);
             }
             reader.close();
-            
+
             JSONArray dangerZones = new JSONArray(sb.toString());
             // dangerZoneManager.displayDangerZones(this, naverMap, dangerZones);
         } catch (Exception e) {
@@ -417,7 +416,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 sb.append(line);
             }
             reader.close();
-            
+
             JSONArray facilities = new JSONArray(sb.toString());
             // facilityManager.displayFacilities(this, naverMap, facilities);
         } catch (Exception e) {
@@ -462,33 +461,33 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             overlay.setMap(null);
         }
         pathOverlays.clear();
-        
+
         // 캐시 크기 관리 (100개 이상이면 절반 정리)
         if (routeCache.size() > 100) {
             clearOldCache();
         }
     }
-    
+
     // 오래된 캐시 정리 (메모리 관리)
     private void clearOldCache() {
         Log.d("TMapAPI", "캐시 정리 시작 - 현재 캐시 수: " + routeCache.size());
         int targetSize = routeCache.size() / 2;
         List<String> keysToRemove = new ArrayList<>();
-        
+
         int count = 0;
         for (String key : routeCache.keySet()) {
             if (count >= targetSize) break;
             keysToRemove.add(key);
             count++;
         }
-        
+
         for (String key : keysToRemove) {
             routeCache.remove(key);
         }
-        
+
         Log.d("TMapAPI", "캐시 정리 완료 - 정리 후 캐시 수: " + routeCache.size());
     }
-    
+
     // 전체 캐시 지우기 (필요시 사용)
     private void clearAllCache() {
         routeCache.clear();
@@ -497,22 +496,26 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private int getColorForIndex(int i) {
         switch (i) {
-            case 0: return 0xFFFF0000;
-            case 1: return 0xFF0077FF;
-            case 2: return 0xFF00AA00;
-            default: return 0xFF888888;
+            case 0:
+                return 0xFFFF0000;
+            case 1:
+                return 0xFF0077FF;
+            case 2:
+                return 0xFF00AA00;
+            default:
+                return 0xFF888888;
         }
     }
 
     private void requestTMapWalkSegment(LatLng start, LatLng end, int color) {
         requestTMapWalkSegmentWithRetry(start, end, color, 0);
     }
-    
+
     private void requestTMapWalkSegmentWithRetry(LatLng start, LatLng end, int color, int retryCount) {
         // 캐시 키 생성
-        String cacheKey = String.format("%.6f,%.6f_%.6f,%.6f", 
-            start.latitude, start.longitude, end.latitude, end.longitude);
-        
+        String cacheKey = String.format("%.6f,%.6f_%.6f,%.6f",
+                start.latitude, start.longitude, end.latitude, end.longitude);
+
         // 캐시에서 확인 (단, 직선 경로가 아닌 경우만)
         if (routeCache.containsKey(cacheKey)) {
             List<LatLng> cachedPath = routeCache.get(cacheKey);
@@ -522,37 +525,37 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 return;
             }
         }
-        
+
         // 최대 재시도 횟수 초과 시 경로 표시하지 않음
         if (retryCount >= MAX_RETRY_COUNT) {
             Log.w("TMapAPI", "최대 재시도 횟수 초과 - 경로 표시 안함: " + cacheKey);
-            new Handler(Looper.getMainLooper()).post(() -> 
-                Toast.makeText(MapsActivity.this, "⚠️ 일부 경로를 불러오지 못했습니다.", Toast.LENGTH_SHORT).show()
+            new Handler(Looper.getMainLooper()).post(() ->
+                    Toast.makeText(MapsActivity.this, "⚠️ 일부 경로를 불러오지 못했습니다.", Toast.LENGTH_SHORT).show()
             );
             return;
         }
-        
+
         // 동시 API 호출 수 확인
         int currentCalls = pendingApiCalls.get();
         if (currentCalls >= MAX_CONCURRENT_API_CALLS) {
             Log.w("TMapAPI", "API 호출 대기 중... 현재 대기: " + currentCalls + ", 재시도: " + retryCount);
             // 잠시 후 재시도
-            new Handler(Looper.getMainLooper()).postDelayed(() -> 
-                requestTMapWalkSegmentWithRetry(start, end, color, retryCount), API_DELAY_MS * 2);
+            new Handler(Looper.getMainLooper()).postDelayed(() ->
+                    requestTMapWalkSegmentWithRetry(start, end, color, retryCount), API_DELAY_MS * 2);
             return;
         }
-        
+
         // API 호출 수 증가
         pendingApiCalls.incrementAndGet();
-        
+
         new Thread(() -> {
             try {
                 // API 호출 간 딜레이 (재시도일 때는 더 길게)
                 long delay = API_DELAY_MS + (retryCount * 300);
                 Thread.sleep(delay);
-                
+
                 Log.d("TMapAPI", "경로 요청: " + cacheKey + " (재시도: " + retryCount + ", 대기중: " + pendingApiCalls.get() + ")");
-                
+
                 URL url = new URL("https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1&format=json");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
@@ -586,14 +589,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 if (code == 429) {
                     Log.w("TMapAPI", "API 할당량 초과 (재시도 " + retryCount + ") - " + delay + "ms 후 재시도");
                     // 429 오류 시 더 긴 딜레이 후 재시도
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> 
-                        requestTMapWalkSegmentWithRetry(start, end, color, retryCount + 1), delay * 2);
+                    new Handler(Looper.getMainLooper()).postDelayed(() ->
+                            requestTMapWalkSegmentWithRetry(start, end, color, retryCount + 1), delay * 2);
                     return;
                 } else if (code != 200) {
                     Log.e("TMapAPI", "HTTP 오류 " + code + " (재시도 " + retryCount + "): " + sb);
                     // 다른 HTTP 오류도 재시도
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> 
-                        requestTMapWalkSegmentWithRetry(start, end, color, retryCount + 1), delay);
+                    new Handler(Looper.getMainLooper()).postDelayed(() ->
+                            requestTMapWalkSegmentWithRetry(start, end, color, retryCount + 1), delay);
                     return;
                 }
 
@@ -611,7 +614,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         }
                     }
                 }
-                
+
                 // 실제 경로만 표시 (3개 이상 포인트인 경우만)
                 if (path.size() > 2) {
                     routeCache.put(cacheKey, new ArrayList<>(path));
@@ -619,15 +622,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     new Handler(Looper.getMainLooper()).post(() -> drawSegment(path, color));
                 } else {
                     Log.w("TMapAPI", "유효하지 않은 경로 응답 (포인트: " + path.size() + ") - 재시도");
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> 
-                        requestTMapWalkSegmentWithRetry(start, end, color, retryCount + 1), delay);
+                    new Handler(Looper.getMainLooper()).postDelayed(() ->
+                            requestTMapWalkSegmentWithRetry(start, end, color, retryCount + 1), delay);
                 }
 
             } catch (Exception e) {
                 Log.e("TMapAPI", "경로 요청 실패 (재시도 " + retryCount + "): " + e.getMessage(), e);
                 // 예외 발생 시에도 재시도
-                new Handler(Looper.getMainLooper()).postDelayed(() -> 
-                    requestTMapWalkSegmentWithRetry(start, end, color, retryCount + 1), API_DELAY_MS * (retryCount + 1));
+                new Handler(Looper.getMainLooper()).postDelayed(() ->
+                        requestTMapWalkSegmentWithRetry(start, end, color, retryCount + 1), API_DELAY_MS * (retryCount + 1));
             } finally {
                 // API 호출 수 감소
                 pendingApiCalls.decrementAndGet();
@@ -642,14 +645,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         overlay.setWidth(12);
         overlay.setMap(naverMap);
         pathOverlays.add(overlay);
-        
+
         // 실제 경로 표시 완료 로그
         Log.d("TMapAPI", "✅ 실제 보행 경로 표시 완료 (포인트: " + path.size() + ")");
-        
+
         // 첫 번째 경로가 표시될 때만 성공 토스트 (중복 방지)
         if (pathOverlays.size() == 1) {
-            new Handler(Looper.getMainLooper()).post(() -> 
-                Toast.makeText(MapsActivity.this, "✅ 실제 보행 경로가 표시되었습니다!", Toast.LENGTH_SHORT).show()
+            new Handler(Looper.getMainLooper()).post(() ->
+                    Toast.makeText(MapsActivity.this, "✅ 실제 보행 경로가 표시되었습니다!", Toast.LENGTH_SHORT).show()
             );
         }
     }
@@ -657,11 +660,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void showMainMarkers() {
         try {
             clearMap();
-            
+
             // 원형 버튼들과 정보 패널 완전히 숨기기
             courseInfoPanel.setVisibility(View.GONE);
             currentCourseIndex = -1; // 코스 인덱스 초기화
-            
+
             // 남한산성 둘레길 마커 (산성로터리 위치) - 귀여운 스타일
             Marker namhansanMarker = new Marker();
             namhansanMarker.setPosition(new LatLng(37.478046, 127.184021));
@@ -670,31 +673,31 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             namhansanMarker.setWidth(60);
             namhansanMarker.setHeight(60);
             namhansanMarker.setMap(naverMap);
-            
+
             // 남한산성 마커 클릭 이벤트
             namhansanMarker.setOnClickListener(overlay -> {
                 // 남한산성으로 부드럽게 이동하면서 확대
                 CameraUpdate cameraUpdate = CameraUpdate.scrollAndZoomTo(
-                    new LatLng(37.478046, 127.184021), 14)
-                    .animate(CameraAnimation.Easing, 1500);
+                                new LatLng(37.478046, 127.184021), 14)
+                        .animate(CameraAnimation.Easing, 1500);
                 naverMap.moveCamera(cameraUpdate);
-                
+
                 // 코스 선택 버튼 보이기
                 btnCloseInfo.setVisibility(View.VISIBLE);
                 btnCloseInfo.setText("닫기");
-                
+
                 // 코스 선택 애니메이션
                 courseInfoPanel.animate()
-                    .translationY(PANEL_VISIBLE_Y)
-                    .setDuration(500)
-                    .setInterpolator(new AccelerateDecelerateInterpolator())
-                    .start();
-                
+                        .translationY(PANEL_VISIBLE_Y)
+                        .setDuration(500)
+                        .setInterpolator(new AccelerateDecelerateInterpolator())
+                        .start();
+
                 // 코스 선택 안내 메시지
                 Toast.makeText(MapsActivity.this, "우측 상단 버튼에서 원하는 코스를 선택하세요.", Toast.LENGTH_LONG).show();
                 return true;
             });
-            
+
             // 북한산 둘레길 마커 (북한산 위치) - 귀여운 스타일
             Marker bukhansanMarker = new Marker();
             bukhansanMarker.setPosition(new LatLng(37.6586, 126.9770));
@@ -703,34 +706,34 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             bukhansanMarker.setWidth(60);
             bukhansanMarker.setHeight(60);
             bukhansanMarker.setMap(naverMap);
-            
+
             // 북한산 마커 클릭 이벤트
             bukhansanMarker.setOnClickListener(overlay -> {
                 // 북한산으로 부드럽게 이동하면서 확대
                 CameraUpdate cameraUpdate = CameraUpdate.scrollAndZoomTo(
-                    new LatLng(37.6586, 126.9770), 14)
-                    .animate(CameraAnimation.Easing, 1500);
+                                new LatLng(37.6586, 126.9770), 14)
+                        .animate(CameraAnimation.Easing, 1500);
                 naverMap.moveCamera(cameraUpdate);
-                
+
                 // 코스 선택 버튼 보이기
                 btnCloseInfo.setVisibility(View.VISIBLE);
                 btnCloseInfo.setText("닫기");
-                
+
                 // 코스 선택 애니메이션
                 courseInfoPanel.animate()
-                    .translationY(PANEL_VISIBLE_Y)
-                    .setDuration(500)
-                    .setInterpolator(new AccelerateDecelerateInterpolator())
-                    .start();
-                
+                        .translationY(PANEL_VISIBLE_Y)
+                        .setDuration(500)
+                        .setInterpolator(new AccelerateDecelerateInterpolator())
+                        .start();
+
                 // 코스 선택 안내 메시지
                 Toast.makeText(MapsActivity.this, "우측 상단 버튼에서 원하는 코스를 선택하세요.", Toast.LENGTH_LONG).show();
                 return true;
             });
-            
+
             activeMarkers.add(namhansanMarker);
             activeMarkers.add(bukhansanMarker);
-            
+
         } catch (Exception e) {
             Log.e("ShowMainMarkers", "메인 마커 표시 실패", e);
         }
@@ -789,11 +792,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 Marker marker = new Marker();
                 marker.setPosition(new LatLng(m.getDouble("lat"), m.getDouble("lng")));
                 marker.setCaptionText(m.getString("name"));
-                
+
                 // 위치별 커스텀 마커 아이콘 설정
                 String locationName = m.getString("name");
                 int markerIcon = getMarkerIconForLocation(locationName);
-                
+
                 if (isPhotoMarker(locationName)) {
                     // 실제 사진인 경우 원형으로 변환해서 적용
                     OverlayImage circularImage = getCircularMarkerImageFromAssets(getPhotoFileName(locationName), color);
@@ -806,7 +809,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     marker.setWidth(60);
                     marker.setHeight(60);
                 }
-                
+
                 // 마커 클릭 이벤트 설정
                 final String finalLocationName = locationName;
                 marker.setOnClickListener(overlay -> {
@@ -815,7 +818,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     Toast.makeText(MapsActivity.this, finalLocationName + " 클릭됨", Toast.LENGTH_SHORT).show();
                     return true;
                 });
-                
+
                 marker.setMap(naverMap);
                 activeMarkers.add(marker);
             }
@@ -829,7 +832,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 LatLng end = new LatLng(p2.getDouble("lat"), p2.getDouble("lng"));
                 requestTMapWalkSegment(start, end, color);
             }
-            
+
             Log.d("DisplaySingleCourse", courseName + " 표시 완료");
         } catch (Exception e) {
             Log.e("DisplaySingleCourse", "단일 코스 표시 실패", e);
@@ -880,17 +883,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             InputStream inputStream = getAssets().open("images/" + fileName);
             Bitmap originalBitmap = BitmapFactory.decodeStream(inputStream);
             inputStream.close();
-            
+
             if (originalBitmap == null) {
                 return OverlayImage.fromResource(R.drawable.marker_circle_red);
             }
 
             // 원형 비트맵 생성
             Bitmap circularBitmap = getCircularBitmap(originalBitmap);
-            
+
             // 테두리 추가
             Bitmap finalBitmap = addBorderToCircularBitmap(circularBitmap, borderColor);
-            
+
             return OverlayImage.fromBitmap(finalBitmap);
         } catch (Exception e) {
             Log.e("AssetLoader", "이미지 로드 실패: " + fileName, e);
@@ -964,17 +967,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         paint.setAntiAlias(true);
         canvas.drawARGB(0, 0, 0, 0);
         paint.setColor(0xFFFFFFFF);
-        
+
         // 원형 마스크 생성
         canvas.drawOval(rectF, paint);
-        
+
         paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_IN));
-        
+
         // 원본 이미지를 정사각형으로 크롭
         int x = (bitmap.getWidth() - size) / 2;
         int y = (bitmap.getHeight() - size) / 2;
         Bitmap squareBitmap = Bitmap.createBitmap(bitmap, x, y, size, size);
-        
+
         canvas.drawBitmap(squareBitmap, rect, rect, paint);
 
         return output;
@@ -984,40 +987,40 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private Bitmap addBorderToCircularBitmap(Bitmap src, int borderColor) {
         int borderWidth = 6;
         int size = src.getWidth() + borderWidth * 2;
-        
+
         Bitmap output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(output);
-        
+
         Paint borderPaint = new Paint();
         borderPaint.setColor(borderColor);
         borderPaint.setStyle(Paint.Style.FILL);
         borderPaint.setAntiAlias(true);
-        
+
         // 테두리 원 그리기
         canvas.drawCircle(size / 2f, size / 2f, size / 2f, borderPaint);
-        
+
         // 내부 흰색 원 그리기
         Paint whitePaint = new Paint();
         whitePaint.setColor(0xFFFFFFFF);
         whitePaint.setStyle(Paint.Style.FILL);
         whitePaint.setAntiAlias(true);
         canvas.drawCircle(size / 2f, size / 2f, (size - borderWidth * 2) / 2f, whitePaint);
-        
+
         // 원형 이미지 그리기
         canvas.drawBitmap(src, borderWidth, borderWidth, null);
-        
+
         return output;
     }
 
     // 코스 정보 표시
     private void showCourseInfo(int courseIndex) {
         if (courseIndex < 0 || courseIndex >= courseInfos.length) return;
-        
+
         // 현재 코스 인덱스 저장
         currentCourseIndex = courseIndex;
-        
+
         CourseInfo info = courseInfos[courseIndex];
-        
+
         // 코스 정보 업데이트
         courseTitle.setText(info.title);
         courseTitle.setTextColor(info.titleColor);
@@ -1027,16 +1030,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         courseDuration.setText(info.duration);
         courseDifficulty.setText(info.difficulty);
         courseDescription.setText(info.description);
-        
+
         // 패널 보이기
         courseInfoPanel.setVisibility(View.VISIBLE);
-        
+
         // 슬라이드 업 애니메이션
         courseInfoPanel.animate()
-            .translationY(PANEL_VISIBLE_Y)
-            .setDuration(500)
-            .setInterpolator(new AccelerateDecelerateInterpolator())
-            .start();
+                .translationY(PANEL_VISIBLE_Y)
+                .setDuration(500)
+                .setInterpolator(new AccelerateDecelerateInterpolator())
+                .start();
     }
 
     // 코스 정보 패널 숨기기
@@ -1046,72 +1049,69 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
         // 슬라이드 다운 애니메이션 (핸들은 보이도록)
         courseInfoPanel.animate()
-            .translationY(PANEL_HIDDEN_Y_VALUES[currentCourseIndex])
-            .setDuration(300)
-            .setInterpolator(new AccelerateDecelerateInterpolator())
-            .withEndAction(() -> {
-                // 패널이 완전히 내려간 후 초기화면(메인 마커만)으로 전환
-                showMainMarkers();
-            })
-            .start();
+                .translationY(PANEL_HIDDEN_Y_VALUES[currentCourseIndex])
+                .setDuration(300)
+                .setInterpolator(new AccelerateDecelerateInterpolator())
+                .withEndAction(() -> {
+                    // 패널이 완전히 내려간 후 초기화면(메인 마커만)으로 전환
+                    showMainMarkers();
+                })
+                .start();
         // visibility는 VISIBLE로 유지하여 드래그 가능하도록 함
     }
 
     // 패널 드래그 기능 설정
     private void setupPanelDrag() {
-        courseInfoPanel.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                // 유효한 코스가 선택되지 않은 경우 드래그 비활성화
-                if (currentCourseIndex < 0 || currentCourseIndex >= PANEL_HIDDEN_Y_VALUES.length) {
-                    return false;
-                }
-                
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        // 터치 시작
-                        initialTouchY = event.getRawY();
-                        initialPanelY = courseInfoPanel.getTranslationY();
-                        isDragging = false;
-                        return true;
+        courseInfoPanel.setOnTouchListener((v, event) -> {
+            // 유효한 코스가 선택되지 않은 경우 드래그 비활성화
+            if (currentCourseIndex < 0 || currentCourseIndex >= PANEL_HIDDEN_Y_VALUES.length) {
+                return false;
+            }
 
-                    case MotionEvent.ACTION_MOVE:
-                        // 드래그 중
-                        if (!isDragging) {
-                            float deltaY = Math.abs(event.getRawY() - initialTouchY);
-                            if (deltaY > 10) { // 최소 드래그 감지 거리
-                                isDragging = true;
-                            }
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    // 터치 시작
+                    initialTouchY = event.getRawY();
+                    initialPanelY = courseInfoPanel.getTranslationY();
+                    isDragging = false;
+                    return true;
+
+                case MotionEvent.ACTION_MOVE:
+                    // 드래그 중
+                    if (!isDragging) {
+                        float deltaY = Math.abs(event.getRawY() - initialTouchY);
+                        if (deltaY > 10) { // 최소 드래그 감지 거리
+                            isDragging = true;
                         }
+                    }
 
-                        if (isDragging) {
-                            float currentY = event.getRawY();
-                            float deltaY = currentY - initialTouchY;
-                            float newTranslationY = initialPanelY + deltaY;
+                    if (isDragging) {
+                        float currentY = event.getRawY();
+                        float deltaY = currentY - initialTouchY;
+                        float newTranslationY = initialPanelY + deltaY;
 
-                            // 패널이 너무 위로 올라가거나 아래로 내려가지 않도록 제한
-                            newTranslationY = Math.max(PANEL_VISIBLE_Y, newTranslationY);
-                            newTranslationY = Math.min(PANEL_HIDDEN_Y_VALUES[currentCourseIndex], newTranslationY);
+                        // 패널이 너무 위로 올라가거나 아래로 내려가지 않도록 제한
+                        newTranslationY = Math.max(PANEL_VISIBLE_Y, newTranslationY);
+                        newTranslationY = Math.min(PANEL_HIDDEN_Y_VALUES[currentCourseIndex], newTranslationY);
 
-                            courseInfoPanel.setTranslationY(newTranslationY);
-                        }
-                        return true;
+                        courseInfoPanel.setTranslationY(newTranslationY);
+                    }
+                    return true;
 
-                    case MotionEvent.ACTION_UP:
-                    case MotionEvent.ACTION_CANCEL:
-                        // 터치 종료
-                        if (isDragging) {
-                            handlePanelDragEnd();
-                        } else {
-                            // 단순 터치인 경우 아무것도 하지 않음 (버튼 클릭 등을 방해하지 않음)
-                            return false;
-                        }
-                        isDragging = false;
-                        return true;
-
-                    default:
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    // 터치 종료
+                    if (isDragging) {
+                        handlePanelDragEnd();
+                    } else {
+                        // 단순 터치인 경우 아무것도 하지 않음 (버튼 클릭 등을 방해하지 않음)
                         return false;
-                }
+                    }
+                    isDragging = false;
+                    return true;
+
+                default:
+                    return false;
             }
         });
     }
@@ -1122,7 +1122,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (currentCourseIndex < 0 || currentCourseIndex >= PANEL_HIDDEN_Y_VALUES.length) {
             return;
         }
-        
+
         float currentY = courseInfoPanel.getTranslationY();
         float targetY;
         long duration;
@@ -1133,19 +1133,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             targetY = PANEL_HIDDEN_Y_VALUES[currentCourseIndex];
             duration = 250;
             courseInfoPanel.animate()
-                .translationY(targetY)
-                .setDuration(duration)
-                .setInterpolator(new AccelerateDecelerateInterpolator())
-                .start();
+                    .translationY(targetY)
+                    .setDuration(duration)
+                    .setInterpolator(new AccelerateDecelerateInterpolator())
+                    .start();
         } else {
             // 위쪽에서 놓은 경우 다시 완전히 보이기
             targetY = PANEL_VISIBLE_Y;
             duration = 200;
             courseInfoPanel.animate()
-                .translationY(targetY)
-                .setDuration(duration)
-                .setInterpolator(new AccelerateDecelerateInterpolator())
-                .start();
+                    .translationY(targetY)
+                    .setDuration(duration)
+                    .setInterpolator(new AccelerateDecelerateInterpolator())
+                    .start();
         }
     }
 
@@ -1157,19 +1157,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
 
         Toast.makeText(this, "가짜 GPS 시뮬레이션을 시작합니다!", Toast.LENGTH_SHORT).show();
-        
+
         // 시작점에서 도착점까지의 경로 표시
         requestTMapWalkSegment(startPoint, endPoint, 0xFF00FF00); // 초록색 경로
-        
+
         // 시작점에서 도착점까지의 총 거리 계산
         double totalDistance = calculateDistance(startPoint, endPoint);
-        
+
         // 거리 기반 걸음 수 추정 (평균 보폭 0.7m 가정)
         int estimatedSteps = (int) (totalDistance / 0.7);
-        
+
         // 칼로리 계산 (걸음당 0.04kcal)
         float calories = estimatedSteps * 0.04f;
-        
+
         // 만보기 패널 업데이트
         runOnUiThread(() -> {
             TextView tvStepsMain = findViewById(R.id.tv_steps_bottom);
@@ -1182,15 +1182,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 tvCaloriesMain.setText(String.format("%.1f", calories));
             }
         });
-        
+
         // 시뮬레이션 완료 메시지
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            Toast.makeText(this, "시뮬레이션이 완료되었습니다! 총 " + estimatedSteps + "걸음, " + 
-                String.format("%.2f", totalDistance / 1000.0) + "km", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "시뮬레이션이 완료되었습니다! 총 " + estimatedSteps + "걸음, " +
+                    String.format("%.2f", totalDistance / 1000.0) + "km", Toast.LENGTH_LONG).show();
         }, 2000);
-        
+
         isSimulationRunning = true; // 시뮬레이션 실행 상태 업데이트
-        
+
         // 실시간 시뮬레이션 시작
         startRealTimeSimulation(startPoint, endPoint, totalDistance);
     }
@@ -1253,9 +1253,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                     if (path.size() > 2) {
                         // UI 스레드에서 시뮬레이션 시작
-                        runOnUiThread(() -> {
-                            startPathSimulation(path, totalDistance);
-                        });
+                        runOnUiThread(() -> startPathSimulation(path, totalDistance));
                     } else {
                         // 경로가 유효하지 않으면 직선 경로로 시뮬레이션
                         runOnUiThread(() -> {
@@ -1307,14 +1305,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         // 현재 위치를 시작점으로 설정
         final int[] currentPathIndex = {0};
         final LatLng[] currentPosition = {new LatLng(path.get(0).latitude, path.get(0).longitude)};
-        
+
         // 현재 위치 마커 생성
         Marker currentLocationMarker = new Marker();
         currentLocationMarker.setPosition(currentPosition[0]);
         currentLocationMarker.setCaptionText("현재위치");
         currentLocationMarker.setMap(naverMap);
         activeMarkers.add(currentLocationMarker);
-        
+
         // 시뮬레이션 실행
         Handler simulationHandler = new Handler(Looper.getMainLooper());
         Runnable simulationRunnable = new Runnable() {
@@ -1326,23 +1324,23 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     activeMarkers.remove(currentLocationMarker);
                     return;
                 }
-                
+
                 // 경로의 마지막 지점에 도달했는지 확인
                 if (currentPathIndex[0] >= path.size() - 1) {
                     // 시뮬레이션 완료
                     isSimulationRunning = false;
                     Toast.makeText(MapsActivity.this, "시뮬레이션이 완료되었습니다!", Toast.LENGTH_SHORT).show();
-                    
+
                     // 현재 위치 마커 제거
                     currentLocationMarker.setMap(null);
                     activeMarkers.remove(currentLocationMarker);
                     return;
                 }
-                
+
                 // 다음 경로 지점으로 이동
                 LatLng nextPoint = path.get(currentPathIndex[0] + 1);
                 double distanceToNext = calculateDistance(currentPosition[0], nextPoint);
-                
+
                 if (distanceToNext <= 2.0) { // 2미터 이내에 도달
                     // 다음 경로 지점으로 이동
                     currentPathIndex[0]++;
@@ -1354,28 +1352,28 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     LatLng newPosition = calculateNewPosition(currentPosition[0], bearing, moveDistance);
                     currentPosition[0] = newPosition;
                 }
-                
+
                 // 실제 이동한 거리 누적
                 if (lastMovedPosition != null) {
                     double actualDistanceMoved = calculateDistance(lastMovedPosition, currentPosition[0]);
                     accumulatedDistance += actualDistanceMoved;
                 }
                 lastMovedPosition = new LatLng(currentPosition[0].latitude, currentPosition[0].longitude);
-                
+
                 // 현재 위치 마커 업데이트
                 currentLocationMarker.setPosition(currentPosition[0]);
-                
+
                 // 지도 중심을 새로운 위치로 이동
                 naverMap.moveCamera(CameraUpdate.scrollTo(currentPosition[0]));
-                
+
                 // 실시간 만보기 패널 업데이트 (누적된 실제 거리 사용)
                 updateStepCounterWithAccumulatedDistance();
-                
+
                 // 다음 이동 예약 (더 빠르게 이동하여 부드럽게)
                 simulationHandler.postDelayed(this, 100); // 100ms마다 이동
             }
         };
-        
+
         simulationHandler.post(simulationRunnable);
     }
 
@@ -1383,13 +1381,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void updateStepCounterWithAccumulatedDistance() {
         // 누적된 실제 이동 거리 사용
         double distanceTraveled = accumulatedDistance;
-        
+
         // 거리 기반 걸음 수 추정 (평균 보폭 0.7m 가정)
         int estimatedSteps = (int) (distanceTraveled / 0.7);
-        
+
         // 칼로리 계산 (걸음당 0.04kcal)
         float calories = estimatedSteps * 0.04f;
-        
+
         // UI 업데이트
         runOnUiThread(() -> {
             TextView tvStepsMain = findViewById(R.id.tv_steps_bottom);
@@ -1410,12 +1408,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         double lat2 = Math.toRadians(point2.latitude);
         double deltaLat = Math.toRadians(point2.latitude - point1.latitude);
         double deltaLng = Math.toRadians(point2.longitude - point1.longitude);
-        
+
         double a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
-                   Math.cos(lat1) * Math.cos(lat2) *
-                   Math.sin(deltaLng / 2) * Math.sin(deltaLng / 2);
+                Math.cos(lat1) * Math.cos(lat2) *
+                        Math.sin(deltaLng / 2) * Math.sin(deltaLng / 2);
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        
+
         return 6371000 * c; // 지구 반지름 (미터)
     }
 
@@ -1427,7 +1425,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         double y = Math.sin(dLon) * Math.cos(lat2);
         double x = Math.cos(lat1) * Math.sin(lat2) -
-                    Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+                Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
         double bearing = Math.atan2(y, x);
 
         // 라디안을 도로 변환 (0~360)
@@ -1446,10 +1444,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         double brng = Math.toRadians(bearing);
 
         double lat2 = Math.asin(Math.sin(lat1) * Math.cos(distance / R) +
-                                 Math.cos(lat1) * Math.sin(distance / R) * Math.cos(brng));
+                Math.cos(lat1) * Math.sin(distance / R) * Math.cos(brng));
 
         double lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(distance / R) * Math.cos(lat1),
-                                        Math.cos(distance / R) - Math.sin(lat1) * Math.sin(lat2));
+                Math.cos(distance / R) - Math.sin(lat1) * Math.sin(lat2));
 
         // 경도 범위 조정 (-180 ~ 180)
         lon2 = (lon2 + 540) % 360 - 180;
@@ -1457,15 +1455,41 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         return new LatLng(Math.toDegrees(lat2), Math.toDegrees(lon2));
     }
 
-    @Override protected void onStart()   { super.onStart(); mapView.onStart(); }
-    @Override protected void onResume()  { super.onResume(); mapView.onResume(); }
-    @Override protected void onPause()   { super.onPause(); mapView.onPause(); }
-    @Override protected void onStop()    { super.onStop(); mapView.onStop(); }
-    @Override protected void onDestroy() { super.onDestroy(); mapView.onDestroy(); }
-    @Override public void onLowMemory()  { super.onLowMemory(); mapView.onLowMemory(); }
+    @Override
+    protected void onStart() {
+        super.onStart();
+        mapView.onStart();
+    }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        mapView.onResume();
+    }
 
+    @Override
+    protected void onPause() {
+        super.onPause();
+        mapView.onPause();
+    }
 
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mapView.onStop();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        mapView.onDestroy();
+    }
+
+    @Override
+    public void onLowMemory() {
+        super.onLowMemory();
+        mapView.onLowMemory();
+    }
 
     // 날씨 정보를 표시하는 메서드
     private void showWeatherInfo() {
@@ -1474,10 +1498,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             Location location = locationSource.getLastLocation();
             if (location != null) {
                 LatLng currentLocation = new LatLng(
-                    location.getLatitude(),
-                    location.getLongitude()
+                        location.getLatitude(),
+                        location.getLongitude()
                 );
-                
+
                 // 날씨 정보를 가져오는 API 호출
                 new Thread(() -> {
                     try {
@@ -1486,15 +1510,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                             // 날씨 정보를 다이얼로그로 표시
                             AlertDialog.Builder builder = new AlertDialog.Builder(this);
                             builder.setTitle("현재 날씨")
-                                   .setMessage(weatherInfo)
-                                   .setPositiveButton("확인", null)
-                                   .show();
+                                    .setMessage(weatherInfo)
+                                    .setPositiveButton("확인", null)
+                                    .show();
                         });
                     } catch (Exception e) {
                         e.printStackTrace();
-                        runOnUiThread(() -> {
-                            Toast.makeText(this, "날씨 정보를 가져오는데 실패했습니다.", Toast.LENGTH_SHORT).show();
-                        });
+                        runOnUiThread(() -> Toast.makeText(this, "날씨 정보를 가져오는데 실패했습니다.", Toast.LENGTH_SHORT).show());
                     }
                 }).start();
             } else {
@@ -1508,8 +1530,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         // OpenWeatherMap API를 사용하여 날씨 정보 가져오기
         String apiKey = "7a4aa78797771aa887fe9b14a9be94e5"; // OpenWeatherMap API 키
         String url = String.format(
-            "https://api.openweathermap.org/data/2.5/weather?lat=%f&lon=%f&appid=%s&units=metric&lang=kr",
-            location.latitude, location.longitude, apiKey
+                "https://api.openweathermap.org/data/2.5/weather?lat=%f&lon=%f&appid=%s&units=metric&lang=kr",
+                location.latitude, location.longitude, apiKey
         );
 
         URL weatherUrl = new URL(url);
@@ -1524,7 +1546,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             response.append(line);
         }
         reader.close();
-
+        Log.d("NAVER_API_RESPONSE", response.toString());
         // JSON 파싱
         JSONObject json = new JSONObject(response.toString());
         JSONObject main = json.getJSONObject("main");
@@ -1536,8 +1558,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         int humidity = main.getInt("humidity");
 
         return String.format(
-            "현재 날씨: %s\n기온: %.1f°C\n습도: %d%%",
-            description, temp, humidity
+                "현재 날씨: %s\n기온: %.1f°C\n습도: %d%%",
+                description, temp, humidity
         );
     }
 
@@ -1545,16 +1567,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void selectCourse(int courseIndex) {
         // 남한산성으로 부드럽게 이동
         CameraUpdate cameraUpdate = CameraUpdate.scrollAndZoomTo(
-            new LatLng(37.478046, 127.184021), 14)
-            .animate(CameraAnimation.Easing, 1500);
+                        new LatLng(37.478046, 127.184021), 14)
+                .animate(CameraAnimation.Easing, 1500);
         naverMap.moveCamera(cameraUpdate);
-        
+
         // 선택된 코스만 표시
         displaySingleCourse(courseIndex);
-        
+
         // 코스 정보 표시
         showCourseInfo(courseIndex);
-        
+
         String courseName = courseInfos[courseIndex].title;
         Toast.makeText(this, "📍 " + courseName + " 마커와 경로를 표시합니다.\n🔄 실제 보행 경로를 불러오는 중...", Toast.LENGTH_LONG).show();
     }
@@ -1579,7 +1601,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        
+
         if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 // 권한이 승인된 경우
@@ -1612,7 +1634,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 LatLng currentLocation = new LatLng(location.getLatitude(), location.getLongitude());
                 // 내 위치로 카메라 확대 이동 (줌 16)
                 CameraUpdate cameraUpdate = CameraUpdate.scrollAndZoomTo(currentLocation, 16)
-                    .animate(CameraAnimation.Easing, 1200);
+                        .animate(CameraAnimation.Easing, 1200);
                 naverMap.moveCamera(cameraUpdate);
                 Toast.makeText(this, "📍 내 위치로 이동합니다.", Toast.LENGTH_SHORT).show();
             } else {
@@ -1622,7 +1644,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             Toast.makeText(this, "지도가 준비되지 않았습니다.", Toast.LENGTH_SHORT).show();
         }
     }
-    
+
     private void loadWeatherData() {
         // 현재 위치 기반으로 날씨 정보 로드
         if (naverMap != null && naverMap.getLocationSource() != null) {
@@ -1631,15 +1653,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             updateWeatherWidget(seoulLocation);
         }
     }
-    
+
     private void updateWeatherWidget(LatLng location) {
         new Thread(() -> {
             try {
                 // OpenWeatherMap API를 사용하여 날씨 정보 가져오기
                 String apiKey = "7a4aa78797771aa887fe9b14a9be94e5"; // OpenWeatherMap API 키
                 String url = String.format(
-                    "https://api.openweathermap.org/data/2.5/weather?lat=%f&lon=%f&appid=%s&units=metric&lang=kr",
-                    location.latitude, location.longitude, apiKey
+                        "https://api.openweathermap.org/data/2.5/weather?lat=%f&lon=%f&appid=%s&units=metric&lang=kr",
+                        location.latitude, location.longitude, apiKey
                 );
 
                 URL weatherUrl = new URL(url);
@@ -1667,10 +1689,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 runOnUiThread(() -> {
                     ImageView ivWeatherIcon = findViewById(R.id.iv_weather_icon);
                     TextView tvTemperature = findViewById(R.id.tv_temperature);
-                    
+
                     // 온도 업데이트
                     tvTemperature.setText(String.format("%.0f°", temperature));
-                    
+
                     // 날씨 아이콘 업데이트
                     int weatherIconRes = getWeatherIconResource(weatherMain);
                     ivWeatherIcon.setImageResource(weatherIconRes);
@@ -1686,7 +1708,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         }).start();
     }
-    
+
     private int getWeatherIconResource(String weatherMain) {
         switch (weatherMain.toLowerCase()) {
             case "clear":
@@ -1711,9 +1733,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         // 홈 버튼
         View homeBtn = findViewById(R.id.btn_home);
         if (homeBtn != null) {
-            homeBtn.setOnClickListener(v -> {
-                showHomeMenu(homeBtn);
-            });
+            homeBtn.setOnClickListener(this::showHomeMenu);
         }
 
         // 커뮤니티 버튼
@@ -1728,9 +1748,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         // 만보기 버튼
         View stepsBtn = findViewById(R.id.btn_steps);
         if (stepsBtn != null) {
-            stepsBtn.setOnClickListener(v -> {
-                toggleStepCounterPanel();
-            });
+            stepsBtn.setOnClickListener(v -> toggleStepCounterPanel());
         }
 
         // 즐겨찾기 버튼
@@ -1838,11 +1856,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (naverMap != null) {
             showMainMarkers();
             LatLngBounds koreaBounds = new LatLngBounds(
-                new LatLng(33.0, 124.0), // 남서쪽
-                new LatLng(43.0, 132.0)  // 북동쪽
+                    new LatLng(33.0, 124.0), // 남서쪽
+                    new LatLng(43.0, 132.0)  // 북동쪽
             );
             CameraUpdate cameraUpdate = CameraUpdate.fitBounds(koreaBounds, 0)
-                .animate(CameraAnimation.Easing, 1200);
+                    .animate(CameraAnimation.Easing, 1200);
             naverMap.moveCamera(cameraUpdate);
         }
     }
@@ -1852,33 +1870,33 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
      */
     private void showQuickActions() {
         String[] actions = {
-            "즐겨찾는 장소",
-            "최근 검색",
-            "내 산책 기록",
-            "설정"
+                "즐겨찾는 장소",
+                "최근 검색",
+                "내 산책 기록",
+                "설정"
         };
 
         new AlertDialog.Builder(this)
-            .setTitle("🏠 홈 - 빠른 액션")
-            .setItems(actions, (dialog, which) -> {
-                switch (which) {
-                    case 0: // 즐겨찾는 장소
-                        Intent favoritesIntent = new Intent(this, FavoritesActivity.class);
-                        startActivity(favoritesIntent);
-                        break;
-                    case 1: // 최근 검색
-                        Toast.makeText(this, "최근 검색 기능은 준비 중입니다", Toast.LENGTH_SHORT).show();
-                        break;
-                    case 2: // 내 산책 기록
-                        Toast.makeText(this, "산책 기록 기능은 준비 중입니다", Toast.LENGTH_SHORT).show();
-                        break;
-                    case 3: // 설정
-                        Toast.makeText(this, "설정 기능은 준비 중입니다", Toast.LENGTH_SHORT).show();
-                        break;
-                }
-            })
-            .setNegativeButton("취소", null)
-            .show();
+                .setTitle("🏠 홈 - 빠른 액션")
+                .setItems(actions, (dialog, which) -> {
+                    switch (which) {
+                        case 0: // 즐겨찾는 장소
+                            Intent favoritesIntent = new Intent(this, FavoritesActivity.class);
+                            startActivity(favoritesIntent);
+                            break;
+                        case 1: // 최근 검색
+                            Toast.makeText(this, "최근 검색 기능은 준비 중입니다", Toast.LENGTH_SHORT).show();
+                            break;
+                        case 2: // 내 산책 기록
+                            Toast.makeText(this, "산책 기록 기능은 준비 중입니다", Toast.LENGTH_SHORT).show();
+                            break;
+                        case 3: // 설정
+                            Toast.makeText(this, "설정 기능은 준비 중입니다", Toast.LENGTH_SHORT).show();
+                            break;
+                    }
+                })
+                .setNegativeButton("취소", null)
+                .show();
     }
 
 
@@ -1891,15 +1909,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             Log.w("BottomSheet", "바텀시트 뷰를 찾을 수 없습니다");
             return;
         }
-        
+
         // 초기에는 숨김 상태로 설정
         bottomSheetView.setVisibility(View.GONE);
         isBottomSheetVisible = false;
-        
+
         // 바텀시트 내부 버튼들 초기화
         setupBottomSheetButtons();
     }
-    
+
     /**
      * 바텀시트 내부 버튼들 초기화
      */
@@ -1907,11 +1925,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         // 닫기 버튼
         View closeBtn = findViewById(R.id.btn_close_bottom_sheet);
         if (closeBtn != null) {
-            closeBtn.setOnClickListener(v -> {
-                hideBottomSheet();
-            });
+            closeBtn.setOnClickListener(v -> hideBottomSheet());
         }
-        
+
         // 상세보기 버튼
         View detailBtn = findViewById(R.id.btn_step_counter_detail);
         if (detailBtn != null) {
@@ -1921,21 +1937,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 Toast.makeText(this, "만보기 상세 기능은 준비 중입니다", Toast.LENGTH_SHORT).show();
             });
         }
-        
+
         // 시작 버튼
         View startBtn = findViewById(R.id.btn_start_bottom);
         if (startBtn != null) {
-            startBtn.setOnClickListener(v -> {
-                startStepCounter();
-            });
+            startBtn.setOnClickListener(v -> startStepCounter());
         }
-        
+
         // 중지 버튼
         View stopBtn = findViewById(R.id.btn_stop_bottom);
         if (stopBtn != null) {
-            stopBtn.setOnClickListener(v -> {
-                stopStepCounter();
-            });
+            stopBtn.setOnClickListener(v -> stopStepCounter());
         }
     }
 
@@ -1947,7 +1959,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             Toast.makeText(this, "바텀시트가 초기화되지 않았습니다", Toast.LENGTH_SHORT).show();
             return;
         }
-        
+
         if (!isBottomSheetVisible) {
             // 바텀시트가 숨겨진 상태면 표시
             showBottomSheet();
@@ -1956,27 +1968,27 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             hideBottomSheet();
         }
     }
-    
+
     /**
      * 바텀시트 표시
      */
     private void showBottomSheet() {
         if (bottomSheetView == null) return;
-        
+
         bottomSheetView.setVisibility(View.VISIBLE);
         isBottomSheetVisible = true;
     }
-    
+
     /**
      * 바텀시트 숨김
      */
     private void hideBottomSheet() {
         if (bottomSheetView == null) return;
-        
+
         bottomSheetView.setVisibility(View.GONE);
         isBottomSheetVisible = false;
     }
-    
+
     /**
      * 날씨 하단 패널 표시
      */
@@ -1987,7 +1999,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             if (currentLocation != null) {
                 double latitude = currentLocation.getLatitude();
                 double longitude = currentLocation.getLongitude();
-                
+
                 WeatherBottomSheetFragment weatherFragment = WeatherBottomSheetFragment.newInstance(latitude, longitude);
                 weatherFragment.show(getSupportFragmentManager(), "weather_bottom_sheet");
             } else {
@@ -2001,7 +2013,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             weatherFragment.show(getSupportFragmentManager(), "weather_bottom_sheet");
         }
     }
-    
+
     /**
      * 만보기 시작
      */
@@ -2010,37 +2022,37 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             Toast.makeText(this, "만보기가 이미 실행 중입니다", Toast.LENGTH_SHORT).show();
             return;
         }
-        
+
         isStepCounterRunning = true;
         stepCounterStartTime = System.currentTimeMillis();
         currentSteps = 0;
         currentDistance = 0.0;
         currentCalories = 0.0;
-        
+
         Toast.makeText(this, "만보기를 시작합니다", Toast.LENGTH_SHORT).show();
-        
+
         // 만보기 시뮬레이션 시작 (실제 센서 대신 가상의 걸음 수 증가)
         stepCounterRunnable = new Runnable() {
             @Override
             public void run() {
                 if (isStepCounterRunning) {
                     // 가상의 걸음 수 증가 (실제로는 센서에서 받아와야 함)
-                    currentSteps += (int)(Math.random() * 3) + 1; // 1-3걸음씩 랜덤 증가
+                    currentSteps += (int) (Math.random() * 3) + 1; // 1-3걸음씩 랜덤 증가
                     currentDistance = currentSteps * 0.7; // 평균 보폭 0.7m
                     currentCalories = currentSteps * 0.04; // 걸음당 0.04kcal
-                    
+
                     // UI 업데이트
                     updateStepCounterUI();
-                    
+
                     // 1초마다 업데이트
                     stepCounterHandler.postDelayed(this, 1000);
                 }
             }
         };
-        
+
         stepCounterHandler.post(stepCounterRunnable);
     }
-    
+
     /**
      * 만보기 중지
      */
@@ -2049,16 +2061,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             Toast.makeText(this, "만보기가 실행 중이 아닙니다", Toast.LENGTH_SHORT).show();
             return;
         }
-        
+
         isStepCounterRunning = false;
-        
+
         if (stepCounterRunnable != null) {
             stepCounterHandler.removeCallbacks(stepCounterRunnable);
         }
-        
+
         long duration = System.currentTimeMillis() - stepCounterStartTime;
         long minutes = duration / (1000 * 60);
-        
+
         // 로그인한 사용자에게만 코인 보상 제공
         UserManager userManager = UserManager.getInstance(this);
         if (userManager.isLoggedIn() && currentSteps > 0) {
@@ -2067,8 +2079,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 @Override
                 public void onSuccess(int rewardCoins, int totalCoins, String message) {
                     runOnUiThread(() -> {
-                        String rewardMessage = String.format("만보기를 중지했습니다\n총 %d걸음, %.2fkm, %.1fkcal\n소요시간: %d분\n\n%s", 
-                            currentSteps, currentDistance / 1000.0, currentCalories, minutes, message);
+                        String rewardMessage = String.format("만보기를 중지했습니다\n총 %d걸음, %.2fkm, %.1fkcal\n소요시간: %d분\n\n%s",
+                                currentSteps, currentDistance / 1000.0, currentCalories, minutes, message);
                         Toast.makeText(MapsActivity.this, rewardMessage, Toast.LENGTH_LONG).show();
                     });
                 }
@@ -2076,24 +2088,24 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 @Override
                 public void onError(String error) {
                     runOnUiThread(() -> {
-                        String stopMessage = String.format("만보기를 중지했습니다\n총 %d걸음, %.2fkm, %.1fkcal\n소요시간: %d분\n\n보상 오류: %s", 
-                            currentSteps, currentDistance / 1000.0, currentCalories, minutes, error);
+                        String stopMessage = String.format("만보기를 중지했습니다\n총 %d걸음, %.2fkm, %.1fkcal\n소요시간: %d분\n\n보상 오류: %s",
+                                currentSteps, currentDistance / 1000.0, currentCalories, minutes, error);
                         Toast.makeText(MapsActivity.this, stopMessage, Toast.LENGTH_LONG).show();
                     });
                 }
             });
         } else {
             // 비회원이거나 걸음수가 0인 경우
-            String message = userManager.isLoggedIn() ? 
-                "만보기를 중지했습니다\n총 %d걸음, %.2fkm, %.1fkcal\n소요시간: %d분" :
-                "만보기를 중지했습니다\n총 %d걸음, %.2fkm, %.1fkcal\n소요시간: %d분\n\n회원만 코인 보상을 받을 수 있습니다";
-            
-            Toast.makeText(this, 
-                String.format(message, currentSteps, currentDistance / 1000.0, currentCalories, minutes), 
-                Toast.LENGTH_LONG).show();
+            String message = userManager.isLoggedIn() ?
+                    "만보기를 중지했습니다\n총 %d걸음, %.2fkm, %.1fkcal\n소요시간: %d분" :
+                    "만보기를 중지했습니다\n총 %d걸음, %.2fkm, %.1fkcal\n소요시간: %d분\n\n회원만 코인 보상을 받을 수 있습니다";
+
+            Toast.makeText(this,
+                    String.format(message, currentSteps, currentDistance / 1000.0, currentCalories, minutes),
+                    Toast.LENGTH_LONG).show();
         }
     }
-    
+
     /**
      * 만보기 UI 업데이트
      */
@@ -2101,7 +2113,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         TextView tvSteps = findViewById(R.id.tv_steps_bottom);
         TextView tvDistance = findViewById(R.id.tv_distance_bottom);
         TextView tvCalories = findViewById(R.id.tv_calories_bottom);
-        
+
         if (tvSteps != null) {
             tvSteps.setText(String.valueOf(currentSteps));
         }
@@ -2127,7 +2139,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         rvSearchResults.setAdapter(searchResultAdapter);
 
         // 검색 아이콘 클릭 이벤트
-        ivSearchIcon.setOnClickListener(v -> performSearch());
+        ivSearchIcon.setOnClickListener(v -> {
+            Log.d("SEARCH_DEBUG", "검색 아이콘 클릭됨!"); // <-- 바로 여기입니다.
+            performSearch();
+        });
 
         // 검색 결과 아이템 클릭 이벤트
         searchResultAdapter.setOnItemClickListener(searchResult -> {
@@ -2151,6 +2166,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
      * 검색 실행
      */
     private void performSearch() {
+        // [추가] performSearch 메소드가 호출되었는지 확인하는 로그
+        Log.d("SEARCH_DEBUG", "performSearch 메소드 시작!");
+
         String query = etSearch.getText().toString().trim();
         if (query.isEmpty()) {
             Toast.makeText(this, "검색어를 입력해주세요.", Toast.LENGTH_SHORT).show();
@@ -2174,27 +2192,32 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             showSearchResults(getSampleSearchResults(query));
             return;
         }
-        
+
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Handler handler = new Handler(Looper.getMainLooper());
-        
+
         executor.execute(() -> {
             try {
-                // 네이버 지도 API 장소 검색 URL
+                Log.d("NAVER_API_DEBUG", "1. API 호출 시작");
+                // 네이버 검색 API 장소 검색 URL
                 String encodedQuery = java.net.URLEncoder.encode(query, "UTF-8");
+                // [중요 수정] URL도 "https://openapi.naver.com/v1/search/local.json"으로 변경해야 합니다.
                 String urlString = String.format(
-                    "https://naveropenapi.apigw.ntruss.com/map-place/v1/search?query=%s&coordinate=127.027619,37.497950&radius=10000&page=1&size=10",
-                    encodedQuery
+                        "https://openapi.naver.com/v1/search/local.json?query=%s&display=10&start=1", // <-- 이 부분 변경!
+                        encodedQuery
                 );
-                
+
                 URL url = new URL(urlString);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
-                conn.setRequestProperty("X-NCP-APIGW-API-KEY-ID", NAVER_CLIENT_ID);
-                conn.setRequestProperty("X-NCP-APIGW-API-KEY", NAVER_CLIENT_SECRET);
-                
+                // [핵심 수정] 헤더 이름을 네이버 검색 API에 맞게 변경
+                conn.setRequestProperty("X-Naver-Client-Id", NAVER_CLIENT_ID);     // <-- 이 부분 변경!
+                conn.setRequestProperty("X-Naver-Client-Secret", NAVER_CLIENT_SECRET); // <-- 이 부분 변경!
+
                 int responseCode = conn.getResponseCode();
+                Log.d("NAVER_API_DEBUG", "2. 응답 코드: " + responseCode);
                 if (responseCode == 200) {
+                    Log.d("NAVER_API_DEBUG", "3. 응답 성공 (200)");
                     BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                     StringBuilder response = new StringBuilder();
                     String line;
@@ -2202,10 +2225,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         response.append(line);
                     }
                     reader.close();
-                    
+                    Log.d("NAVER_API_DEBUG", "4. 받은 데이터: " + response.toString());
                     JSONObject json = new JSONObject(response.toString());
                     List<SearchResult> results = parseNaverSearchResults(json);
-                    
+
                     handler.post(() -> {
                         if (results.isEmpty()) {
                             Toast.makeText(this, "검색 결과가 없습니다.", Toast.LENGTH_SHORT).show();
@@ -2221,7 +2244,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         showSearchResults(getSampleSearchResults(query));
                     });
                 }
-                
+
             } catch (Exception e) {
                 Log.e("SearchAPI", "장소 검색 실패", e);
                 handler.post(() -> {
@@ -2236,31 +2259,96 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     /**
      * 네이버 API 검색 결과 파싱
      */
+    // MapsActivity.java의 parseNaverSearchResults 메소드
+
+    /**
+     * 네이버 API 검색 결과 파싱
+     */
     private List<SearchResult> parseNaverSearchResults(JSONObject json) throws Exception {
         List<SearchResult> results = new ArrayList<>();
-        
-        if (json.has("places")) {
-            JSONArray places = json.getJSONArray("places");
-            for (int i = 0; i < places.length(); i++) {
-                JSONObject place = places.getJSONObject(i);
-                
-                String title = place.optString("name", "");
-                String address = place.optString("roadAddress", place.optString("address", ""));
-                String category = place.optString("category", "일반");
-                
-                // 좌표 정보
-                JSONObject location = place.optJSONObject("location");
-                double latitude = 0.0;
-                double longitude = 0.0;
-                if (location != null) {
-                    latitude = location.optDouble("y", 0.0);
-                    longitude = location.optDouble("x", 0.0);
+
+        // [핵심 수정] "places" 대신 "items" 키를 사용합니다.
+        if (json.has("items")) {
+            JSONArray items = json.getJSONArray("items"); // <-- 여기 변경
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject item = items.getJSONObject(i); // <-- 여기 변경
+
+                String title = item.optString("title", "");
+                // HTML 태그 제거 (<b>, </b>)
+                title = title.replace("<b>", "").replace("</b>", "");
+
+                String address = item.optString("roadAddress", item.optString("address", ""));
+                String category = item.optString("category", "일반");
+                String imageUrl = ""; // 네이버 검색 API(local.json)는 기본적으로 이미지 URL을 제공하지 않습니다.
+
+                // [중요 수정] 좌표 필드 이름 변경: mapx(경도), mapy(위도)
+                // Naver API에서 제공하는 mapx, mapy는 위도/경도가 아닌 고유한 좌표 체계이므로 변환이 필요합니다.
+                // 그러나 단순 검색 결과 표시용으로는 일단 그대로 사용하거나,
+                // Naver Map SDK의 UtmkPoint.toLatLng() 등으로 변환해야 합니다.
+                // 여기서는 일단 UtmkPoint를 사용하여 LatLng으로 변환하는 로직을 추가합니다.
+                double mapx = item.optDouble("mapx", 0.0);
+                double mapy = item.optDouble("mapy", 0.0);
+
+                LatLng latLng = null;
+                if (mapx != 0.0 && mapy != 0.0) {
+                    // 네이버 검색 API의 mapx, mapy는 TM 좌표계에 가까우므로, Naver Map SDK의 UtmkPoint를 활용하여 LatLng으로 변환합니다.
+                    // 정확한 변환을 위해서는 더 복잡한 좌표계 변환이 필요할 수 있으나,
+                    // 일단 Naver Map SDK에서 제공하는 간편한 방법을 사용합니다.
+                    // 일반적으로 mapx, mapy는 UTM-K 좌표계에 가깝습니다.
+                    // Naver Map SDK 3.x부터는 UtmkPoint가 LatLng으로 바로 변환되지 않으므로, 직접 변환 로직이 필요합니다.
+                    // 여기서는 간단하게 일단 경도/위도 필드로 가정하고 진행하겠습니다.
+                    // 하지만 실제로는 네이버 검색 API의 mapx, mapy는 'x=경도', 'y=위도' 형태가 아닐 가능성이 높습니다.
+                    // 정식 변환은 아래와 같이 해야 합니다.
+                    // naver.maps.utm.toLatLng(new naver.maps.Coord(mapx, mapy)); // 웹 JS SDK
+                    // Java/Android에서는 UtmkPoint를 LatLng으로 직접 변환하는 함수가 SDK에 없습니다.
+                    // 일단 임시로 'mapy'를 위도로, 'mapx'를 경도로 간주하여 표시해보고,
+                    // 위치가 이상하면 좌표 변환 라이브러리를 사용해야 합니다.
+
+                    // [임시] 일단 mapy를 위도로, mapx를 경도로 가정하고 진행.
+                    // 실제 mapx, mapy는 다른 좌표계이므로 정확한 위치가 아닐 수 있습니다.
+                    // 정확한 변환이 필요하다면 별도의 좌표 변환 라이브러리(예: Proj4j)를 사용해야 합니다.
+                    // 네이버 검색 API의 mapx, mapy는 WGS84 기반의 경도/위도 값이 아니라
+                    // UTM-K(EPSG:5179) 좌표계의 X/Y 값일 가능성이 높습니다.
+                    // 하지만 일반적인 Naver Maps SDK 사용 시에는 WGS84 경위도를 사용하므로,
+                    // 이 값을 바로 사용하면 지도의 위치가 틀어질 수 있습니다.
+                    // 가장 간단한 방법은 외부 변환 서비스를 이용하거나,
+                    // 실제 WGS84 경위도를 가진 API를 사용하는 것입니다.
+                    // 여기서는 일단 임시로 MapX/MapY를 LatLng으로 직접 대입해 봅니다.
+                    // 만약 위치가 이상하면 다시 논의해야 합니다.
+                    latLng = new LatLng(mapy / 10000000.0, mapx / 10000000.0); // 10진수 7자리 형태로 변환된 값 가정
+                    // 위도와 경도를 가져올 때 나누기 1000만(`10000000.0`)을 적용해야 합니다.
+                    // 네이버 검색 API는 10진수 7자리 정수형태로 위경도 값을 주기 때문입니다.
                 }
-                
-                results.add(new SearchResult(title, address, category, latitude, longitude, ""));
+
+
+                // [수정] 7개의 인자를 받는 생성자 사용
+                results.add(new SearchResult(title, address, category, latLng.latitude, latLng.longitude, "", imageUrl));
             }
         }
-        
+        // [중요] "places"를 처리하는 로직은 삭제하거나 주석 처리해야 합니다.
+        // else if (json.has("places")) {
+        //    JSONArray places = json.getJSONArray("places");
+        //    for (int i = 0; i < places.length(); i++) {
+        //        JSONObject place = places.getJSONObject(i);
+        //
+        //        String title = place.optString("name", "");
+        //        String address = place.optString("roadAddress", place.optString("address", ""));
+        //        String category = place.optString("category", "일반");
+        //        String imageUrl = place.optString("thumbnail", "");
+        //
+        //        JSONObject location = place.optJSONObject("location");
+        //        double latitude = 0.0;
+        //        double longitude = 0.0;
+        //        if (location != null) {
+        //            latitude = location.optDouble("y", 0.0);
+        //            longitude = location.optDouble("x", 0.0);
+        //        }
+        //
+        //        results.add(new SearchResult(title, address, category, latitude, longitude, "", imageUrl));
+        //    }
+        // }
+
+
         return results;
     }
 
@@ -2269,33 +2357,34 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
      */
     private List<SearchResult> getSampleSearchResults(String query) {
         List<SearchResult> results = new ArrayList<>();
-        
+
         // 쿼리에 따른 샘플 결과 생성
+        // [수정] 모든 new SearchResult()의 맨 뒤에 imageUrl을 위한 빈 문자열 "" 추가
         if (query.contains("공원") || query.contains("산책")) {
-            results.add(new SearchResult("한강공원", "서울특별시 영등포구 여의도동", "공원", 37.5219, 126.9240, "한강을 따라 산책할 수 있는 공원"));
-            results.add(new SearchResult("올림픽공원", "서울특별시 송파구 올림픽로 424", "공원", 37.5211, 127.1213, "올림픽 기념 공원"));
-            results.add(new SearchResult("북한산국립공원", "경기도 고양시 덕양구", "국립공원", 37.6584, 126.9996, "북한산 등산로"));
-            results.add(new SearchResult("남산공원", "서울특별시 용산구 남산동", "공원", 37.5512, 126.9882, "남산 타워가 있는 공원"));
+            results.add(new SearchResult("한강공원", "서울특별시 영등포구 여의도동", "공원", 37.5219, 126.9240, "한강을 따라 산책할 수 있는 공원", ""));
+            results.add(new SearchResult("올림픽공원", "서울특별시 송파구 올림픽로 424", "공원", 37.5211, 127.1213, "올림픽 기념 공원", ""));
+            results.add(new SearchResult("북한산국립공원", "경기도 고양시 덕양구", "국립공원", 37.6584, 126.9996, "북한산 등산로", ""));
+            results.add(new SearchResult("남산공원", "서울특별시 용산구 남산동", "공원", 37.5512, 126.9882, "남산 타워가 있는 공원", ""));
         } else if (query.contains("카페")) {
-            results.add(new SearchResult("스타벅스 강남점", "서울특별시 강남구 테헤란로 152", "카페", 37.5665, 126.9780, "스타벅스 강남점"));
-            results.add(new SearchResult("투썸플레이스", "서울특별시 강남구 역삼동", "카페", 37.5000, 127.0000, "투썸플레이스"));
-            results.add(new SearchResult("이디야커피", "서울특별시 서초구 서초동", "카페", 37.4947, 127.0276, "이디야커피 서초점"));
+            results.add(new SearchResult("스타벅스 강남점", "서울특별시 강남구 테헤란로 152", "카페", 37.5665, 126.9780, "스타벅스 강남점", ""));
+            results.add(new SearchResult("투썸플레이스", "서울특별시 강남구 역삼동", "카페", 37.5000, 127.0000, "투썸플레이스", ""));
+            results.add(new SearchResult("이디야커피", "서울특별시 서초구 서초동", "카페", 37.4947, 127.0276, "이디야커피 서초점", ""));
         } else if (query.contains("병원") || query.contains("의원")) {
-            results.add(new SearchResult("서울대병원", "서울특별시 종로구 대학로 101", "병원", 37.5796, 126.9990, "서울대학교병원"));
-            results.add(new SearchResult("삼성서울병원", "서울특별시 강남구 일원로 81", "병원", 37.4881, 127.0856, "삼성서울병원"));
+            results.add(new SearchResult("서울대병원", "서울특별시 종로구 대학로 101", "병원", 37.5796, 126.9990, "서울대학교병원", ""));
+            results.add(new SearchResult("삼성서울병원", "서울특별시 강남구 일원로 81", "병원", 37.4881, 127.0856, "삼성서울병원", ""));
         } else if (query.contains("학교") || query.contains("대학")) {
-            results.add(new SearchResult("서울대학교", "서울특별시 관악구 관악로 1", "대학교", 37.4596, 126.9516, "서울대학교"));
-            results.add(new SearchResult("연세대학교", "서울특별시 서대문구 연세로 50", "대학교", 37.5640, 126.9369, "연세대학교"));
+            results.add(new SearchResult("서울대학교", "서울특별시 관악구 관악로 1", "대학교", 37.4596, 126.9516, "서울대학교", ""));
+            results.add(new SearchResult("연세대학교", "서울특별시 서대문구 연세로 50", "대학교", 37.5640, 126.9369, "연세대학교", ""));
         } else if (query.contains("지하철") || query.contains("역")) {
-            results.add(new SearchResult("강남역", "서울특별시 강남구 강남대로 396", "지하철역", 37.4979, 127.0276, "2호선 강남역"));
-            results.add(new SearchResult("홍대입구역", "서울특별시 마포구 양화로 188", "지하철역", 37.5563, 126.9226, "2호선, 6호선 홍대입구역"));
+            results.add(new SearchResult("강남역", "서울특별시 강남구 강남대로 396", "지하철역", 37.4979, 127.0276, "2호선 강남역", ""));
+            results.add(new SearchResult("홍대입구역", "서울특별시 마포구 양화로 188", "지하철역", 37.5563, 126.9226, "2호선, 6호선 홍대입구역", ""));
         } else {
             // 일반적인 검색 결과
-            results.add(new SearchResult(query + " 검색결과 1", "서울특별시 강남구", "일반", 37.5665, 126.9780, "검색된 장소"));
-            results.add(new SearchResult(query + " 검색결과 2", "서울특별시 서초구", "일반", 37.4947, 127.0276, "검색된 장소"));
-            results.add(new SearchResult(query + " 검색결과 3", "서울특별시 송파구", "일반", 37.5145, 127.1050, "검색된 장소"));
+            results.add(new SearchResult(query + " 검색결과 1", "서울특별시 강남구", "일반", 37.5665, 126.9780, "검색된 장소", ""));
+            results.add(new SearchResult(query + " 검색결과 2", "서울특별시 서초구", "일반", 37.4947, 127.0276, "검색된 장소", ""));
+            results.add(new SearchResult(query + " 검색결과 3", "서울특별시 송파구", "일반", 37.5145, 127.1050, "검색된 장소", ""));
         }
-        
+
         return results;
     }
 
@@ -2316,23 +2405,36 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     /**
-     * 검색 결과로 지도 이동
+     * 검색 결과로 지도 이동 [수정됨]
+     * 기존: 마커만 추가하고 토스트 메시지 표시
+     * 변경: 이전 마커 제거, 새 마커 추가, 상세 정보창(바텀시트) 표시
      */
     private void moveToSearchResult(SearchResult result) {
         if (naverMap != null) {
             LatLng location = new LatLng(result.getLatitude(), result.getLongitude());
-            
-            // 지도 카메라 이동
-            CameraUpdate cameraUpdate = CameraUpdate.scrollTo(location)
+
+            // 지도 카메라 이동 (조금 더 확대되도록 16으로 설정)
+            CameraUpdate cameraUpdate = CameraUpdate.scrollAndZoomTo(location, 16)
                     .animate(CameraAnimation.Easing, 1000);
             naverMap.moveCamera(cameraUpdate);
-            
-            // 마커 추가
-            Marker marker = new Marker();
-            marker.setPosition(location);
-            marker.setMap(naverMap);
-            
-            Toast.makeText(this, result.getTitle() + "로 이동했습니다.", Toast.LENGTH_SHORT).show();
+
+            // 1. 이전에 표시된 검색 마커가 있다면 지도에서 제거
+            if (searchResultMarker != null) {
+                searchResultMarker.setMap(null);
+            }
+
+            // 2. 새로운 마커를 추가하고, 나중에 지울 수 있도록 변수에 저장
+            searchResultMarker = new Marker();
+            searchResultMarker.setPosition(location);
+            searchResultMarker.setCaptionText(result.getTitle()); // 마커에 장소 이름 표시
+            searchResultMarker.setMap(naverMap);
+
+            // 3. 상세 정보창(바텀시트)을 생성하고 화면에 표시
+            SearchResultDetailFragment bottomSheet = SearchResultDetailFragment.newInstance(result);
+            bottomSheet.show(getSupportFragmentManager(), "SearchResultDetailFragment");
+
+            // 기존의 Toast 메시지는 상세 정보창이 대신하므로 주석 처리하거나 삭제합니다.
+            // Toast.makeText(this, result.getTitle() + "로 이동했습니다.", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -2340,10 +2442,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
      * 키보드 숨기기
      */
     private void hideKeyboard() {
-        android.view.inputmethod.InputMethodManager imm = 
+        android.view.inputmethod.InputMethodManager imm =
                 (android.view.inputmethod.InputMethodManager) getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
-        if (imm != null) {
-            imm.hideSoftInputFromWindow(etSearch.getWindowToken(), 0);
+        if (imm != null && getCurrentFocus() != null) {
+            imm.hideSoftInputFromWindow(getCurrentFocus().getWindowToken(), 0);
         }
     }
 }
