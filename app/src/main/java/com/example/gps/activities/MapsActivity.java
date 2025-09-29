@@ -2108,7 +2108,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         long duration = System.currentTimeMillis() - stepCounterStartTime;
         long minutes = duration / (1000 * 60);
-        
+
         Toast.makeText(this, "만보기를 중지했습니다. 총 " + minutes + "분 동안 " + currentSteps + "걸음을 걸었습니다.", Toast.LENGTH_LONG).show();
     }
 
@@ -2191,9 +2191,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     /**
      * 네이버 지도 API를 사용한 장소 검색
      */
+    // [수정됨] 이미지 검색 로직을 포함하도록 수정
     private void searchPlacesWithNaverAPI(String query) {
-        // API 키가 설정되지 않은 경우 샘플 데이터 사용
-        if (NAVER_CLIENT_ID.equals("YOUR_NCP_CLIENT_ID") || NAVER_CLIENT_SECRET.equals("YOUR_NCP_CLIENT_SECRET")) {
+        if (NAVER_CLIENT_ID.isEmpty() || NAVER_CLIENT_SECRET.isEmpty()) {
             Log.i("SearchAPI", "네이버 API 키가 설정되지 않아 샘플 데이터를 사용합니다.");
             showSearchResults(getSampleSearchResults(query));
             return;
@@ -2204,26 +2204,20 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         executor.execute(() -> {
             try {
-                Log.d("NAVER_API_DEBUG", "1. API 호출 시작");
-                // 네이버 검색 API 장소 검색 URL
                 String encodedQuery = java.net.URLEncoder.encode(query, "UTF-8");
-                // [중요 수정] URL도 "https://openapi.naver.com/v1/search/local.json"으로 변경해야 합니다.
                 String urlString = String.format(
-                        "https://openapi.naver.com/v1/search/local.json?query=%s&display=10&start=1", // <-- 이 부분 변경!
+                        "https://openapi.naver.com/v1/search/local.json?query=%s&display=10&start=1",
                         encodedQuery
                 );
 
                 URL url = new URL(urlString);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
-                // [핵심 수정] 헤더 이름을 네이버 검색 API에 맞게 변경
-                conn.setRequestProperty("X-Naver-Client-Id", NAVER_CLIENT_ID);     // <-- 이 부분 변경!
-                conn.setRequestProperty("X-Naver-Client-Secret", NAVER_CLIENT_SECRET); // <-- 이 부분 변경!
+                conn.setRequestProperty("X-Naver-Client-Id", NAVER_CLIENT_ID);
+                conn.setRequestProperty("X-Naver-Client-Secret", NAVER_CLIENT_SECRET);
 
                 int responseCode = conn.getResponseCode();
-                Log.d("NAVER_API_DEBUG", "2. 응답 코드: " + responseCode);
                 if (responseCode == 200) {
-                    Log.d("NAVER_API_DEBUG", "3. 응답 성공 (200)");
                     BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                     StringBuilder response = new StringBuilder();
                     String line;
@@ -2231,7 +2225,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         response.append(line);
                     }
                     reader.close();
-                    Log.d("NAVER_API_DEBUG", "4. 받은 데이터: " + response.toString());
+
                     JSONObject json = new JSONObject(response.toString());
                     List<SearchResult> results = parseNaverSearchResults(json);
 
@@ -2240,10 +2234,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                             Toast.makeText(this, "검색 결과가 없습니다.", Toast.LENGTH_SHORT).show();
                         } else {
                             showSearchResults(results);
+                            for (SearchResult result : results) {
+                                fetchImageForSearchResult(result, searchResultAdapter);
+                            }
                         }
                     });
                 } else {
-                    // API 오류 시 샘플 데이터 사용
                     Log.e("SearchAPI", "API 응답 코드: " + responseCode);
                     handler.post(() -> {
                         Toast.makeText(this, "API 인증 오류로 샘플 데이터를 표시합니다.", Toast.LENGTH_SHORT).show();
@@ -2252,12 +2248,18 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 }
 
             } catch (Exception e) {
-                Log.e("SearchAPI", "장소 검색 실패", e);
+
+
+                final String errorMessage = e.toString(); // 실제 에러 내용을 문자열로 가져옵니다.
+                Log.e("SearchAPI", "장소 검색 실패", e); // Logcat에도 상세 에러를 남깁니다.
+
                 handler.post(() -> {
-                    Toast.makeText(this, "검색 중 오류가 발생했습니다. 샘플 데이터를 표시합니다.", Toast.LENGTH_SHORT).show();
-                    // 오류 시 샘플 데이터 표시
+                    // 화면에 실제 에러 내용을 길게 보여줍니다.
+                    Toast.makeText(MapsActivity.this, "에러 발생: " + errorMessage, Toast.LENGTH_LONG).show();
                     showSearchResults(getSampleSearchResults(query));
                 });
+
+
             }
         });
     }
@@ -2265,95 +2267,32 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     /**
      * 네이버 API 검색 결과 파싱
      */
-    // MapsActivity.java의 parseNaverSearchResults 메소드
-
-    /**
-     * 네이버 API 검색 결과 파싱
-     */
     private List<SearchResult> parseNaverSearchResults(JSONObject json) throws Exception {
         List<SearchResult> results = new ArrayList<>();
 
-        // [핵심 수정] "places" 대신 "items" 키를 사용합니다.
         if (json.has("items")) {
-            JSONArray items = json.getJSONArray("items"); // <-- 여기 변경
+            JSONArray items = json.getJSONArray("items");
             for (int i = 0; i < items.length(); i++) {
-                JSONObject item = items.getJSONObject(i); // <-- 여기 변경
+                JSONObject item = items.getJSONObject(i);
 
                 String title = item.optString("title", "");
-                // HTML 태그 제거 (<b>, </b>)
                 title = title.replace("<b>", "").replace("</b>", "");
 
                 String address = item.optString("roadAddress", item.optString("address", ""));
                 String category = item.optString("category", "일반");
-                String imageUrl = ""; // 네이버 검색 API(local.json)는 기본적으로 이미지 URL을 제공하지 않습니다.
+                String imageUrl = "";
 
-                // [중요 수정] 좌표 필드 이름 변경: mapx(경도), mapy(위도)
-                // Naver API에서 제공하는 mapx, mapy는 위도/경도가 아닌 고유한 좌표 체계이므로 변환이 필요합니다.
-                // 그러나 단순 검색 결과 표시용으로는 일단 그대로 사용하거나,
-                // Naver Map SDK의 UtmkPoint.toLatLng() 등으로 변환해야 합니다.
-                // 여기서는 일단 UtmkPoint를 사용하여 LatLng으로 변환하는 로직을 추가합니다.
                 double mapx = item.optDouble("mapx", 0.0);
                 double mapy = item.optDouble("mapy", 0.0);
 
                 LatLng latLng = null;
                 if (mapx != 0.0 && mapy != 0.0) {
-                    // 네이버 검색 API의 mapx, mapy는 TM 좌표계에 가까우므로, Naver Map SDK의 UtmkPoint를 활용하여 LatLng으로 변환합니다.
-                    // 정확한 변환을 위해서는 더 복잡한 좌표계 변환이 필요할 수 있으나,
-                    // 일단 Naver Map SDK에서 제공하는 간편한 방법을 사용합니다.
-                    // 일반적으로 mapx, mapy는 UTM-K 좌표계에 가깝습니다.
-                    // Naver Map SDK 3.x부터는 UtmkPoint가 LatLng으로 바로 변환되지 않으므로, 직접 변환 로직이 필요합니다.
-                    // 여기서는 간단하게 일단 경도/위도 필드로 가정하고 진행하겠습니다.
-                    // 하지만 실제로는 네이버 검색 API의 mapx, mapy는 'x=경도', 'y=위도' 형태가 아닐 가능성이 높습니다.
-                    // 정식 변환은 아래와 같이 해야 합니다.
-                    // naver.maps.utm.toLatLng(new naver.maps.Coord(mapx, mapy)); // 웹 JS SDK
-                    // Java/Android에서는 UtmkPoint를 LatLng으로 직접 변환하는 함수가 SDK에 없습니다.
-                    // 일단 임시로 'mapy'를 위도로, 'mapx'를 경도로 간주하여 표시해보고,
-                    // 위치가 이상하면 좌표 변환 라이브러리를 사용해야 합니다.
-
-                    // [임시] 일단 mapy를 위도로, mapx를 경도로 가정하고 진행.
-                    // 실제 mapx, mapy는 다른 좌표계이므로 정확한 위치가 아닐 수 있습니다.
-                    // 정확한 변환이 필요하다면 별도의 좌표 변환 라이브러리(예: Proj4j)를 사용해야 합니다.
-                    // 네이버 검색 API의 mapx, mapy는 WGS84 기반의 경도/위도 값이 아니라
-                    // UTM-K(EPSG:5179) 좌표계의 X/Y 값일 가능성이 높습니다.
-                    // 하지만 일반적인 Naver Maps SDK 사용 시에는 WGS84 경위도를 사용하므로,
-                    // 이 값을 바로 사용하면 지도의 위치가 틀어질 수 있습니다.
-                    // 가장 간단한 방법은 외부 변환 서비스를 이용하거나,
-                    // 실제 WGS84 경위도를 가진 API를 사용하는 것입니다.
-                    // 여기서는 일단 임시로 MapX/MapY를 LatLng으로 직접 대입해 봅니다.
-                    // 만약 위치가 이상하면 다시 논의해야 합니다.
-                    latLng = new LatLng(mapy / 10000000.0, mapx / 10000000.0); // 10진수 7자리 형태로 변환된 값 가정
-                    // 위도와 경도를 가져올 때 나누기 1000만(`10000000.0`)을 적용해야 합니다.
-                    // 네이버 검색 API는 10진수 7자리 정수형태로 위경도 값을 주기 때문입니다.
+                    latLng = new LatLng(mapy / 10000000.0, mapx / 10000000.0);
                 }
 
-
-                // [수정] 7개의 인자를 받는 생성자 사용
                 results.add(new SearchResult(title, address, category, latLng.latitude, latLng.longitude, "", imageUrl));
             }
         }
-        // [중요] "places"를 처리하는 로직은 삭제하거나 주석 처리해야 합니다.
-        // else if (json.has("places")) {
-        //    JSONArray places = json.getJSONArray("places");
-        //    for (int i = 0; i < places.length(); i++) {
-        //        JSONObject place = places.getJSONObject(i);
-        //
-        //        String title = place.optString("name", "");
-        //        String address = place.optString("roadAddress", place.optString("address", ""));
-        //        String category = place.optString("category", "일반");
-        //        String imageUrl = place.optString("thumbnail", "");
-        //
-        //        JSONObject location = place.optJSONObject("location");
-        //        double latitude = 0.0;
-        //        double longitude = 0.0;
-        //        if (location != null) {
-        //            latitude = location.optDouble("y", 0.0);
-        //            longitude = location.optDouble("x", 0.0);
-        //        }
-        //
-        //        results.add(new SearchResult(title, address, category, latitude, longitude, "", imageUrl));
-        //    }
-        // }
-
 
         return results;
     }
@@ -2363,34 +2302,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
      */
     private List<SearchResult> getSampleSearchResults(String query) {
         List<SearchResult> results = new ArrayList<>();
-
-        // 쿼리에 따른 샘플 결과 생성
-        // [수정] 모든 new SearchResult()의 맨 뒤에 imageUrl을 위한 빈 문자열 "" 추가
         if (query.contains("공원") || query.contains("산책")) {
             results.add(new SearchResult("한강공원", "서울특별시 영등포구 여의도동", "공원", 37.5219, 126.9240, "한강을 따라 산책할 수 있는 공원", ""));
             results.add(new SearchResult("올림픽공원", "서울특별시 송파구 올림픽로 424", "공원", 37.5211, 127.1213, "올림픽 기념 공원", ""));
-            results.add(new SearchResult("북한산국립공원", "경기도 고양시 덕양구", "국립공원", 37.6584, 126.9996, "북한산 등산로", ""));
-            results.add(new SearchResult("남산공원", "서울특별시 용산구 남산동", "공원", 37.5512, 126.9882, "남산 타워가 있는 공원", ""));
-        } else if (query.contains("카페")) {
-            results.add(new SearchResult("스타벅스 강남점", "서울특별시 강남구 테헤란로 152", "카페", 37.5665, 126.9780, "스타벅스 강남점", ""));
-            results.add(new SearchResult("투썸플레이스", "서울특별시 강남구 역삼동", "카페", 37.5000, 127.0000, "투썸플레이스", ""));
-            results.add(new SearchResult("이디야커피", "서울특별시 서초구 서초동", "카페", 37.4947, 127.0276, "이디야커피 서초점", ""));
-        } else if (query.contains("병원") || query.contains("의원")) {
-            results.add(new SearchResult("서울대병원", "서울특별시 종로구 대학로 101", "병원", 37.5796, 126.9990, "서울대학교병원", ""));
-            results.add(new SearchResult("삼성서울병원", "서울특별시 강남구 일원로 81", "병원", 37.4881, 127.0856, "삼성서울병원", ""));
-        } else if (query.contains("학교") || query.contains("대학")) {
-            results.add(new SearchResult("서울대학교", "서울특별시 관악구 관악로 1", "대학교", 37.4596, 126.9516, "서울대학교", ""));
-            results.add(new SearchResult("연세대학교", "서울특별시 서대문구 연세로 50", "대학교", 37.5640, 126.9369, "연세대학교", ""));
-        } else if (query.contains("지하철") || query.contains("역")) {
-            results.add(new SearchResult("강남역", "서울특별시 강남구 강남대로 396", "지하철역", 37.4979, 127.0276, "2호선 강남역", ""));
-            results.add(new SearchResult("홍대입구역", "서울특별시 마포구 양화로 188", "지하철역", 37.5563, 126.9226, "2호선, 6호선 홍대입구역", ""));
         } else {
-            // 일반적인 검색 결과
             results.add(new SearchResult(query + " 검색결과 1", "서울특별시 강남구", "일반", 37.5665, 126.9780, "검색된 장소", ""));
-            results.add(new SearchResult(query + " 검색결과 2", "서울특별시 서초구", "일반", 37.4947, 127.0276, "검색된 장소", ""));
-            results.add(new SearchResult(query + " 검색결과 3", "서울특별시 송파구", "일반", 37.5145, 127.1050, "검색된 장소", ""));
         }
-
         return results;
     }
 
@@ -2412,35 +2329,26 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     /**
      * 검색 결과로 지도 이동 [수정됨]
-     * 기존: 마커만 추가하고 토스트 메시지 표시
-     * 변경: 이전 마커 제거, 새 마커 추가, 상세 정보창(바텀시트) 표시
      */
     private void moveToSearchResult(SearchResult result) {
         if (naverMap != null) {
             LatLng location = new LatLng(result.getLatitude(), result.getLongitude());
 
-            // 지도 카메라 이동 (조금 더 확대되도록 16으로 설정)
             CameraUpdate cameraUpdate = CameraUpdate.scrollAndZoomTo(location, 16)
                     .animate(CameraAnimation.Easing, 1000);
             naverMap.moveCamera(cameraUpdate);
 
-            // 1. 이전에 표시된 검색 마커가 있다면 지도에서 제거
             if (searchResultMarker != null) {
                 searchResultMarker.setMap(null);
             }
 
-            // 2. 새로운 마커를 추가하고, 나중에 지울 수 있도록 변수에 저장
             searchResultMarker = new Marker();
             searchResultMarker.setPosition(location);
-            searchResultMarker.setCaptionText(result.getTitle()); // 마커에 장소 이름 표시
+            searchResultMarker.setCaptionText(result.getTitle());
             searchResultMarker.setMap(naverMap);
 
-            // 3. 상세 정보창(바텀시트)을 생성하고 화면에 표시
             SearchResultDetailFragment bottomSheet = SearchResultDetailFragment.newInstance(result);
             bottomSheet.show(getSupportFragmentManager(), "SearchResultDetailFragment");
-
-            // 기존의 Toast 메시지는 상세 정보창이 대신하므로 주석 처리하거나 삭제합니다.
-            // Toast.makeText(this, result.getTitle() + "로 이동했습니다.", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -2454,19 +2362,66 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             imm.hideSoftInputFromWindow(getCurrentFocus().getWindowToken(), 0);
         }
     }
-    
+
     /**
      * 위치 권한 확인
      */
     private void checkLocationPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) 
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) {
-            // 권한이 없으면 요청
-            ActivityCompat.requestPermissions(this, 
-                new String[]{Manifest.permission.ACCESS_FINE_LOCATION, 
-                           Manifest.permission.ACCESS_COARSE_LOCATION}, 
-                LOCATION_PERMISSION_REQUEST_CODE);
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION},
+                    LOCATION_PERMISSION_REQUEST_CODE);
         }
     }
-    
+
+    // [핵심 추가] 네이버 이미지 검색 API를 호출하여 장소에 대한 이미지 URL을 가져오는 메소드
+    private void fetchImageForSearchResult(SearchResult result, SearchResultAdapter adapter) {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Handler handler = new Handler(Looper.getMainLooper());
+
+        executor.execute(() -> {
+            try {
+                String placeName = result.getTitle();
+                String encodedQuery = java.net.URLEncoder.encode(placeName, "UTF-8");
+
+                String urlString = String.format(
+                        "https://openapi.naver.com/v1/search/image?query=%s&display=1&start=1&sort=sim",
+                        encodedQuery
+                );
+
+                URL url = new URL(urlString);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setRequestProperty("X-Naver-Client-Id", NAVER_CLIENT_ID);
+                conn.setRequestProperty("X-Naver-Client-Secret", NAVER_CLIENT_SECRET);
+
+                int responseCode = conn.getResponseCode();
+                if (responseCode == 200) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
+                    }
+                    reader.close();
+
+                    JSONObject json = new JSONObject(response.toString());
+                    if (json.has("items") && json.getJSONArray("items").length() > 0) {
+                        JSONObject firstItem = json.getJSONArray("items").getJSONObject(0);
+                        String imageUrl = firstItem.optString("thumbnail", "");
+
+
+                        result.setImageUrl(imageUrl);
+
+
+                        handler.post(() -> adapter.notifyDataSetChanged());
+                    }
+                }
+            } catch (Exception e) {
+                Log.e("ImageSearchAPI", "이미지 검색 실패: " + result.getTitle(), e);
+            }
+        });
+    }
 }
