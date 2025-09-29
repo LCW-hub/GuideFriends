@@ -20,6 +20,9 @@ public interface UserApi {
     @POST("/api/users/login")
     Call<Map<String, Object>> login(@Body User user);
 
+    @POST("/api/users/find-id")
+    Call<Map<String, Object>> findIdByEmail(@Body Map<String, String> emailMap);
+
     @GET("/api/users/{userId}")
     Call<Map<String, Object>> getUser(@Path("userId") int userId);
 
@@ -31,5 +34,11 @@ public interface UserApi {
 
     @GET("/api/users")
     Call<Map<String, Object>> getUserList();
+
+    @POST("/api/users/request-password-reset")
+    Call<Map<String, Object>> requestPasswordReset(@Body Map<String, String> userInfo);
+
+    @POST("/api/users/reset-password")
+    Call<Map<String, Object>> resetPassword(@Body Map<String, String> data);
 
 }

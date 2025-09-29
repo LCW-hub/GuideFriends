@@ -48,6 +48,24 @@
         <activity android:name=".activities.Register_Login.RegisterActivity" />
         <activity android:name=".activities.Register_Login.FindIdActivity" />
         <activity android:name=".activities.Register_Login.FindPwActivity" />
+        <activity
+            android:name=".activities.Register_Login.ResetPasswordActivity"
+            android:exported="true">
+
+            <intent-filter>
+
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="app"
+                    android:host="reset-password" />
+
+            </intent-filter>
+
+        </activity>
         <activity android:name=".activities.AdminMain" />
         <activity android:name=".activities.GuestMain" />
         <activity android:name=".activities.NormalMain" />
