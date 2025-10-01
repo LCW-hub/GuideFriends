@@ -466,12 +466,5 @@
 
     </LinearLayout>
 
-    <!-- 바텀시트 -->
-    <include
-        android:id="@+id/bottom_sheet_step_counter"
-        layout="@layout/bottom_sheet_step_counter"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

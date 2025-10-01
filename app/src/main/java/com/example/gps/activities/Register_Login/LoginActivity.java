@@ -12,8 +12,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import com.example.gps.R;
-import com.example.gps.activities.GuestMain;
-import com.example.gps.activities.NormalMain;
+import com.example.gps.activities.MapsActivity;
 import com.example.gps.api.ApiClient;
 import com.example.gps.api.UserApi;
 import com.example.gps.model.User;
@@ -60,14 +59,7 @@ public class LoginActivity extends AppCompatActivity {
             }
         });
 
-        // 게스트 모드 버튼 클릭 리스너
-        buttonGuestMode.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                startActivity(new Intent(LoginActivity.this, GuestMain.class));
-                finish();
-            }
-        });
+
 
         // 회원가입 텍스트 클릭 리스너
         textViewSignup.setOnClickListener(new View.OnClickListener() {
@@ -116,7 +108,7 @@ public class LoginActivity extends AppCompatActivity {
             editor.apply();
             
             Toast.makeText(this, "임시 계정으로 로그인 성공!", Toast.LENGTH_SHORT).show();
-            startActivity(new Intent(this, NormalMain.class));
+            startActivity(new Intent(this, MapsActivity.class));
             finish();
             return;
         }
@@ -151,7 +143,7 @@ public class LoginActivity extends AppCompatActivity {
                         editor.apply();
                         
                         Toast.makeText(LoginActivity.this, "로그인 성공", Toast.LENGTH_SHORT).show();
-                        startActivity(new Intent(LoginActivity.this, NormalMain.class));
+                        startActivity(new Intent(LoginActivity.this, MapsActivity.class));
                         finish();
                     } else {
                         Toast.makeText(LoginActivity.this, "로그인 실패: " + result.get("message"), Toast.LENGTH_SHORT).show();
