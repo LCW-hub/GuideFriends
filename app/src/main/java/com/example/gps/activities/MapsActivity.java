@@ -2376,7 +2376,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
-    // [핵심 추가] 네이버 이미지 검색 API를 호출하여 장소에 대한 이미지 URL을 가져오는 메소드
+
     private void fetchImageForSearchResult(SearchResult result, SearchResultAdapter adapter) {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Handler handler = new Handler(Looper.getMainLooper());
