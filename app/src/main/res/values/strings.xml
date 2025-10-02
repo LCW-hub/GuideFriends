@@ -14,6 +14,7 @@
     <string name="btn_back_to_seoul">서울로 돌아가기</string>
     <string name="btn_close">닫기</string>
     <string name="btn_course_select">코스 선택</string>
+
     
     <!-- 산책로 도우미 앱 전용 문자열 -->
     <string name="welcome_message">산책로 도우미에 오신 것을 환영합니다!</string>
@@ -35,5 +36,9 @@
     <string name="start_trail">자연과 함께하는 안전한 산책을 시작하세요</string>
     <string name="trail_helper">산책로 도우미</string>
     <string name="safe_trail">자연과 함께하는 안전한 산책</string>
+    <string name="desc_search_button">검색 버튼</string>
+    <string name="desc_weather_icon">현재 날씨 아이콘</string>
+    <string name="desc_map_type_button">지도 종류 변경 버튼</string>
+    <string name="desc_my_location_button">내 위치로 이동 버튼</string>
     <string name="bottom_sheet_behavior">com.google.android.material.bottomsheet.BottomSheetBehavior</string>
 </resources>

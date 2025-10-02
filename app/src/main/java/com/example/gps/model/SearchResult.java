@@ -2,7 +2,7 @@ package com.example.gps.model;
 
 import android.os.Parcel;
 import android.os.Parcelable;
-
+import java.io.Serializable;
 public class SearchResult implements Parcelable {
     private String title;
     private String address;
