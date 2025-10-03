@@ -143,7 +143,13 @@ public class LoginActivity extends AppCompatActivity {
                         editor.apply();
                         
                         Toast.makeText(LoginActivity.this, "로그인 성공", Toast.LENGTH_SHORT).show();
-                        startActivity(new Intent(LoginActivity.this, MapsActivity.class));
+                        // MapsActivity로 이동할 Intent를 생성합니다.
+                        Intent intent = new Intent(LoginActivity.this, MapsActivity.class);
+                        // ✅ 로그인한 사용자 아이디(username)를 Intent에 담아 전달합니다.
+                        intent.putExtra("username", username);
+
+                        // 수정된 Intent로 액티비티를 시작합니다.
+                        startActivity(intent);
                         finish();
                     } else {
                         Toast.makeText(LoginActivity.this, "로그인 실패: " + result.get("message"), Toast.LENGTH_SHORT).show();

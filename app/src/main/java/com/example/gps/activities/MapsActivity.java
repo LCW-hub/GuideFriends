@@ -1,6 +1,7 @@
 package com.example.gps.activities;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.Context; // PHJ:
 import android.content.pm.PackageManager;
 import android.location.Location;
@@ -16,6 +17,7 @@ import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import android.widget.ImageButton;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -23,7 +25,9 @@ import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager; // PHJ:
 import androidx.recyclerview.widget.RecyclerView; // PHJ:
 
+
 import com.example.gps.R;
+import com.example.gps.activities.Friend.FriendsActivity;
 import com.example.gps.adapters.SearchResultAdapter; // PHJ:
 import com.example.gps.fragments.SearchResultDetailFragment; // PHJ:
 import com.example.gps.model.SearchResult; // PHJ:
@@ -49,6 +53,8 @@ import java.util.List; // PHJ:
 import java.util.concurrent.ExecutorService; // PHJ:
 import java.util.concurrent.Executors; // PHJ:
 
+
+
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback {
 
     private MapView mapView;
@@ -68,6 +74,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // PHJ: 네이버 검색 API 키 (PHJ 브랜치에 있던 키 사용)
     private static final String NAVER_CLIENT_ID = "OAQnuwhbAL34Of8mlxve";
     private static final String NAVER_CLIENT_SECRET = "4roXQDJBpc";
+
+    // ✅ 1. 로그인된 사용자 이름을 저장할 변수를 여기에 선언합니다.
+    private String loggedInUsername;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -91,6 +100,22 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         weatherWidget.setOnClickListener(v -> showWeatherBottomSheet());
 
         initializeSearch(); // PHJ: 검색 기능 초기화 메서드 호출
+
+
+
+        // ✅ 2. LoginActivity로부터 받은 사용자 이름을 변수에 저장합니다.
+        // 이 코드는 이미 있을 수 있습니다.
+        loggedInUsername = getIntent().getStringExtra("username");
+
+        // ✅ 3. 친구 버튼 클릭 리스너를 수정합니다.
+        // 이전에 추가했던 btnFriends 부분을 아래 코드로 교체해주세요.
+        ImageButton btnFriends = findViewById(R.id.btnFriends);
+        btnFriends.setOnClickListener(v -> {
+            Intent intent = new Intent(MapsActivity.this, FriendsActivity.class);
+            // FriendsActivity로 현재 로그인된 사용자 이름을 전달합니다.
+            intent.putExtra("username", loggedInUsername);
+            startActivity(intent);
+        });
     }
 
     @Override
