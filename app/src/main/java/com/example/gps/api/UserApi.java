@@ -1,5 +1,6 @@
 package com.example.gps.api;
 
+import com.example.gps.dto.LoginResponse;
 import com.example.gps.model.User;
 
 import java.util.List;
@@ -13,14 +14,18 @@ import retrofit2.http.POST;
 import retrofit2.http.PUT;
 import retrofit2.http.Path;
 
+import com.example.gps.dto.LoginResponse; // LoginResponse import
+import java.util.Map; // Map import
+
+
 public interface UserApi {
 
     // --- 회원 관리 API (UserController) ---
     @POST("/api/users/signup")
     Call<Map<String, Object>> signup(@Body User user);
 
-    @POST("/api/users/login")
-    Call<Map<String, Object>> login(@Body User user);
+    @POST("login")
+    Call<LoginResponse> login(@Body Map<String, String> loginData);
 
     @POST("/api/users/find-id")
     Call<Map<String, Object>> findIdByEmail(@Body Map<String, String> emailMap);

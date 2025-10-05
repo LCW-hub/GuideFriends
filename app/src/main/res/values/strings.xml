@@ -15,7 +15,7 @@
     <string name="btn_close">닫기</string>
     <string name="btn_course_select">코스 선택</string>
 
-    
+
     <!-- 산책로 도우미 앱 전용 문자열 -->
     <string name="welcome_message">산책로 도우미에 오신 것을 환영합니다!</string>
     <string name="welcome_subtitle">자연과 함께하는 즐거운 산책을 시작해보세요</string>

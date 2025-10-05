@@ -31,6 +31,7 @@ import com.example.gps.activities.Friend.FriendsActivity;
 import com.example.gps.adapters.SearchResultAdapter; // PHJ:
 import com.example.gps.fragments.SearchResultDetailFragment; // PHJ:
 import com.example.gps.model.SearchResult; // PHJ:
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.naver.maps.geometry.LatLng;
 import com.naver.maps.map.CameraAnimation;
 import com.naver.maps.map.CameraUpdate;
@@ -52,6 +53,18 @@ import java.util.ArrayList; // PHJ:
 import java.util.List; // PHJ:
 import java.util.concurrent.ExecutorService; // PHJ:
 import java.util.concurrent.Executors; // PHJ:
+
+import com.example.gps.api.ApiClient;
+import com.example.gps.dto.LocationResponse;
+import com.example.gps.dto.UpdateLocationRequest;
+import java.util.HashMap;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+
+
+
 
 
 
@@ -77,6 +90,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     // ✅ 1. 로그인된 사용자 이름을 저장할 변수를 여기에 선언합니다.
     private String loggedInUsername;
+
+    // --- ✅✅✅ 실시간 공유를 위한 변수들 추가 ✅✅✅ ---
+    private Long currentGroupId = -1L;
+    private Handler locationUpdateHandler = new Handler(Looper.getMainLooper());
+    private Runnable locationUpdateRunnable;
+    private static final int LOCATION_UPDATE_INTERVAL = 10000; // 10초
+    private HashMap<Long, Marker> memberMarkers = new HashMap<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -116,6 +136,127 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             intent.putExtra("username", loggedInUsername);
             startActivity(intent);
         });
+
+        FloatingActionButton btnCreateGroup = findViewById(R.id.btnCreateGroup);
+        btnCreateGroup.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // CreateGroupActivity를 시작하는 인텐트 생성
+                Intent intent = new Intent(MapsActivity.this, CreateGroupActivity.class);
+                startActivity(intent);
+            }
+        });
+
+        FloatingActionButton btnMyGroups = findViewById(R.id.btnMyGroups);
+        btnMyGroups.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(MapsActivity.this, MyGroupsActivity.class);
+                startActivity(intent);
+            }
+        });
+    }
+    // MyGroupsActivity에서 그룹을 선택하고 돌아왔을 때 호출됩니다.
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        if (intent != null && intent.hasExtra("groupId")) {
+            currentGroupId = intent.getLongExtra("groupId", -1L);
+            if (currentGroupId != -1L) {
+                Toast.makeText(this, "그룹 ID: " + currentGroupId + " 위치 공유를 시작합니다.", Toast.LENGTH_SHORT).show();
+                startLocationSharing();
+            }
+        }
+    }
+
+    // --- ✅✅✅ 실시간 위치 공유 로직 전체 추가 ✅✅✅ ---
+    private void startLocationSharing() {
+        locationUpdateHandler.removeCallbacksAndMessages(null); // 기존 핸들러 중지
+
+        locationUpdateRunnable = new Runnable() {
+            @Override
+            public void run() {
+                Location lastKnownLocation = locationSource.getLastLocation();
+                if (lastKnownLocation != null) {
+                    updateMyLocation(lastKnownLocation);
+                } else {
+                    Log.w("MapsActivity", "현재 위치를 가져올 수 없어 내 위치를 업데이트하지 못했습니다.");
+                }
+
+                fetchGroupMembersLocation();
+                locationUpdateHandler.postDelayed(this, LOCATION_UPDATE_INTERVAL);
+            }
+        };
+        locationUpdateHandler.post(locationUpdateRunnable); // 즉시 시작
+    }
+
+    private void updateMyLocation(Location location) {
+        if (currentGroupId == -1L) return;
+        UpdateLocationRequest request = new UpdateLocationRequest();
+        request.setLatitude(location.getLatitude());
+        request.setLongitude(location.getLongitude());
+
+        Call<String> call = ApiClient.getGroupApiService(this).updateLocation(currentGroupId, request);
+        call.enqueue(new Callback<String>() {
+            @Override
+            public void onResponse(Call<String> call, Response<String> response) {
+                if (response.isSuccessful()) Log.d("MapsActivity", "내 위치 업데이트 성공");
+            }
+            @Override
+            public void onFailure(Call<String> call, Throwable t) {
+                Log.e("MapsActivity", "내 위치 업데이트 실패", t);
+            }
+        });
+    }
+
+    private void fetchGroupMembersLocation() {
+        if (currentGroupId == -1L) return;
+        Call<List<LocationResponse>> call = ApiClient.getGroupApiService(this).getGroupMemberLocations(currentGroupId);
+        call.enqueue(new Callback<List<LocationResponse>>() {
+            @Override
+            public void onResponse(Call<List<LocationResponse>> call, Response<List<LocationResponse>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    updateMemberMarkers(response.body());
+                }
+            }
+            @Override
+            public void onFailure(Call<List<LocationResponse>> call, Throwable t) {
+                Log.e("MapsActivity", "멤버 위치 가져오기 실패", t);
+            }
+        });
+    }
+
+    private void updateMemberMarkers(List<LocationResponse> locations) {
+        if (naverMap == null) return;
+
+        List<Long> updatedUserIds = new ArrayList<>();
+        for (LocationResponse location : locations) {
+            updatedUserIds.add(location.getUserId());
+            LatLng memberPosition = new LatLng(location.getLatitude(), location.getLongitude());
+
+            Marker marker = memberMarkers.get(location.getUserId());
+            if (marker == null) {
+                marker = new Marker();
+                marker.setCaptionText(location.getUserName());
+                memberMarkers.put(location.getUserId(), marker);
+            }
+            marker.setPosition(memberPosition);
+            marker.setMap(naverMap);
+        }
+
+        List<Long> usersToRemove = new ArrayList<>();
+        for (Long existingUserId : memberMarkers.keySet()) {
+            if (!updatedUserIds.contains(existingUserId)) {
+                usersToRemove.add(existingUserId);
+            }
+        }
+        for (Long userId : usersToRemove) {
+            Marker markerToRemove = memberMarkers.get(userId);
+            if (markerToRemove != null) {
+                markerToRemove.setMap(null);
+            }
+            memberMarkers.remove(userId);
+        }
     }
 
     @Override
@@ -441,11 +582,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         // TODO: WeatherBottomSheetFragment 띄우는 로직 필요
     }
 
+    @Override protected void onStop() {
+        if (locationUpdateHandler != null) {
+            locationUpdateHandler.removeCallbacksAndMessages(null);
+        }
+        super.onStop();
+        mapView.onStop();
+    }
+
     // Android Activity Lifecycle Callbacks
     @Override protected void onStart() { super.onStart(); mapView.onStart(); }
     @Override protected void onResume() { super.onResume(); mapView.onResume(); }
     @Override protected void onPause() { super.onPause(); mapView.onPause(); }
-    @Override protected void onStop() { super.onStop(); mapView.onStop(); }
+
     @Override protected void onDestroy() { super.onDestroy(); mapView.onDestroy(); }
     @Override public void onLowMemory() { super.onLowMemory(); mapView.onLowMemory(); }
 }
