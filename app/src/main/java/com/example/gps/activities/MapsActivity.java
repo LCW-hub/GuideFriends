@@ -1,16 +1,16 @@
 package com.example.gps.activities;
 
 import android.Manifest;
-import android.content.Context; // PHJ:
+import android.content.Context;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
-import android.os.Handler; // PHJ:
-import android.os.Looper; // PHJ:
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.View;
-import android.view.inputmethod.InputMethodManager; // PHJ:
-import android.widget.EditText; // PHJ:
+import android.view.inputmethod.InputMethodManager;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.PopupMenu;
 import android.widget.TextView;
@@ -20,13 +20,14 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import androidx.recyclerview.widget.LinearLayoutManager; // PHJ:
-import androidx.recyclerview.widget.RecyclerView; // PHJ:
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.gps.R;
-import com.example.gps.adapters.SearchResultAdapter; // PHJ:
-import com.example.gps.fragments.SearchResultDetailFragment; // PHJ:
-import com.example.gps.model.SearchResult; // PHJ:
+import com.example.gps.adapters.SearchResultAdapter;
+import com.example.gps.fragments.SearchResultDetailFragment;
+import com.example.gps.fragments.WeatherBottomSheetFragment;
+import com.example.gps.model.SearchResult;
 import com.naver.maps.geometry.LatLng;
 import com.naver.maps.map.CameraAnimation;
 import com.naver.maps.map.CameraUpdate;
@@ -34,7 +35,7 @@ import com.naver.maps.map.LocationTrackingMode;
 import com.naver.maps.map.MapView;
 import com.naver.maps.map.NaverMap;
 import com.naver.maps.map.OnMapReadyCallback;
-import com.naver.maps.map.overlay.Marker; // PHJ:
+import com.naver.maps.map.overlay.Marker;
 import com.naver.maps.map.util.FusedLocationSource;
 
 import org.json.JSONArray;
@@ -44,31 +45,43 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.ArrayList; // PHJ:
-import java.util.List; // PHJ:
-import java.util.concurrent.ExecutorService; // PHJ:
-import java.util.concurrent.Executors; // PHJ:
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback {
 
+    // 기본 UI 및 지도 관련 변수
     private MapView mapView;
     private NaverMap naverMap;
     private FusedLocationSource locationSource;
 
-    // PHJ: 검색 관련 UI 및 데이터 변수들
+    // 검색 관련 UI 및 데이터 변수
     private EditText etSearch;
     private ImageView ivSearchIcon;
     private RecyclerView rvSearchResults;
     private SearchResultAdapter searchResultAdapter;
     private Marker searchResultMarker = null;
 
+    // 날씨 관련 UI 변수
+    private ImageView ivWeatherIcon;
+    private TextView tvTemperature;
+
+    // 백그라운드 작업을 위한 ExecutorService 및 Handler (공용으로 사용)
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Handler handler = new Handler(Looper.getMainLooper());
+
+    // 상수
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1000;
     private static final String OPENWEATHERMAP_API_KEY = "7a4aa78797771aa887fe9b14a9be94e5";
-
-    // PHJ: 네이버 검색 API 키 (PHJ 브랜치에 있던 키 사용)
     private static final String NAVER_CLIENT_ID = "OAQnuwhbAL34Of8mlxve";
     private static final String NAVER_CLIENT_SECRET = "4roXQDJBpc";
 
+
+    //==============================================================================================
+    // 1. 액티비티 생명주기 및 기본 설정
+    //==============================================================================================
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -78,19 +91,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         mapView = findViewById(R.id.map_view);
         mapView.onCreate(savedInstanceState);
-        mapView.getMapAsync(this);
 
-        locationSource = new FusedLocationSource(this, LOCATION_PERMISSION_REQUEST_CODE);
+        // 날씨 UI 요소 초기화
+        ivWeatherIcon = findViewById(R.id.iv_weather_icon);
+        tvTemperature = findViewById(R.id.tv_temperature);
 
-        com.google.android.material.floatingactionbutton.FloatingActionButton btnMapType = findViewById(R.id.btnMapType);
-        com.google.android.material.floatingactionbutton.FloatingActionButton btnMyLocation = findViewById(R.id.btnMyLocation);
-        androidx.cardview.widget.CardView weatherWidget = findViewById(R.id.weather_widget);
-
-        btnMapType.setOnClickListener(v -> showMapTypeMenu(v));
-        btnMyLocation.setOnClickListener(v -> moveToCurrentLocation());
-        weatherWidget.setOnClickListener(v -> showWeatherBottomSheet());
-
-        initializeSearch(); // PHJ: 검색 기능 초기화 메서드 호출
+        initializeMap();
+        initializeButtons();
+        initializeSearch();
     }
 
     @Override
@@ -99,10 +107,28 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         naverMap.setLocationSource(locationSource);
         naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
         naverMap.moveCamera(CameraUpdate.scrollAndZoomTo(new LatLng(37.5665, 126.9780), 11));
-        loadWeatherData();
+
+        loadWeatherData(); // 지도가 준비된 후 날씨 정보 로드
     }
 
-    // PHJ: 검색 기능 초기화
+    private void initializeMap() {
+        locationSource = new FusedLocationSource(this, LOCATION_PERMISSION_REQUEST_CODE);
+        mapView.getMapAsync(this);
+    }
+
+    private void initializeButtons() {
+        com.google.android.material.floatingactionbutton.FloatingActionButton btnMapType = findViewById(R.id.btnMapType);
+        com.google.android.material.floatingactionbutton.FloatingActionButton btnMyLocation = findViewById(R.id.btnMyLocation);
+        androidx.cardview.widget.CardView weatherWidget = findViewById(R.id.weather_widget);
+
+        btnMapType.setOnClickListener(v -> showMapTypeMenu(v));
+        btnMyLocation.setOnClickListener(v -> moveToCurrentLocation());
+        weatherWidget.setOnClickListener(v -> showWeatherBottomSheet());
+    }
+
+    //==============================================================================================
+    // 2. 검색 기능 관련 메서드
+    //==============================================================================================
     private void initializeSearch() {
         etSearch = findViewById(R.id.et_search);
         ivSearchIcon = findViewById(R.id.iv_search_icon);
@@ -113,12 +139,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         rvSearchResults.setAdapter(searchResultAdapter);
 
         ivSearchIcon.setOnClickListener(v -> performSearch());
-
         searchResultAdapter.setOnItemClickListener(searchResult -> {
             moveToSearchResult(searchResult);
             hideSearchResults();
         });
-
         etSearch.setOnEditorActionListener((v, actionId, event) -> {
             if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
                 performSearch();
@@ -128,7 +152,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
     }
 
-    // PHJ: 검색 실행
     private void performSearch() {
         String query = etSearch.getText().toString().trim();
         if (query.isEmpty()) {
@@ -139,19 +162,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         searchPlacesWithNaverAPI(query);
     }
 
-    // PHJ: 네이버 지역 검색 및 이미지 검색 API 호출
     private void searchPlacesWithNaverAPI(String query) {
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        Handler handler = new Handler(Looper.getMainLooper());
-
         executor.execute(() -> {
             try {
                 String encodedQuery = java.net.URLEncoder.encode(query, "UTF-8");
-                String urlString = String.format(
-                        "https://openapi.naver.com/v1/search/local.json?query=%s&display=10&start=1",
-                        encodedQuery
-                );
-
+                String urlString = "https://openapi.naver.com/v1/search/local.json?query=" + encodedQuery + "&display=10&start=1";
                 URL url = new URL(urlString);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
@@ -166,15 +181,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     reader.close();
 
                     List<SearchResult> results = parseNaverSearchResults(new JSONObject(response.toString()));
-
                     handler.post(() -> {
                         if (results.isEmpty()) {
                             Toast.makeText(this, "검색 결과가 없습니다.", Toast.LENGTH_SHORT).show();
                         } else {
                             showSearchResults(results);
-                            for (SearchResult result : results) {
-                                fetchImageForSearchResult(result, searchResultAdapter);
-                            }
+                            results.forEach(this::fetchImageForSearchResult);
                         }
                     });
                 } else {
@@ -183,12 +195,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 }
             } catch (Exception e) {
                 Log.e("SearchAPI", "장소 검색 실패", e);
-                handler.post(() -> Toast.makeText(MapsActivity.this, "검색 중 오류 발생", Toast.LENGTH_LONG).show());
+                handler.post(() -> Toast.makeText(this, "검색 중 오류 발생", Toast.LENGTH_LONG).show());
             }
         });
     }
 
-    // PHJ: 네이버 지역 검색 결과 파싱
     private List<SearchResult> parseNaverSearchResults(JSONObject json) throws Exception {
         List<SearchResult> results = new ArrayList<>();
         JSONArray items = json.getJSONArray("items");
@@ -198,31 +209,25 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             String address = item.optString("roadAddress", item.optString("address", ""));
             String category = item.optString("category", "정보 없음");
 
-            // 네이버 좌표계(Katec)를 위경도(WGS84)로 변환
-            double mapx = Double.parseDouble(item.getString("mapx"));
-            double mapy = Double.parseDouble(item.getString("mapy"));
-            // PHJ 코드에서는 좌표 변환 로직이 있었으나, Naver Maps SDK v3에서는 Katec 좌표를 직접 사용할 수 없습니다.
-            // 대신 검색 결과의 mapx, mapy를 경도, 위도로 직접 사용하는 것으로 가정합니다.
-            // 만약 좌표계가 다르다면 별도의 변환 라이브러리가 필요합니다.
-            // 여기서는 PHJ 코드의 로직을 따라갑니다. (1.0E-7 곱하기)
-            LatLng latLng = new LatLng(mapy * 1.0E-7, mapx * 1.0E-7);
+            long mapx = item.getLong("mapx");
+            long mapy = item.getLong("mapy");
+
+            // FIXME: ⚠️ 매우 중요! 네이버 지역검색 API는 KATEC(TM128) 좌표계를 반환합니다.
+            // NaverMap SDK는 WGS84 위경도 좌표계를 사용하므로, 반드시 좌표 변환이 필요합니다.
+            // 아래 코드는 잘못된 위치를 가리키게 되므로, 실제 서비스에서는 좌표 변환 라이브러리나 API를 사용해야 합니다.
+            // 예: new LatLng(y, x) -> new LatLng(위도, 경도)
+            LatLng latLng = new LatLng(mapy, mapx); // 이 부분은 실제 위경도로 변환해야 합니다.
 
             results.add(new SearchResult(title, address, category, latLng.latitude, latLng.longitude, "", ""));
         }
         return results;
     }
 
-    // PHJ: 검색 결과에 대한 이미지 URL 가져오기
-    private void fetchImageForSearchResult(SearchResult result, SearchResultAdapter adapter) {
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        Handler handler = new Handler(Looper.getMainLooper());
+    private void fetchImageForSearchResult(SearchResult result) {
         executor.execute(() -> {
             try {
                 String encodedQuery = java.net.URLEncoder.encode(result.getTitle(), "UTF-8");
-                String urlString = String.format(
-                        "https://openapi.naver.com/v1/search/image?query=%s&display=1&start=1&sort=sim",
-                        encodedQuery
-                );
+                String urlString = "https://openapi.naver.com/v1/search/image?query=" + encodedQuery + "&display=1&start=1&sort=sim";
                 URL url = new URL(urlString);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
@@ -240,7 +245,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     if (json.has("items") && json.getJSONArray("items").length() > 0) {
                         String imageUrl = json.getJSONArray("items").getJSONObject(0).optString("thumbnail", "");
                         result.setImageUrl(imageUrl);
-                        handler.post(adapter::notifyDataSetChanged);
+                        handler.post(searchResultAdapter::notifyDataSetChanged);
                     }
                 }
             } catch (Exception e) {
@@ -249,69 +254,118 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
     }
 
-
     private void showSearchResults(List<SearchResult> results) {
         searchResultAdapter.updateResults(results);
         rvSearchResults.setVisibility(View.VISIBLE);
     }
-
 
     private void hideSearchResults() {
         rvSearchResults.setVisibility(View.GONE);
         etSearch.clearFocus();
     }
 
-    // PHJ: 검색 결과 클릭 시 지도 이동 및 상세 정보 표시
     private void moveToSearchResult(SearchResult result) {
         if (naverMap != null) {
+            // FIXME: parseNaverSearchResults에서 좌표 변환이 올바르게 되면, 이 부분도 정확한 위치로 이동합니다.
             LatLng location = new LatLng(result.getLatitude(), result.getLongitude());
-            CameraUpdate cameraUpdate = CameraUpdate.scrollAndZoomTo(location, 16)
-                    .animate(CameraAnimation.Easing, 1000);
+            CameraUpdate cameraUpdate = CameraUpdate.scrollAndZoomTo(location, 16).animate(CameraAnimation.Easing, 1000);
             naverMap.moveCamera(cameraUpdate);
 
-            if (searchResultMarker != null) {
-                searchResultMarker.setMap(null);
-            }
+            if (searchResultMarker != null) searchResultMarker.setMap(null);
+
             searchResultMarker = new Marker();
             searchResultMarker.setPosition(location);
             searchResultMarker.setCaptionText(result.getTitle());
             searchResultMarker.setMap(naverMap);
 
-            // 검색 결과 상세 정보 BottomSheet 표시
-            SearchResultDetailFragment bottomSheet = SearchResultDetailFragment.newInstance(result);
-            bottomSheet.show(getSupportFragmentManager(), "SearchResultDetailFragment");
+            SearchResultDetailFragment.newInstance(result).show(getSupportFragmentManager(), "SearchResultDetailFragment");
         }
     }
 
-    // PHJ: 키보드 숨기기 유틸리티
-    private void hideKeyboard() {
-        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-        View view = getCurrentFocus();
-        if (view != null) {
-            imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+
+    //==============================================================================================
+    // 3. 날씨 기능 관련 메서드
+    //==============================================================================================
+    private void loadWeatherData() {
+        LatLng defaultLocation = new LatLng(37.5665, 126.9780);
+        updateWeatherWidget(defaultLocation);
+    }
+
+    private void updateWeatherWidget(LatLng location) {
+        executor.execute(() -> {
+            try {
+                String urlString = String.format(
+                        "https://api.openweathermap.org/data/2.5/weather?lat=%f&lon=%f&appid=%s&units=metric&lang=kr",
+                        location.latitude, location.longitude, OPENWEATHERMAP_API_KEY
+                );
+                URL url = new URL(urlString);
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+
+                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                StringBuilder response = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) response.append(line);
+                reader.close();
+
+                JSONObject json = new JSONObject(response.toString());
+                double temperature = json.getJSONObject("main").getDouble("temp");
+                String weatherMain = json.getJSONArray("weather").getJSONObject(0).getString("main");
+
+                handler.post(() -> {
+                    // onCreate에서 미리 찾아둔 UI 변수를 사용합니다.
+                    tvTemperature.setText(String.format("%.0f°", temperature));
+                    ivWeatherIcon.setImageResource(getWeatherIconResource(weatherMain));
+                });
+            } catch (Exception e) {
+                Log.e("WeatherAPI", "날씨 정보 로드 실패", e);
+                handler.post(() -> Toast.makeText(MapsActivity.this, "날씨 정보를 가져오지 못했습니다.", Toast.LENGTH_SHORT).show());
+            }
+        });
+    }
+
+    private int getWeatherIconResource(String weatherMain) {
+        switch (weatherMain.toLowerCase()) {
+            case "clear": return R.drawable.ic_weather_clear;
+            case "clouds": return R.drawable.ic_weather_cloudy;
+            case "rain": case "drizzle": case "thunderstorm": return R.drawable.ic_weather_rainy;
+            case "snow": return R.drawable.ic_weather_snow;
+            case "mist": case "fog": return R.drawable.ic_weather_fog;
+            default: return R.drawable.ic_weather_clear;
         }
     }
 
-    // ------------------- 아래는 기존 new_main 코드입니다 (수정 없음) -------------------
+    private void showWeatherBottomSheet() {
+        Location currentLocation = locationSource.getLastLocation();
+        double latitude, longitude;
+        if (currentLocation != null) {
+            latitude = currentLocation.getLatitude();
+            longitude = currentLocation.getLongitude();
+        } else {
+            latitude = 37.5665; // 서울 시청
+            longitude = 126.9780;
+            Toast.makeText(this, "현재 위치를 가져올 수 없어 기본 위치의 날씨를 표시합니다.", Toast.LENGTH_SHORT).show();
+        }
+        WeatherBottomSheetFragment.newInstance(latitude, longitude).show(getSupportFragmentManager(), "WeatherBottomSheet");
+    }
 
+    //==============================================================================================
+    // 4. 지도 및 권한 관련 유틸리티 메서드
+    //==============================================================================================
     private void checkLocationPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
-                    LOCATION_PERMISSION_REQUEST_CODE);
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
         }
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (locationSource.onRequestPermissionsResult(requestCode, permissions, grantResults)) {
             if (naverMap != null) {
                 naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
             }
-            return;
         }
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 
     private void moveToCurrentLocation() {
@@ -319,12 +373,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             Toast.makeText(this, "위치 정보를 가져올 수 없습니다.", Toast.LENGTH_SHORT).show();
             return;
         }
-
         Location location = locationSource.getLastLocation();
         LatLng currentLocation = new LatLng(location.getLatitude(), location.getLongitude());
-
-        CameraUpdate cameraUpdate = CameraUpdate.scrollAndZoomTo(currentLocation, 16)
-                .animate(CameraAnimation.Easing, 1200);
+        CameraUpdate cameraUpdate = CameraUpdate.scrollAndZoomTo(currentLocation, 16).animate(CameraAnimation.Easing, 1200);
         naverMap.moveCamera(cameraUpdate);
         Toast.makeText(this, "📍 내 위치로 이동합니다.", Toast.LENGTH_SHORT).show();
     }
@@ -349,74 +400,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         popupMenu.show();
     }
 
-    private void loadWeatherData() {
-        LatLng defaultLocation = new LatLng(37.5665, 126.9780);
-        updateWeatherWidget(defaultLocation);
-    }
-
-    private void updateWeatherWidget(LatLng location) {
-        new Thread(() -> {
-            try {
-                String urlString = String.format(
-                        "https://api.openweathermap.org/data/2.5/weather?lat=%f&lon=%f&appid=%s&units=metric&lang=kr",
-                        location.latitude, location.longitude, OPENWEATHERMAP_API_KEY
-                );
-                URL url = new URL(urlString);
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                connection.setRequestMethod("GET");
-
-                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-                StringBuilder response = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    response.append(line);
-                }
-                reader.close();
-
-                JSONObject json = new JSONObject(response.toString());
-                double temperature = json.getJSONObject("main").getDouble("temp");
-                String weatherMain = json.getJSONArray("weather").getJSONObject(0).getString("main");
-
-                runOnUiThread(() -> {
-                    ImageView ivWeatherIcon = findViewById(R.id.iv_weather_icon);
-                    TextView tvTemperature = findViewById(R.id.tv_temperature);
-                    tvTemperature.setText(String.format("%.0f°", temperature));
-                    ivWeatherIcon.setImageResource(getWeatherIconResource(weatherMain));
-                });
-
-            } catch (Exception e) {
-                Log.e("WeatherAPI", "날씨 정보 로드 실패", e);
-            }
-        }).start();
-    }
-
-    private int getWeatherIconResource(String weatherMain) {
-        switch (weatherMain.toLowerCase()) {
-            case "clear": return R.drawable.ic_weather_clear;
-            case "clouds": return R.drawable.ic_weather_cloudy;
-            case "rain": case "drizzle": case "thunderstorm": return R.drawable.ic_weather_rainy;
-            case "snow": return R.drawable.ic_weather_snow;
-            case "mist": case "fog": return R.drawable.ic_weather_fog;
-            default: return R.drawable.ic_weather_clear;
+    private void hideKeyboard() {
+        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        View view = getCurrentFocus();
+        if (view != null) {
+            imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
         }
     }
 
-    private void showWeatherBottomSheet() {
-        Location currentLocation = locationSource.getLastLocation();
-        double latitude, longitude;
-
-        if (currentLocation != null) {
-            latitude = currentLocation.getLatitude();
-            longitude = currentLocation.getLongitude();
-        } else {
-            latitude = 37.5665;
-            longitude = 126.9780;
-            Toast.makeText(this, "현재 위치를 가져올 수 없어 기본 위치의 날씨를 표시합니다.", Toast.LENGTH_SHORT).show();
-        }
-        // TODO: WeatherBottomSheetFragment 띄우는 로직 필요
-    }
-
-    // Android Activity Lifecycle Callbacks
+    //==============================================================================================
+    // 5. 액티비티 생명주기 콜백
+    //==============================================================================================
     @Override protected void onStart() { super.onStart(); mapView.onStart(); }
     @Override protected void onResume() { super.onResume(); mapView.onResume(); }
     @Override protected void onPause() { super.onPause(); mapView.onPause(); }
