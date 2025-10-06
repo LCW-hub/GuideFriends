@@ -1,7 +1,8 @@
 package com.example.gps.activities;
 
 import android.Manifest;
-import android.content.Context;
+import android.content.Intent;
+import android.content.Context; // PHJ:
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
@@ -16,6 +17,7 @@ import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import android.widget.ImageButton;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -23,11 +25,13 @@ import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+
 import com.example.gps.R;
-import com.example.gps.adapters.SearchResultAdapter;
-import com.example.gps.fragments.SearchResultDetailFragment;
-import com.example.gps.fragments.WeatherBottomSheetFragment;
-import com.example.gps.model.SearchResult;
+import com.example.gps.activities.Friend.FriendsActivity;
+import com.example.gps.adapters.SearchResultAdapter; // PHJ:
+import com.example.gps.fragments.SearchResultDetailFragment; // PHJ:
+import com.example.gps.model.SearchResult; // PHJ:
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.naver.maps.geometry.LatLng;
 import com.naver.maps.map.CameraAnimation;
 import com.naver.maps.map.CameraUpdate;
@@ -49,6 +53,20 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import com.example.gps.api.ApiClient;
+import com.example.gps.dto.LocationResponse;
+import com.example.gps.dto.UpdateLocationRequest;
+import java.util.HashMap;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+
+
+
+
+
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback {
 
@@ -78,10 +96,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private static final String NAVER_CLIENT_ID = "OAQnuwhbAL34Of8mlxve";
     private static final String NAVER_CLIENT_SECRET = "4roXQDJBpc";
 
+    // ✅ 1. 로그인된 사용자 이름을 저장할 변수를 여기에 선언합니다.
+    private String loggedInUsername;
 
-    //==============================================================================================
-    // 1. 액티비티 생명주기 및 기본 설정
-    //==============================================================================================
+    // --- ✅✅✅ 실시간 공유를 위한 변수들 추가 ✅✅✅ ---
+    private Long currentGroupId = -1L;
+    private Handler locationUpdateHandler = new Handler(Looper.getMainLooper());
+    private Runnable locationUpdateRunnable;
+    private static final int LOCATION_UPDATE_INTERVAL = 10000; // 10초
+    private HashMap<Long, Marker> memberMarkers = new HashMap<>();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -96,9 +120,152 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         ivWeatherIcon = findViewById(R.id.iv_weather_icon);
         tvTemperature = findViewById(R.id.tv_temperature);
 
-        initializeMap();
-        initializeButtons();
-        initializeSearch();
+        com.google.android.material.floatingactionbutton.FloatingActionButton btnMapType = findViewById(R.id.btnMapType);
+        com.google.android.material.floatingactionbutton.FloatingActionButton btnMyLocation = findViewById(R.id.btnMyLocation);
+        androidx.cardview.widget.CardView weatherWidget = findViewById(R.id.weather_widget);
+
+        btnMapType.setOnClickListener(v -> showMapTypeMenu(v));
+        btnMyLocation.setOnClickListener(v -> moveToCurrentLocation());
+        weatherWidget.setOnClickListener(v -> showWeatherBottomSheet());
+
+        initializeSearch(); // PHJ: 검색 기능 초기화 메서드 호출
+
+
+
+        // ✅ 2. LoginActivity로부터 받은 사용자 이름을 변수에 저장합니다.
+        // 이 코드는 이미 있을 수 있습니다.
+        loggedInUsername = getIntent().getStringExtra("username");
+
+        // ✅ 3. 친구 버튼 클릭 리스너를 수정합니다.
+        // 이전에 추가했던 btnFriends 부분을 아래 코드로 교체해주세요.
+        ImageButton btnFriends = findViewById(R.id.btnFriends);
+        btnFriends.setOnClickListener(v -> {
+            Intent intent = new Intent(MapsActivity.this, FriendsActivity.class);
+            // FriendsActivity로 현재 로그인된 사용자 이름을 전달합니다.
+            intent.putExtra("username", loggedInUsername);
+            startActivity(intent);
+        });
+
+        FloatingActionButton btnCreateGroup = findViewById(R.id.btnCreateGroup);
+        btnCreateGroup.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // CreateGroupActivity를 시작하는 인텐트 생성
+                Intent intent = new Intent(MapsActivity.this, CreateGroupActivity.class);
+                startActivity(intent);
+            }
+        });
+
+        FloatingActionButton btnMyGroups = findViewById(R.id.btnMyGroups);
+        btnMyGroups.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(MapsActivity.this, MyGroupsActivity.class);
+                startActivity(intent);
+            }
+        });
+    }
+    // MyGroupsActivity에서 그룹을 선택하고 돌아왔을 때 호출됩니다.
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        if (intent != null && intent.hasExtra("groupId")) {
+            currentGroupId = intent.getLongExtra("groupId", -1L);
+            if (currentGroupId != -1L) {
+                Toast.makeText(this, "그룹 ID: " + currentGroupId + " 위치 공유를 시작합니다.", Toast.LENGTH_SHORT).show();
+                startLocationSharing();
+            }
+        }
+    }
+
+    // --- ✅✅✅ 실시간 위치 공유 로직 전체 추가 ✅✅✅ ---
+    private void startLocationSharing() {
+        locationUpdateHandler.removeCallbacksAndMessages(null); // 기존 핸들러 중지
+
+        locationUpdateRunnable = new Runnable() {
+            @Override
+            public void run() {
+                Location lastKnownLocation = locationSource.getLastLocation();
+                if (lastKnownLocation != null) {
+                    updateMyLocation(lastKnownLocation);
+                } else {
+                    Log.w("MapsActivity", "현재 위치를 가져올 수 없어 내 위치를 업데이트하지 못했습니다.");
+                }
+
+                fetchGroupMembersLocation();
+                locationUpdateHandler.postDelayed(this, LOCATION_UPDATE_INTERVAL);
+            }
+        };
+        locationUpdateHandler.post(locationUpdateRunnable); // 즉시 시작
+    }
+
+    private void updateMyLocation(Location location) {
+        if (currentGroupId == -1L) return;
+        UpdateLocationRequest request = new UpdateLocationRequest();
+        request.setLatitude(location.getLatitude());
+        request.setLongitude(location.getLongitude());
+
+        Call<String> call = ApiClient.getGroupApiService(this).updateLocation(currentGroupId, request);
+        call.enqueue(new Callback<String>() {
+            @Override
+            public void onResponse(Call<String> call, Response<String> response) {
+                if (response.isSuccessful()) Log.d("MapsActivity", "내 위치 업데이트 성공");
+            }
+            @Override
+            public void onFailure(Call<String> call, Throwable t) {
+                Log.e("MapsActivity", "내 위치 업데이트 실패", t);
+            }
+        });
+    }
+
+    private void fetchGroupMembersLocation() {
+        if (currentGroupId == -1L) return;
+        Call<List<LocationResponse>> call = ApiClient.getGroupApiService(this).getGroupMemberLocations(currentGroupId);
+        call.enqueue(new Callback<List<LocationResponse>>() {
+            @Override
+            public void onResponse(Call<List<LocationResponse>> call, Response<List<LocationResponse>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    updateMemberMarkers(response.body());
+                }
+            }
+            @Override
+            public void onFailure(Call<List<LocationResponse>> call, Throwable t) {
+                Log.e("MapsActivity", "멤버 위치 가져오기 실패", t);
+            }
+        });
+    }
+
+    private void updateMemberMarkers(List<LocationResponse> locations) {
+        if (naverMap == null) return;
+
+        List<Long> updatedUserIds = new ArrayList<>();
+        for (LocationResponse location : locations) {
+            updatedUserIds.add(location.getUserId());
+            LatLng memberPosition = new LatLng(location.getLatitude(), location.getLongitude());
+
+            Marker marker = memberMarkers.get(location.getUserId());
+            if (marker == null) {
+                marker = new Marker();
+                marker.setCaptionText(location.getUserName());
+                memberMarkers.put(location.getUserId(), marker);
+            }
+            marker.setPosition(memberPosition);
+            marker.setMap(naverMap);
+        }
+
+        List<Long> usersToRemove = new ArrayList<>();
+        for (Long existingUserId : memberMarkers.keySet()) {
+            if (!updatedUserIds.contains(existingUserId)) {
+                usersToRemove.add(existingUserId);
+            }
+        }
+        for (Long userId : usersToRemove) {
+            Marker markerToRemove = memberMarkers.get(userId);
+            if (markerToRemove != null) {
+                markerToRemove.setMap(null);
+            }
+            memberMarkers.remove(userId);
+        }
     }
 
     @Override
@@ -408,13 +575,34 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
-    //==============================================================================================
-    // 5. 액티비티 생명주기 콜백
-    //==============================================================================================
+    private void showWeatherBottomSheet() {
+        Location currentLocation = locationSource.getLastLocation();
+        double latitude, longitude;
+
+        if (currentLocation != null) {
+            latitude = currentLocation.getLatitude();
+            longitude = currentLocation.getLongitude();
+        } else {
+            latitude = 37.5665;
+            longitude = 126.9780;
+            Toast.makeText(this, "현재 위치를 가져올 수 없어 기본 위치의 날씨를 표시합니다.", Toast.LENGTH_SHORT).show();
+        }
+        // TODO: WeatherBottomSheetFragment 띄우는 로직 필요
+    }
+
+    @Override protected void onStop() {
+        if (locationUpdateHandler != null) {
+            locationUpdateHandler.removeCallbacksAndMessages(null);
+        }
+        super.onStop();
+        mapView.onStop();
+    }
+
+    // Android Activity Lifecycle Callbacks
     @Override protected void onStart() { super.onStart(); mapView.onStart(); }
     @Override protected void onResume() { super.onResume(); mapView.onResume(); }
     @Override protected void onPause() { super.onPause(); mapView.onPause(); }
-    @Override protected void onStop() { super.onStop(); mapView.onStop(); }
+
     @Override protected void onDestroy() { super.onDestroy(); mapView.onDestroy(); }
     @Override public void onLowMemory() { super.onLowMemory(); mapView.onLowMemory(); }
 }
