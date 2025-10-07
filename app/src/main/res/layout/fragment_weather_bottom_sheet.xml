@@ -1,134 +1,220 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="@drawable/bottom_sheet_background"
-    android:orientation="vertical"
-    android:paddingHorizontal="16dp"
-    android:paddingTop="16dp"
-    android:paddingBottom="24dp">
-
-    <View
-        android:layout_width="40dp"
-        android:layout_height="4dp"
-        android:layout_gravity="center_horizontal"
-        android:background="#BDBDBD"
-        android:layout_marginBottom="16dp"/>
-
-    <RelativeLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
-        <TextView
-            android:id="@+id/tv_location"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="현재 위치 날씨"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:textColor="@android:color/black"/>
-        <ImageView
-            android:id="@+id/iv_weather_icon_large"
-            android:layout_width="80dp"
-            android:layout_height="80dp"
-            android:layout_below="@id/tv_location"
-            android:layout_marginTop="16dp"
-            tools:src="@drawable/ic_weather_clear"
-            android:contentDescription="날씨 아이콘" />
-        <TextView
-            android:id="@+id/tv_current_temp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_toEndOf="@id/iv_weather_icon_large"
-            android:layout_alignTop="@id/iv_weather_icon_large"
-            android:layout_marginStart="16dp"
-            android:textSize="48sp"
-            android:textStyle="bold"
-            android:textColor="@android:color/black"
-            tools:text="23°"/>
-        <TextView
-            android:id="@+id/tv_weather_desc"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_toEndOf="@id/iv_weather_icon_large"
-            android:layout_below="@id/tv_current_temp"
-            android:layout_alignStart="@id/tv_current_temp"
-            android:layout_marginTop="4dp"
-            android:textSize="16sp"
-            tools:text="맑음"/>
-    </RelativeLayout>
-
-    <ProgressBar
-        android:id="@+id/loading_indicator"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:layout_marginTop="16dp"
-        android:visibility="gone" />
+    android:background="@android:color/transparent"
+    android:fillViewport="true">
 
     <LinearLayout
+        android:id="@+id/weather_bottom_sheet_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:baselineAligned="false"
-        android:orientation="horizontal">
-        <LinearLayout
-            android:layout_width="0dp"
+        android:orientation="vertical"
+        android:background="@drawable/weather_bottomsheet_white_background"
+        android:paddingTop="16dp"
+        android:paddingBottom="16dp">
+
+        <!-- 상단 핸들 -->
+        <View
+            android:layout_width="40dp"
+            android:layout_height="4dp"
+            android:layout_gravity="center_horizontal"
+            android:background="@drawable/bottom_sheet_handle"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 위치 및 닫기 버튼 -->
+        <RelativeLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:gravity="center">
+            android:paddingHorizontal="24dp"
+            android:layout_marginBottom="16dp">
+
             <TextView
+                android:id="@+id/tv_location_name"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="습도"
-                android:textSize="14sp"/>
-            <TextView
-                android:id="@+id/tv_humidity"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                tools:text="58%"
+                android:layout_centerInParent="true"
+                android:text="위치를 찾는 중..."
+                android:textColor="@android:color/black"
                 android:textSize="18sp"
-                android:textStyle="bold"
-                android:textColor="@android:color/black"/>
-        </LinearLayout>
+                android:textStyle="bold" />
+
+            <ImageView
+                android:id="@+id/iv_close_button"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:src="@drawable/ic_close"
+                app:tint="@android:color/black"
+                android:contentDescription="Close" />
+        </RelativeLayout>
+
+        <!-- 현재 날씨 정보 -->
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:orientation="vertical"
-            android:gravity="center">
-            <TextView
+            android:gravity="center_horizontal"
+            android:paddingHorizontal="24dp"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="풍속"
-                android:textSize="14sp"/>
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="8dp">
+
+                <ImageView
+                    android:id="@+id/iv_current_weather_icon"
+                    android:layout_width="60dp"
+                    android:layout_height="60dp"
+                    android:src="@drawable/ic_cloudy"
+                    app:tint="@color/textColorPrimary"
+                    android:contentDescription="Current Weather Icon" />
+
+                <TextView
+                    android:id="@+id/tv_current_temperature"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="--°"
+                    android:textColor="@android:color/black"
+                    android:textSize="48sp"
+                    android:textStyle="bold"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
             <TextView
-                android:id="@+id/tv_wind_speed"
+                android:id="@+id/tv_current_weather_status"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                tools:text="2.1 m/s"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:textColor="@android:color/black"/>
+                android:text="위치 정보를 가져오는 중..."
+                android:textColor="@android:color/black"
+                android:textSize="16sp"
+                android:layout_marginBottom="8dp" />
+
+            <!-- 미세먼지 정보 -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="미세"
+                    android:textColor="@android:color/black"
+                    android:textSize="14sp"
+                    android:layout_marginEnd="4dp" />
+
+                <TextView
+                    android:id="@+id/tv_fine_dust_status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="--"
+                    android:textColor="@android:color/white"
+                    android:textSize="12sp"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="4dp"
+                    android:background="@drawable/air_quality_good_background"
+                    android:layout_marginEnd="8dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="초미세"
+                    android:textColor="@android:color/black"
+                    android:textSize="14sp"
+                    android:layout_marginEnd="4dp" />
+
+                <TextView
+                    android:id="@+id/tv_ultrafine_dust_status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="--"
+                    android:textColor="@android:color/white"
+                    android:textSize="12sp"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="4dp"
+                    android:background="@drawable/air_quality_good_background" />
+            </LinearLayout>
         </LinearLayout>
+
+        <!-- 탭 레이아웃 (시간별/일별) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="24dp"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:id="@+id/tv_tab_hourly"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="시간별"
+                android:textColor="@android:color/black"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:paddingBottom="4dp"
+                android:background="@drawable/tab_selected_indicator"
+                android:layout_marginEnd="16dp" />
+
+            <TextView
+                android:id="@+id/tv_tab_daily"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="일별"
+                android:textColor="@color/textColorSecondary"
+                android:textSize="16sp"
+                android:paddingBottom="4dp" />
+        </LinearLayout>
+
+        <!-- 시간별 예보 RecyclerView -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_hourly_forecast"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+            android:paddingHorizontal="18dp"
+            android:clipToPadding="false"
+            android:layout_marginBottom="16dp"
+            tools:listitem="@layout/item_weather_forecast" />
+
+        <!-- 업데이트 정보 및 더보기 -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="24dp">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_alignParentStart="true">
+
+                <TextView
+                    android:id="@+id/tv_update_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="업데이트 2025.09.22. 오후 02:00"
+                    android:textColor="@color/textColorSecondary"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/tv_weather_source"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="발표 기상청 · 제공 케이웨더"
+                    android:textColor="@color/textColorSecondary"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </RelativeLayout>
+
     </LinearLayout>
-
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="#E0E0E0"
-        android:layout_marginTop="24dp"
-        android:layout_marginBottom="8dp"/>
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/forecast_recycler_view"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-        tools:listitem="@layout/item_weather_forecast"
-        tools:itemCount="5"/>
-
-</LinearLayout>
+</ScrollView>

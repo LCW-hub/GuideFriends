@@ -1,36 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="24dp"
-    android:gravity="center">
-
-    <EditText
-        android:id="@+id/et_name"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="Enter name"/>
-
-    <EditText
-        android:id="@+id/et_email"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="Enter email"/>
-
-    <Button
-        android:id="@+id/btn_find_id"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Find ID"/>
+    android:padding="16dp"
+    android:gravity="center"
+    tools:context=".activities.Register_Login.FindIdActivity">
 
     <TextView
-        android:id="@+id/tv_found_id"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="아이디 찾기"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="24dp"/>
+
+    <EditText
+        android:id="@+id/etEmail"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text=""
-        android:textSize="18sp"
-        android:paddingTop="16dp"/>
+        android:hint="가입 시 사용한 이메일 입력"
+        android:inputType="textEmailAddress"
+        android:layout_marginBottom="16dp"/>
+
+    <Button
+        android:id="@+id/btnFindId"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="아이디 찾기" />
+
+    <TextView
+        android:id="@+id/tvResult"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:visibility="gone"
+        tools:text="회원님의 아이디는 [ testuser ] 입니다."
+        tools:visibility="visible" />
 
 </LinearLayout>

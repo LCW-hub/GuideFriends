@@ -3,6 +3,7 @@ package com.example.gps.activities.Register_Login;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
@@ -16,10 +17,13 @@ import com.example.gps.api.UserApi;
 import com.example.gps.model.User;
 
 import java.util.Map;
+import org.json.JSONObject;
+
 
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
+
 
 public class RegisterActivity extends AppCompatActivity {
 
@@ -42,7 +46,7 @@ public class RegisterActivity extends AppCompatActivity {
         etUsername = findViewById(R.id.et_username);         // 이름
         etPassword = findViewById(R.id.et_pw);       // 비밀번호
         etEmail = findViewById(R.id.et_email);       // 이메일
-        btnSignup = findViewById(R.id.btn_signup); // 버튼 ID가 바뀌었으면 여기도 바꿔야 함
+        btnSignup = findViewById(R.id.btn_register); // 버튼 ID가 바뀌었으면 여기도 바꿔야 함
         etConfirmPassword = findViewById(R.id.etConfirmPassword);
         etPhone = findViewById(R.id.et_Phone);
 
@@ -56,7 +60,7 @@ public class RegisterActivity extends AppCompatActivity {
         String password = etPassword.getText().toString().trim();
         String email = etEmail.getText().toString().trim();
         String confirmPassword = etConfirmPassword.getText().toString().trim();
-        String phone = etPhone.getText().toString().trim();
+        String phoneNum = etPhone.getText().toString().trim();
 
         /* 간단한 유효성 검사 */
 
@@ -84,22 +88,24 @@ public class RegisterActivity extends AppCompatActivity {
             return;
         }
 
-        if (phone.isEmpty()) {
+        if (phoneNum.isEmpty()) {
             etPhone.setError("전화번호를 입력해주세요");
             etPhone.requestFocus();
             return;
         }
 
         // 서버 전송용 객체 생성
-        User user = new User(username, password, email, phone);
-        UserApi userApi = ApiClient.getClient().create(UserApi.class);
-        Call<Map<String, String>> call = userApi.signup(user);
+        User user = new User(username, password, email, phoneNum);
+        UserApi userApi = ApiClient.getClient(this).create(UserApi.class);
+        Call<Map<String, Object>> call = userApi.signup(user);
 
-        call.enqueue(new Callback<Map<String, String>>() {
+        // ... registerUser 메서드 내부 ...
+        call.enqueue(new Callback<Map<String, Object>>() {
             @Override
-            public void onResponse(Call<Map<String, String>> call, Response<Map<String, String>> response) {
+            public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
+                // 성공 응답 (2xx)
                 if (response.isSuccessful() && response.body() != null) {
-                    String message = response.body().get("message");
+                    String message = (String) response.body().get("message");
                     Toast.makeText(RegisterActivity.this, message, Toast.LENGTH_LONG).show();
 
                     if (message != null && message.contains("성공")) {
@@ -107,14 +113,28 @@ public class RegisterActivity extends AppCompatActivity {
                         startActivity(intent);
                         finish();
                     }
-                } else {
-                    Toast.makeText(RegisterActivity.this, "회원가입 실패", Toast.LENGTH_LONG).show();
+                }
+                // 에러 응답 (4xx, 5xx)
+                else {
+                    String errorMessage = "회원가입 실패"; // 기본 메시지
+                    if (response.errorBody() != null) {
+                        try {
+                            // ✅ 서버가 보낸 JSON 에러 메시지를 파싱합니다.
+                            String errorJson = response.errorBody().string();
+                            JSONObject jsonObject = new JSONObject(errorJson);
+                            errorMessage = jsonObject.getString("message"); // "message" 키의 값을 추출
+                        } catch (Exception e) {
+                            Log.e("RegisterError", "Error parsing error body", e);
+                        }
+                    }
+                    // ✅ 추출한 에러 메시지를 토스트로 보여줍니다.
+                    Toast.makeText(RegisterActivity.this, errorMessage, Toast.LENGTH_LONG).show();
                 }
             }
 
             @Override
-            public void onFailure(Call<Map<String, String>> call, Throwable t) {
-                Toast.makeText(RegisterActivity.this, "에러 발생: " + t.getMessage(), Toast.LENGTH_LONG).show();
+            public void onFailure(Call<Map<String, Object>> call, Throwable t) {
+                Toast.makeText(RegisterActivity.this, "네트워크 에러: " + t.getMessage(), Toast.LENGTH_LONG).show();
             }
         });
     }
