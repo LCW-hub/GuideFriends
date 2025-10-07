@@ -1,16 +1,15 @@
 package com.example.gps.api;
 
-import com.example.gps.api.AuthInterceptor;
-import com.example.gps.api.GroupApiService;
-import com.example.gps.utils.TokenManager; // TokenManager import
-import okhttp3.OkHttpClient; // OkHttpClient import
+import com.example.gps.utils.TokenManager;
+import okhttp3.OkHttpClient;
+import okhttp3.logging.HttpLoggingInterceptor; // ✅ 로깅 인터셉터 import 추가
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
-import android.content.Context; // Context import
+import android.content.Context;
 
 public class ApiClient {
 
-    private static final String BASE_URL = "http://10.0.2.2:8080/";
+    private static final String BASE_URL = "http://192.168.219.102:8080/";
     private static Retrofit retrofit = null;
     private static GroupApiService groupApiService;
 
@@ -19,14 +18,19 @@ public class ApiClient {
             // TokenManager 인스턴스 생성
             TokenManager tokenManager = new TokenManager(context.getApplicationContext());
 
-            // AuthInterceptor를 사용하는 OkHttpClient 생성
+            // ✅ HttpLoggingInterceptor 생성
+            HttpLoggingInterceptor loggingInterceptor = new HttpLoggingInterceptor();
+            loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY); // 요청/응답의 Body까지 모두 로그로 출력
+
+            // AuthInterceptor와 LoggingInterceptor를 사용하는 OkHttpClient 생성
             OkHttpClient okHttpClient = new OkHttpClient.Builder()
                     .addInterceptor(new AuthInterceptor(tokenManager))
+                    .addInterceptor(loggingInterceptor) // ✅ 로깅 인터셉터 추가
                     .build();
 
             retrofit = new Retrofit.Builder()
                     .baseUrl(BASE_URL)
-                    .client(okHttpClient) // ✅ 직접 만든 OkHttpClient를 사용하도록 설정
+                    .client(okHttpClient) // 직접 만든 OkHttpClient를 사용하도록 설정
                     .addConverterFactory(GsonConverterFactory.create())
                     .build();
         }
