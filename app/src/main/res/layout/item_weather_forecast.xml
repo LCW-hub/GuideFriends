@@ -33,7 +33,7 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:src="@drawable/ic_cloudy"
-            android:tint="@color/textColorPrimary"
+            app:tint="@color/textColorPrimary"
             android:layout_marginBottom="4dp" />
 
         <!-- 강수확률 -->

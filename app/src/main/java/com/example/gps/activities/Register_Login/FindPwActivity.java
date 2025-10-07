@@ -55,7 +55,7 @@ public class FindPwActivity extends AppCompatActivity {
     }
 
     private void requestPasswordReset(String username, String email) {
-        UserApi userApi = ApiClient.getClient().create(UserApi.class);
+        UserApi userApi = ApiClient.getClient(this).create(UserApi.class);
 
         // 1. 서버에 보낼 데이터 (아이디, 이메일)
         Map<String, String> userInfo = new HashMap<>();

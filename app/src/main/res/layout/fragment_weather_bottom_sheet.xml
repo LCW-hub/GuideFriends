@@ -48,7 +48,7 @@
                 android:layout_alignParentEnd="true"
                 android:layout_centerVertical="true"
                 android:src="@drawable/ic_close"
-                android:tint="@android:color/black"
+                app:tint="@android:color/black"
                 android:contentDescription="Close" />
         </RelativeLayout>
 
@@ -73,7 +73,7 @@
                     android:layout_width="60dp"
                     android:layout_height="60dp"
                     android:src="@drawable/ic_cloudy"
-                    android:tint="@color/textColorPrimary"
+                    app:tint="@color/textColorPrimary"
                     android:contentDescription="Current Weather Icon" />
 
                 <TextView
@@ -218,4 +218,3 @@
 
     </LinearLayout>
 </ScrollView>
-

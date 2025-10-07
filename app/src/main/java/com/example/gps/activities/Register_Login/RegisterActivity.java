@@ -96,7 +96,7 @@ public class RegisterActivity extends AppCompatActivity {
 
         // 서버 전송용 객체 생성
         User user = new User(username, password, email, phoneNum);
-        UserApi userApi = ApiClient.getClient().create(UserApi.class);
+        UserApi userApi = ApiClient.getClient(this).create(UserApi.class);
         Call<Map<String, Object>> call = userApi.signup(user);
 
         // ... registerUser 메서드 내부 ...

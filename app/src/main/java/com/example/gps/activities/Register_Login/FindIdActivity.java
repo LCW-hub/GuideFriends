@@ -57,7 +57,7 @@ public class FindIdActivity extends AppCompatActivity {
 
     // ✅ 기존 findId 메서드를 아래 코드로 전체 교체해주세요.
     private void findId(String email) {
-        UserApi userApi = ApiClient.getClient().create(UserApi.class);
+        UserApi userApi = ApiClient.getClient(this).create(UserApi.class);
         Map<String, String> emailMap = new HashMap<>();
         emailMap.put("email", email);
 
