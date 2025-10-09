@@ -2,6 +2,7 @@
 package com.example.gps.activities.Register_Login;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.Button;
@@ -109,6 +110,13 @@ public class RegisterActivity extends AppCompatActivity {
                     Toast.makeText(RegisterActivity.this, message, Toast.LENGTH_LONG).show();
 
                     if (message != null && message.contains("성공")) {
+                        // 회원가입 성공 시 사용자 정보를 SharedPreferences에 저장
+                        SharedPreferences prefs = getSharedPreferences("user_info", MODE_PRIVATE);
+                        prefs.edit()
+                                .putString("username", username)
+                                .putString("email", email)
+                                .apply();
+                        
                         Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
                         startActivity(intent);
                         finish();
@@ -116,18 +124,21 @@ public class RegisterActivity extends AppCompatActivity {
                 }
                 // 에러 응답 (4xx, 5xx)
                 else {
-                    String errorMessage = "회원가입 실패"; // 기본 메시지
+                    String errorMessage = "회원가입 실패 (코드: " + response.code() + ")"; // 기본 메시지에 응답 코드 추가
                     if (response.errorBody() != null) {
                         try {
-                            // ✅ 서버가 보낸 JSON 에러 메시지를 파싱합니다.
                             String errorJson = response.errorBody().string();
-                            JSONObject jsonObject = new JSONObject(errorJson);
-                            errorMessage = jsonObject.getString("message"); // "message" 키의 값을 추출
+                            // ============ ✨ 수정된 부분 ✨ ============
+                            // errorJson이 비어있지 않은 경우에만 파싱을 시도합니다.
+                            if (errorJson != null && !errorJson.isEmpty()) {
+                                JSONObject jsonObject = new JSONObject(errorJson);
+                                errorMessage = jsonObject.getString("message");
+                            }
+                            // =========================================
                         } catch (Exception e) {
                             Log.e("RegisterError", "Error parsing error body", e);
                         }
                     }
-                    // ✅ 추출한 에러 메시지를 토스트로 보여줍니다.
                     Toast.makeText(RegisterActivity.this, errorMessage, Toast.LENGTH_LONG).show();
                 }
             }

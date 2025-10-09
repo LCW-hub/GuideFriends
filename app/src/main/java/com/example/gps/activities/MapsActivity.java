@@ -3,8 +3,10 @@ package com.example.gps.activities;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
+import android.content.res.ColorStateList;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -27,7 +29,9 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.gps.R;
 import com.example.gps.activities.Friend.FriendsActivity;
+import com.example.gps.activities.Register_Login.LoginActivity;
 import com.example.gps.adapters.SearchResultAdapter;
+import com.example.gps.utils.TokenManager;
 import com.example.gps.api.ApiClient;
 import com.example.gps.dto.LocationResponse;
 import com.example.gps.dto.UpdateLocationRequest;
@@ -92,6 +96,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     // 로그인된 사용자 이름을 저장할 변수
     private String loggedInUsername;
+    
+    // 서브 메뉴 상태 관리
+    private boolean isSubMenuOpen = false;
+    private static final float SUB_MENU_RADIUS_DP = 80f;
 
     // 실시간 공유를 위한 변수들
     private Long currentGroupId = -1L;
@@ -123,7 +131,168 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         initializeMap();
         initializeButtons();
+        bindMyPageHeader();
         initializeSearch();
+        initializeSubMenu();
+    }
+
+    private void bindMyPageHeader() {
+        TextView tvUsername = findViewById(R.id.tv_username);
+        TextView tvEmail = findViewById(R.id.tv_email);
+        if (tvUsername != null) {
+            tvUsername.setText(loggedInUsername != null ? loggedInUsername : "Guest");
+        }
+        if (tvEmail != null) {
+            String email = getSharedPreferences("user_info", MODE_PRIVATE).getString("email", "user@example.com");
+            tvEmail.setText(email);
+        }
+        View btnLogout = findViewById(R.id.btn_logout);
+        if (btnLogout != null) {
+            btnLogout.setOnClickListener(v -> {
+                TokenManager tokenManager = new TokenManager(this);
+                tokenManager.deleteToken();
+                Intent intent = new Intent(this, LoginActivity.class);
+                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(intent);
+                finish();
+            });
+        }
+    }
+
+    // 서브 메뉴 토글 메서드
+    private void toggleSubMenu() {
+        if (isSubMenuOpen) {
+            hideSubMenu();
+        } else {
+            showSubMenu();
+        }
+    }
+
+    // 서브 메뉴 표시
+    private void showSubMenu() {
+        isSubMenuOpen = true;
+
+        FloatingActionButton btnMainMenu = findViewById(R.id.btnMainMenu);
+        FloatingActionButton btnFriends = findViewById(R.id.btnFriends);
+        FloatingActionButton btnCreateGroup = findViewById(R.id.btnCreateGroup);
+        FloatingActionButton btnMyGroups = findViewById(R.id.btnMyGroups);
+        FloatingActionButton btnMyPage = findViewById(R.id.btnMyPage);
+        FloatingActionButton btnSettings = findViewById(R.id.btnSettings);
+
+        // 메인 버튼 스타일 변경
+        btnMainMenu.setImageResource(R.drawable.ic_close);
+        btnMainMenu.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.red)));
+
+        FloatingActionButton[] targets = new FloatingActionButton[]{btnFriends, btnCreateGroup, btnMyGroups, btnMyPage, btnSettings};
+
+        // 버튼 초기화 및 보이기
+        for (FloatingActionButton b : targets) {
+            b.setVisibility(View.VISIBLE);
+            b.setAlpha(0f);
+            b.setTranslationX(0f);
+            b.setTranslationY(0f);
+        }
+
+        // 펼쳐질 반경
+        float radiusPx = dpToPx(SUB_MENU_RADIUS_DP);
+
+        // ★★★ 핵심 수정 부분: 각 버튼의 각도를 직접 지정 ★★★
+        // targets 배열 순서대로 각도를 설정합니다. (btnFriends, btnCreateGroup, btnMyGroups, btnMyPage, btnSettings)
+        float[] angles = new float[]{180f, 135f, 90f, 45f, 0f}; // 부채꼴 모양으로 배치 (왼쪽에서 오른쪽으로)
+        float[] distancesDp = new float[]{100f, 100f, 100f, 100f, 100f}; // 모든 버튼이 같은 거리로 배치
+
+        long delay = 0L;
+        for (int i = 0; i < targets.length; i++) {
+            // 지정된 각도를 라디안으로 변환
+            double rad = Math.toRadians(angles[i]);
+            radiusPx = dpToPx(distancesDp[i]);
+
+            // x, y 좌표 계산
+            float tx = (float) (Math.cos(rad) * radiusPx);
+            float ty = (float) (Math.sin(rad) * radiusPx);
+
+            targets[i].animate()
+                    .translationX(tx)
+                    .translationY(ty * -1f) // Y축 반전
+                    .alpha(1f)
+                    .setDuration(300)
+                    .setStartDelay(delay)
+                    .start();
+            delay += 50L;
+        }
+    }
+
+    // 서브 메뉴 숨기기
+    private void hideSubMenu() {
+        isSubMenuOpen = false;
+
+        FloatingActionButton btnMainMenu = findViewById(R.id.btnMainMenu);
+        FloatingActionButton btnFriends = findViewById(R.id.btnFriends);
+        FloatingActionButton btnCreateGroup = findViewById(R.id.btnCreateGroup);
+        FloatingActionButton btnMyGroups = findViewById(R.id.btnMyGroups);
+        FloatingActionButton btnMyPage = findViewById(R.id.btnMyPage);
+        FloatingActionButton btnSettings = findViewById(R.id.btnSettings);
+
+        // 메인 버튼 스타일 원복 (빨강 -> 초록, X -> 메뉴)
+        btnMainMenu.setImageResource(R.drawable.ic_menu);
+        btnMainMenu.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.colorPrimary)));
+
+        FloatingActionButton[] targets = new FloatingActionButton[]{btnFriends, btnCreateGroup, btnMyGroups, btnMyPage, btnSettings};
+
+        long delay = 0L;
+        // 역순으로 애니메이션을 적용하면 더 자연스럽습니다.
+        for (int i = targets.length - 1; i >= 0; i--) {
+            int finalI = i;
+            targets[i].animate()
+                    .translationX(0f)
+                    .translationY(0f)
+                    .alpha(0f)
+                    .setDuration(250)
+                    .setStartDelay(delay)
+                    .withEndAction(() -> targets[finalI].setVisibility(View.GONE)) // 애니메이션 종료 후 숨김
+                    .start();
+            delay += 40L;
+        }
+    }
+
+    // 서브 메뉴 초기화
+    private void initializeSubMenu() {
+        FloatingActionButton btnFriends = findViewById(R.id.btnFriends);
+        FloatingActionButton btnCreateGroup = findViewById(R.id.btnCreateGroup);
+        FloatingActionButton btnMyGroups = findViewById(R.id.btnMyGroups);
+        FloatingActionButton btnMyPage = findViewById(R.id.btnMyPage);
+        FloatingActionButton btnSettings = findViewById(R.id.btnSettings);
+        
+        // 초기 상태: 숨김, 투명도 0
+        btnFriends.setVisibility(View.GONE);
+        btnCreateGroup.setVisibility(View.GONE);
+        btnMyGroups.setVisibility(View.GONE);
+        btnMyPage.setVisibility(View.GONE);
+        btnSettings.setVisibility(View.GONE);
+        
+        btnFriends.setAlpha(0f);
+        btnCreateGroup.setAlpha(0f);
+        btnMyGroups.setAlpha(0f);
+        btnMyPage.setAlpha(0f);
+        btnSettings.setAlpha(0f);
+    }
+
+    private float dpToPx(float dp) {
+        return dp * getResources().getDisplayMetrics().density;
+    }
+
+    // 설정된 지도 타입 적용
+    private void applyMapTypeSetting() {
+        SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
+        boolean isSatelliteMode = prefs.getBoolean("satellite_mode", false);
+        
+        if (naverMap != null) {
+            if (isSatelliteMode) {
+                naverMap.setMapType(NaverMap.MapType.Satellite);
+            } else {
+                naverMap.setMapType(NaverMap.MapType.Basic);
+            }
+        }
     }
 
     @Override
@@ -132,6 +301,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         naverMap.setLocationSource(locationSource);
         naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
         naverMap.moveCamera(CameraUpdate.scrollAndZoomTo(new LatLng(37.5665, 126.9780), 11));
+
+        // 설정된 지도 타입 적용
+        applyMapTypeSetting();
 
         loadWeatherData(); // 지도가 준비된 후 날씨 정보 로드
     }
@@ -142,31 +314,60 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private void initializeButtons() {
+        androidx.drawerlayout.widget.DrawerLayout drawerLayout = findViewById(R.id.drawer_layout);
         FloatingActionButton btnMapType = findViewById(R.id.btnMapType);
         FloatingActionButton btnMyLocation = findViewById(R.id.btnMyLocation);
         androidx.cardview.widget.CardView weatherWidget = findViewById(R.id.weather_widget);
-        ImageButton btnFriends = findViewById(R.id.btnFriends);
+        
+        // 메인 메뉴 버튼과 서브 메뉴 버튼들
+        FloatingActionButton btnMainMenu = findViewById(R.id.btnMainMenu);
+        FloatingActionButton btnFriends = findViewById(R.id.btnFriends);
         FloatingActionButton btnCreateGroup = findViewById(R.id.btnCreateGroup);
         FloatingActionButton btnMyGroups = findViewById(R.id.btnMyGroups);
+        FloatingActionButton btnMyPage = findViewById(R.id.btnMyPage);
+        FloatingActionButton btnSettings = findViewById(R.id.btnSettings);
 
         btnMapType.setOnClickListener(v -> showMapTypeMenu(v));
         btnMyLocation.setOnClickListener(v -> moveToCurrentLocation());
         weatherWidget.setOnClickListener(v -> showWeatherBottomSheet());
 
+        // 메인 메뉴 버튼 클릭 시 서브 메뉴 토글
+        btnMainMenu.setOnClickListener(v -> toggleSubMenu());
+
+        // 서브 메뉴 버튼들 클릭 리스너
         btnFriends.setOnClickListener(v -> {
             Intent intent = new Intent(MapsActivity.this, FriendsActivity.class);
             intent.putExtra("username", loggedInUsername);
             startActivity(intent);
+            hideSubMenu();
         });
 
         btnCreateGroup.setOnClickListener(v -> {
             Intent intent = new Intent(MapsActivity.this, CreateGroupActivity.class);
             startActivity(intent);
+            hideSubMenu();
         });
 
         btnMyGroups.setOnClickListener(v -> {
             Intent intent = new Intent(MapsActivity.this, MyGroupsActivity.class);
             startActivity(intent);
+            hideSubMenu();
+        });
+
+        btnMyPage.setOnClickListener(v -> {
+            View sidebar = findViewById(R.id.sidebar);
+            if (drawerLayout.isDrawerOpen(sidebar)) {
+                drawerLayout.closeDrawer(sidebar);
+            } else {
+                drawerLayout.openDrawer(sidebar);
+            }
+            hideSubMenu();
+        });
+
+        btnSettings.setOnClickListener(v -> {
+            Intent intent = new Intent(MapsActivity.this, SettingsActivity.class);
+            startActivity(intent);
+            hideSubMenu();
         });
     }
 
@@ -570,6 +771,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     protected void onResume() {
         super.onResume();
         mapView.onResume();
+        
+        // 설정 변경사항 적용
+        applyMapTypeSetting();
+        
         // 다른 화면에서 돌아왔을 때, 위치 공유 중이었다면 다시 시작
         if (currentGroupId != -1L) {
             startLocationSharing();
