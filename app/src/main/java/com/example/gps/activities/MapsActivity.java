@@ -41,6 +41,7 @@ import com.naver.maps.map.CameraUpdate;
 import com.naver.maps.map.LocationTrackingMode;
 import com.naver.maps.map.MapView;
 import com.naver.maps.map.NaverMap;
+import com.naver.maps.map.NaverMapSdk; // [수정] import 문 추가
 import com.naver.maps.map.OnMapReadyCallback;
 import com.naver.maps.map.overlay.Marker;
 import com.naver.maps.map.util.FusedLocationSource;
@@ -68,6 +69,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private MapView mapView;
     private NaverMap naverMap;
     private FusedLocationSource locationSource;
+    private Location latestLocation = null;
 
     // 검색 관련 UI 및 데이터 변수
     private EditText etSearch;
@@ -80,6 +82,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private ImageView ivWeatherIcon;
     private TextView tvTemperature;
 
+    // 날씨 업데이트 시간 간격을 위한 변수
+    private long lastWeatherUpdateTime = 0;
+    private static final long WEATHER_UPDATE_INTERVAL = 5000; // 5초 (5000ms)
+
     // 백그라운드 작업을 위한 ExecutorService 및 Handler (공용으로 사용)
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -87,8 +93,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // 상수
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1000;
     private static final String OPENWEATHERMAP_API_KEY = "7a4aa78797771aa887fe9b14a9be94e5";
-    private static final String NAVER_CLIENT_ID = "OAQnuwhbAL34Of8mlxve";
-    private static final String NAVER_CLIENT_SECRET = "4roXQDJBpc";
+    // 네이버 API키는 Manifest와 아래 onCreate의 초기화 코드에서 관리하므로 클래스 상수로 둘 필요가 없습니다.
 
     // 로그인된 사용자 이름을 저장할 변수
     private String loggedInUsername;
@@ -107,6 +112,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // ★★★★★ 최종 해결을 위한 가장 중요한 코드 ★★★★★
+        // setContentView() 보다 먼저 NaverMapSdk를 초기화해야 합니다.
+        NaverMapSdk.getInstance(this).setClient(
+                new NaverMapSdk.NaverCloudPlatformClient("v0la9en3t0")
+        );
+
         setContentView(R.layout.activity_maps);
 
         checkLocationPermission();
@@ -131,9 +143,22 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         this.naverMap = map;
         naverMap.setLocationSource(locationSource);
         naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
+        naverMap.getUiSettings().setLocationButtonEnabled(true);
         naverMap.moveCamera(CameraUpdate.scrollAndZoomTo(new LatLng(37.5665, 126.9780), 11));
 
-        loadWeatherData(); // 지도가 준비된 후 날씨 정보 로드
+        naverMap.addOnLocationChangeListener(location -> {
+            this.latestLocation = location;
+
+            long currentTime = System.currentTimeMillis();
+            if (currentTime - lastWeatherUpdateTime > WEATHER_UPDATE_INTERVAL) {
+                lastWeatherUpdateTime = currentTime;
+                LatLng currentLatLng = new LatLng(location.getLatitude(), location.getLongitude());
+                updateWeatherWidget(currentLatLng);
+                Log.d("MapsActivity", "날씨 정보를 실시간으로 업데이트합니다.");
+            }
+        });
+
+        loadWeatherData();
     }
 
     private void initializeMap() {
@@ -192,13 +217,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         locationUpdateRunnable = new Runnable() {
             @Override
             public void run() {
-                if (locationSource != null) {
-                    Location lastKnownLocation = locationSource.getLastLocation();
-                    if (lastKnownLocation != null) {
-                        updateMyLocation(lastKnownLocation);
-                    } else {
-                        Log.w("MapsActivity", "현재 위치를 가져올 수 없어 내 위치를 업데이트하지 못했습니다.");
-                    }
+                if (latestLocation != null) { // [수정] 안정성을 위해 latestLocation 사용
+                    updateMyLocation(latestLocation);
+                } else {
+                    Log.w("MapsActivity", "현재 위치를 가져올 수 없어 내 위치를 업데이트하지 못했습니다.");
                 }
                 fetchGroupMembersLocation();
                 locationUpdateHandler.postDelayed(this, LOCATION_UPDATE_INTERVAL);
@@ -321,8 +343,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 URL url = new URL(urlString);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
-                conn.setRequestProperty("X-Naver-Client-Id", NAVER_CLIENT_ID);
-                conn.setRequestProperty("X-Naver-Client-Secret", NAVER_CLIENT_SECRET);
+                // FIXME: 보안을 위해 여기에 키를 직접 쓰는 것은 좋지 않습니다. 실제 앱에서는 build.gradle 등을 통해 관리하세요.
+                conn.setRequestProperty("X-Naver-Client-Id", "OAQnuwhbAL34Of8mlxve");
+                conn.setRequestProperty("X-Naver-Client-Secret", "4roXQDJBpc");
 
                 if (conn.getResponseCode() == 200) {
                     BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
@@ -359,13 +382,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             String title = item.getString("title").replaceAll("<[^>]*>", "");
             String address = item.optString("roadAddress", item.optString("address", ""));
             String category = item.optString("category", "정보 없음");
-
             long mapx = item.getLong("mapx");
             long mapy = item.getLong("mapy");
-
-            // FIXME: ⚠️ 네이버 지역검색 API는 KATEC 좌표계를 반환하므로, 실제 서비스에서는 WGS84 위경도 좌표계로 변환해야 합니다.
+            // FIXME: 네이버 지역검색 API는 KATEC 좌표계를 반환하므로, 실제 서비스에서는 WGS84 위경도 좌표계로 변환해야 합니다.
             LatLng latLng = new LatLng(mapy, mapx); // 이 부분은 실제 위경도로 변환해야 합니다.
-
             results.add(new SearchResult(title, address, category, latLng.latitude, latLng.longitude, "", ""));
         }
         return results;
@@ -379,8 +399,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 URL url = new URL(urlString);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
-                conn.setRequestProperty("X-Naver-Client-Id", NAVER_CLIENT_ID);
-                conn.setRequestProperty("X-Naver-Client-Secret", NAVER_CLIENT_SECRET);
+                // FIXME: 보안을 위해 여기에 키를 직접 쓰는 것은 좋지 않습니다. 실제 앱에서는 build.gradle 등을 통해 관리하세요.
+                conn.setRequestProperty("X-Naver-Client-Id", "OAQnuwhbAL34Of8mlxve");
+                conn.setRequestProperty("X-Naver-Client-Secret", "4roXQDJBpc");
 
                 if (conn.getResponseCode() == 200) {
                     BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
@@ -483,17 +504,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private void showWeatherBottomSheet() {
-        Location currentLocation = locationSource.getLastLocation();
-        double latitude, longitude;
-        if (currentLocation != null) {
-            latitude = currentLocation.getLatitude();
-            longitude = currentLocation.getLongitude();
+        if (latestLocation != null) {
+            double latitude = latestLocation.getLatitude();
+            double longitude = latestLocation.getLongitude();
+            WeatherBottomSheetFragment.newInstance(latitude, longitude).show(getSupportFragmentManager(), "WeatherBottomSheet");
         } else {
-            latitude = 37.5665; // 서울 시청
-            longitude = 126.9780;
-            Toast.makeText(this, "현재 위치를 가져올 수 없어 기본 위치의 날씨를 표시합니다.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "현재 위치를 파악 중입니다. 잠시 후 다시 시도해주세요.", Toast.LENGTH_SHORT).show();
         }
-        WeatherBottomSheetFragment.newInstance(latitude, longitude).show(getSupportFragmentManager(), "WeatherBottomSheet");
     }
 
     //==============================================================================================
@@ -510,19 +527,18 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (locationSource.onRequestPermissionsResult(requestCode, permissions, grantResults)) {
-            if (naverMap != null) {
+            if (naverMap != null && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
             }
         }
     }
 
     private void moveToCurrentLocation() {
-        if (naverMap == null || locationSource.getLastLocation() == null) {
+        if (naverMap == null || latestLocation == null) { // [수정] 안정성을 위해 latestLocation 사용
             Toast.makeText(this, "위치 정보를 가져올 수 없습니다.", Toast.LENGTH_SHORT).show();
             return;
         }
-        Location location = locationSource.getLastLocation();
-        LatLng currentLocation = new LatLng(location.getLatitude(), location.getLongitude());
+        LatLng currentLocation = new LatLng(latestLocation.getLatitude(), latestLocation.getLongitude());
         CameraUpdate cameraUpdate = CameraUpdate.scrollAndZoomTo(currentLocation, 16).animate(CameraAnimation.Easing, 1200);
         naverMap.moveCamera(cameraUpdate);
         Toast.makeText(this, "📍 내 위치로 이동합니다.", Toast.LENGTH_SHORT).show();
@@ -570,7 +586,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     protected void onResume() {
         super.onResume();
         mapView.onResume();
-        // 다른 화면에서 돌아왔을 때, 위치 공유 중이었다면 다시 시작
         if (currentGroupId != -1L) {
             startLocationSharing();
         }
@@ -580,7 +595,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     protected void onPause() {
         super.onPause();
         mapView.onPause();
-        // 앱이 백그라운드로 갈 때 위치 공유 중지
         locationUpdateHandler.removeCallbacksAndMessages(null);
     }
 
