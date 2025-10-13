@@ -45,7 +45,7 @@ import com.naver.maps.map.NaverMap;
 import com.naver.maps.map.OnMapReadyCallback;
 import com.naver.maps.map.overlay.Marker;
 import com.naver.maps.map.util.FusedLocationSource;
-
+import com.naver.maps.geometry.Tm128;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -400,13 +400,20 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             String address = item.optString("roadAddress", item.optString("address", ""));
             String category = item.optString("category", "정보 없음");
 
-            long mapx = item.getLong("mapx");
-            long mapy = item.getLong("mapy");
+            // 1. API가 주는 비정상적인 값을 double로 읽어옵니다.
+            double rawMapX = Double.parseDouble(item.getString("mapx"));
+            double rawMapY = Double.parseDouble(item.getString("mapy"));
 
-            // FIXME: ⚠️ 네이버 지역검색 API는 KATEC 좌표계를 반환하므로, 실제 서비스에서는 WGS84 위경도 좌표계로 변환해야 합니다.
-            LatLng latLng = new LatLng(mapy, mapx); // 이 부분은 실제 위경도로 변환해야 합니다.
+            // 2. 이 값들은 사실 위도/경도에 10,000,000이 곱해진 값이므로, 다시 나눠서 원래 값으로 복원합니다.
+            //    (주의: mapy가 위도(latitude), mapx가 경도(longitude)에 해당합니다.)
+            double latitude = rawMapY / 10000000.0;
+            double longitude = rawMapX / 10000000.0;
 
-            results.add(new SearchResult(title, address, category, latLng.latitude, latLng.longitude, "", ""));
+            // 로그로 복원된 실제 위경도 값을 확인합니다.
+            Log.d("MAPS_ACTIVITY_DEBUG", "[RESTORED] title: " + title + ", Lat: " + latitude + ", Lng: " + longitude);
+
+            // 3. Tm128 변환 없이, 복원된 위경도 값으로 SearchResult를 생성합니다.
+            results.add(new SearchResult(title, address, category, latitude, longitude, "", ""));
         }
         return results;
     }
@@ -455,6 +462,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void moveToSearchResult(SearchResult result) {
         if (naverMap != null) {
             // FIXME: parseNaverSearchResults에서 좌표 변환이 올바르게 되면, 이 부분도 정확한 위치로 이동합니다.
+            Log.d("MAPS_ACTIVITY_DEBUG", "[MOVING TO] title: " + result.getTitle() + ", Lat: " + result.getLatitude() + ", Lng: " + result.getLongitude());
             LatLng location = new LatLng(result.getLatitude(), result.getLongitude());
             CameraUpdate cameraUpdate = CameraUpdate.scrollAndZoomTo(location, 16).animate(CameraAnimation.Easing, 1000);
             naverMap.moveCamera(cameraUpdate);
