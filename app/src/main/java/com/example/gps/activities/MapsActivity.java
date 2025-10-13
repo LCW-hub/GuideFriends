@@ -1,6 +1,7 @@
 package com.example.gps.activities;
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -73,8 +74,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private EditText etSearch;
     private ImageView ivSearchIcon;
     private RecyclerView rvSearchResults;
-    private SearchResultAdapter searchResultAdapter;
     private Marker searchResultMarker = null;
+
+    // 선택 모드인지 확인하는 플래그 추가
+    private boolean isSelectionMode = false;
+    private SearchResultAdapter searchResultAdapter;
+
 
     // 날씨 관련 UI 변수
     private ImageView ivWeatherIcon;
@@ -111,8 +116,18 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         checkLocationPermission();
 
+        if ("SELECT_DESTINATION".equals(getIntent().getStringExtra("PURPOSE"))) {
+            isSelectionMode = true;
+            // 선택 모드일 때 사용자에게 안내 메시지 표시
+            Toast.makeText(this, "목적지로 설정할 장소를 검색 후 선택해주세요.", Toast.LENGTH_LONG).show();
+        }
+
+
+
         mapView = findViewById(R.id.map_view);
         mapView.onCreate(savedInstanceState);
+        ivWeatherIcon = findViewById(R.id.iv_weather_icon);
+        tvTemperature = findViewById(R.id.tv_temperature);
 
         // 날씨 UI 요소 초기화
         ivWeatherIcon = findViewById(R.id.iv_weather_icon);
@@ -124,6 +139,51 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         initializeMap();
         initializeButtons();
         initializeSearch();
+    }
+
+    private void initializeSearch() {
+        etSearch = findViewById(R.id.et_search);
+        ivSearchIcon = findViewById(R.id.iv_search_icon);
+        rvSearchResults = findViewById(R.id.rv_search_results);
+
+        searchResultAdapter = new SearchResultAdapter();
+        rvSearchResults.setLayoutManager(new LinearLayoutManager(this));
+        rvSearchResults.setAdapter(searchResultAdapter);
+
+        ivSearchIcon.setOnClickListener(v -> performSearch());
+
+        // ## 4. 검색 결과 아이템 클릭 리스너 수정 ##
+        // isSelectionMode 값에 따라 다르게 동작하도록 이 부분을 수정합니다.
+        searchResultAdapter.setOnItemClickListener(searchResult -> {
+            if (isSelectionMode) {
+                // [선택 모드일 경우]
+                // 1. 결과 데이터를 담을 Intent를 생성합니다.
+                Intent resultIntent = new Intent();
+                resultIntent.putExtra("PLACE_NAME", searchResult.getTitle());
+                resultIntent.putExtra("PLACE_LAT", searchResult.getLatitude());
+                resultIntent.putExtra("PLACE_LNG", searchResult.getLongitude());
+
+                // 2. setResult()를 호출하여 CreateGroupActivity로 데이터를 돌려보낼 준비를 합니다.
+                setResult(Activity.RESULT_OK, resultIntent);
+
+                // 3. 현재 MapsActivity를 종료하여 이전 화면(CreateGroupActivity)으로 돌아갑니다.
+                finish();
+
+            } else {
+                // [일반 모드일 경우] (기존 로직과 동일)
+                // 선택한 위치로 이동하고 상세 정보창을 띄웁니다.
+                moveToSearchResult(searchResult);
+                hideSearchResults();
+            }
+        });
+
+        etSearch.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
+                performSearch();
+                return true;
+            }
+            return false;
+        });
     }
 
     @Override
@@ -280,28 +340,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // 3. 검색 기능 관련
     //==============================================================================================
 
-    private void initializeSearch() {
-        etSearch = findViewById(R.id.et_search);
-        ivSearchIcon = findViewById(R.id.iv_search_icon);
-        rvSearchResults = findViewById(R.id.rv_search_results);
 
-        searchResultAdapter = new SearchResultAdapter();
-        rvSearchResults.setLayoutManager(new LinearLayoutManager(this));
-        rvSearchResults.setAdapter(searchResultAdapter);
 
-        ivSearchIcon.setOnClickListener(v -> performSearch());
-        searchResultAdapter.setOnItemClickListener(searchResult -> {
-            moveToSearchResult(searchResult);
-            hideSearchResults();
-        });
-        etSearch.setOnEditorActionListener((v, actionId, event) -> {
-            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
-                performSearch();
-                return true;
-            }
-            return false;
-        });
-    }
 
     private void performSearch() {
         String query = etSearch.getText().toString().trim();

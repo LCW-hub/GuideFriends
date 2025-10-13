@@ -11,8 +11,8 @@
         android:layout_height="wrap_content"
         android:hint="그룹 이름" />
 
-    <EditText
-        android:id="@+id/etDestination"
+    <Button
+        android:id="@+id/btnSelectDestination"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
@@ -24,19 +24,21 @@
         android:orientation="horizontal"
         android:layout_marginTop="8dp">
 
-        <EditText
-            android:id="@+id/etStartTime"
+        <Button
+            android:id="@+id/btnStartTime"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:hint="시작 시간 (예: 2025-10-04T19:00:00)" />
+            android:text="시작 시간 선택"
+            android:layout_marginEnd="4dp"/>
 
-        <EditText
-            android:id="@+id/etEndTime"
+        <Button
+            android:id="@+id/btnEndTime"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:hint="종료 시간 (예: 2025-10-04T21:00:00)" />
+            android:text="종료 시간 선택"
+            android:layout_marginStart="4dp"/>
     </LinearLayout>
 
     <TextView
