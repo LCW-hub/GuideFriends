@@ -55,8 +55,8 @@ public class LoginActivity extends AppCompatActivity {
         textViewFindPassword = findViewById(R.id.tvFindPw);
 
         // 기본값 자동 입력
-        editTextUsername.setText("ock123");
-        editTextPassword.setText("ock123123");
+        editTextUsername.setText("lcw");
+        editTextPassword.setText("lcw123");
 
         // 로그인 버튼 클릭 리스너
         buttonLogin.setOnClickListener(new View.OnClickListener() {
@@ -119,6 +119,13 @@ public class LoginActivity extends AppCompatActivity {
                     String token = response.body().getToken();
                     TokenManager tokenManager = new TokenManager(LoginActivity.this);
                     tokenManager.saveToken(token);
+
+                    // 사용자 정보를 SharedPreferences에 저장
+                    SharedPreferences prefs = getSharedPreferences("user_info", MODE_PRIVATE);
+                    prefs.edit()
+                            .putString("username", username)
+                            .putString("email", username + "@example.com") // 실제로는 서버에서 가져와야 함
+                            .apply();
 
                     Toast.makeText(LoginActivity.this, "로그인 성공!", Toast.LENGTH_SHORT).show();
 
