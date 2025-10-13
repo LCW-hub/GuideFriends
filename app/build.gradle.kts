@@ -93,4 +93,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+
+    // CircleImageView for profile image in MyPage drawer
+    implementation("de.hdodenhof:circleimageview:3.1.0")
 }
