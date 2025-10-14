@@ -4,17 +4,24 @@ public class User {
     private String username;
     private String password;
     private String email;
-    private String name;
+    private String phoneNum;
 
     // ✅ 기본 생성자 (필수)
     public User() {}
 
+    // ⭐ [추가 필요] 서버의 User 모델과 동일한 타입의 ID 필드
+    private Long id;
+
+    // ⭐ [추가 필요] id 값을 반환하는 Getter 메서드
+    public Long getId() {
+        return id;
+    }
     // 전체 필드 생성자
-    public User(String username, String password, String email, String name) {
+    public User(String username, String password, String email, String phoneNum) {
         this.username = username;
         this.password = password;
         this.email = email;
-        this.name = name;
+        this.phoneNum = phoneNum;
     }
 
     // getter & setter
@@ -27,6 +34,6 @@ public class User {
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
 
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
+    public String getPhoneNum() { return phoneNum; }
+    public void setPhoneNum(String phone) { this.phoneNum = phone; }
 }

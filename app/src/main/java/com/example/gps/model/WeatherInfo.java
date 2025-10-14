@@ -3,9 +3,14 @@ package com.example.gps.model;
 import java.util.List;
 
 public class WeatherInfo {
+    private String name; // 지역 이름
     private Main main;
     private List<Weather> weather;
     private Wind wind;
+    
+    public String getName() {
+        return name;
+    }
     
     public Main getMain() {
         return main;
