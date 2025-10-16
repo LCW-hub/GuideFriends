@@ -65,6 +65,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -162,24 +163,35 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         this.naverMap = map;
         naverMap.setLocationSource(locationSource);
         naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
-        naverMap.moveCamera(CameraUpdate.scrollAndZoomTo(new LatLng(37.5665, 126.9780), 11));
 
+        // ⭐⭐⭐ 해결 핵심: 'initialPosition' 변수를 여기서 선언하고 값을 할당합니다. ⭐⭐⭐
+        LatLng initialPosition = new LatLng(37.5665, 126.9780); // 서울 시청 좌표
+
+        // 1. 초기 카메라 위치를 설정된 기본 좌표로 이동합니다.
+        naverMap.moveCamera(CameraUpdate.scrollAndZoomTo(initialPosition, 11));
+
+        // 2. '내 위치' 마커를 초기화합니다.
         if (myLocationMarker == null) {
             myLocationMarker = new Marker();
             myLocationMarker.setCaptionText("내 위치");
-            myLocationMarker.setMap(naverMap);
         }
 
+        // 3. 마커를 지도에 추가하기 전에 초기 위치를 반드시 설정합니다.
+        myLocationMarker.setPosition(initialPosition);
+        myLocationMarker.setMap(naverMap);
+
+        // 4. 이후 실제 위치를 받으면 마커 위치를 업데이트합니다.
         naverMap.addOnLocationChangeListener(location -> {
             if (location != null && Double.isFinite(location.getLatitude()) && Double.isFinite(location.getLongitude())) {
                 LatLng currentLocation = new LatLng(location.getLatitude(), location.getLongitude());
-                if (animationHandler == null) { // Update marker only if not in mock movement
+                if (animationHandler == null) { // 가상 이동 중이 아닐 때만 실제 위치로 업데이트
                     myLocationMarker.setPosition(currentLocation);
                 }
                 updateWeatherWidget(currentLocation);
             }
         });
 
+        // 5. 부가 기능들을 호출합니다.
         applyMapTypeSetting();
         loadWeatherData();
     }
@@ -230,9 +242,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             hideSubMenu();
         });
         btnMyPage.setOnClickListener(v -> {
-            drawerLayout.openDrawer(findViewById(R.id.my_page_drawer)); // Corrected to use ID
+            View sidebar = findViewById(R.id.sidebar);
+            if (drawerLayout.isDrawerOpen(sidebar)) {
+                drawerLayout.closeDrawer(sidebar);
+            } else {
+                drawerLayout.openDrawer(sidebar);
+            }
             hideSubMenu();
         });
+
         btnSettings.setOnClickListener(v -> {
             startActivity(new Intent(this, SettingsActivity.class));
             hideSubMenu();
@@ -405,6 +423,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     //==============================================================================================
     // 4. Mock Movement & Destination Selection (from Code 2)
     //==============================================================================================
+
+    private void loadWeatherData() {
+        LatLng defaultLocation = new LatLng(37.5665, 126.9780);
+        updateWeatherWidget(defaultLocation);
+    }
 
     private void startMockMovement() {
         if (animationHandler != null) {

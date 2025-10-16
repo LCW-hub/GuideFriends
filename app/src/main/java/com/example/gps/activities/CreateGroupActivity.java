@@ -41,7 +41,7 @@ public class CreateGroupActivity extends AppCompatActivity {
 
     // --- 변수 선언 (두 번째 코드 기준) ---
     private EditText etGroupName;
-    private Button btnDestination, btnStartTime, btnEndTime; // 목적지/시간 선택은 Button UI 유지
+    private Button etDestination, etStartTime, etEndTime; // 목적지/시간 선택은 Button UI 유지
     private RecyclerView rvFriends;
     private Button btnCreate;
     private FriendSelectAdapter adapter;
@@ -67,9 +67,9 @@ public class CreateGroupActivity extends AppCompatActivity {
 
         // --- UI 요소 초기화 (ID는 activity_create_group.xml에 맞춰야 함) ---
         etGroupName = findViewById(R.id.etGroupName);
-        btnDestination = findViewById(R.id.btnSelectDestination); // XML의 ID는 btnSelectDestination 가정
-        btnStartTime = findViewById(R.id.btnStartTime);
-        btnEndTime = findViewById(R.id.btnEndTime);
+        etDestination = findViewById(R.id.etDestination); // XML의 ID는 btnSelectDestination 가정
+        etStartTime = findViewById(R.id.etStartTime);
+        etEndTime = findViewById(R.id.etEndTime);
         rvFriends = findViewById(R.id.rvFriends);
         btnCreate = findViewById(R.id.btnCreate);
 
@@ -82,9 +82,9 @@ public class CreateGroupActivity extends AppCompatActivity {
         rvFriends.setAdapter(adapter);
 
         // 클릭 리스너 설정
-        btnDestination.setOnClickListener(v -> launchDestinationSearch());
-        btnStartTime.setOnClickListener(v -> showDateTimePicker(true)); // 날짜/시간 선택 UI (첫 번째 코드 기능)
-        btnEndTime.setOnClickListener(v -> showDateTimePicker(false));  // 날짜/시간 선택 UI (첫 번째 코드 기능)
+        etDestination.setOnClickListener(v -> launchDestinationSearch());
+        etStartTime.setOnClickListener(v -> showDateTimePicker(true)); // 날짜/시간 선택 UI (첫 번째 코드 기능)
+        etEndTime.setOnClickListener(v -> showDateTimePicker(false));  // 날짜/시간 선택 UI (첫 번째 코드 기능)
         btnCreate.setOnClickListener(v -> createGroup());
 
         // 데이터 로드
@@ -106,7 +106,7 @@ public class CreateGroupActivity extends AppCompatActivity {
                         destinationLng = data.getDoubleExtra("PLACE_LNG", 0.0);
 
                         if (destinationName != null && !destinationName.isEmpty()) {
-                            btnDestination.setText(destinationName); // 버튼 텍스트를 장소 이름으로 변경
+                            etDestination.setText(destinationName); // 버튼 텍스트를 장소 이름으로 변경
                         }
                     }
                 }
@@ -138,10 +138,10 @@ public class CreateGroupActivity extends AppCompatActivity {
                 SimpleDateFormat displayFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.KOREA);
                 if (isStart) {
                     startTimeCalendar = selectedCalendar;
-                    btnStartTime.setText(displayFormat.format(startTimeCalendar.getTime()));
+                    etStartTime.setText(displayFormat.format(startTimeCalendar.getTime()));
                 } else {
                     endTimeCalendar = selectedCalendar;
-                    btnEndTime.setText(displayFormat.format(endTimeCalendar.getTime()));
+                    etEndTime.setText(displayFormat.format(endTimeCalendar.getTime()));
                 }
             }, currentCalendar.get(Calendar.HOUR_OF_DAY), currentCalendar.get(Calendar.MINUTE), true).show();
         }, currentCalendar.get(Calendar.YEAR), currentCalendar.get(Calendar.MONTH), currentCalendar.get(Calendar.DAY_OF_MONTH)).show();
@@ -152,4 +152,104 @@ public class CreateGroupActivity extends AppCompatActivity {
      * 서버에서 그룹에 초대할 수 있는 멤버 목록을 가져옴
      */
     private void fetchGroupSelectableMembers() {
-        FriendApiService api
+        FriendApiService apiService = ApiClient.getClient(this).create(FriendApiService.class);
+        Call<List<User>> call = apiService.getGroupSelectableMembers(); // ⭐️ API 호출 변경
+
+        call.enqueue(new Callback<List<User>>() { // ⭐️ User 모델로 변경
+            @Override
+            public void onResponse(Call<List<User>> call, Response<List<User>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    friendList.clear();
+                    friendList.addAll(response.body());
+                    adapter.notifyDataSetChanged();
+                    Log.d("CreateGroupActivity", "초대 가능 멤버 로드 성공. 수: " + response.body().size());
+                } else {
+                    Toast.makeText(CreateGroupActivity.this, "멤버 목록을 불러오는데 실패했습니다.", Toast.LENGTH_SHORT).show();
+                    Log.e("CreateGroupActivity", "멤버 로드 실패. 코드: " + response.code());
+                }
+            }
+
+            @Override
+            public void onFailure(Call<List<User>> call, Throwable t) {
+                Toast.makeText(CreateGroupActivity.this, "네트워크 오류: " + t.getMessage(), Toast.LENGTH_LONG).show();
+                Log.e("CreateGroupActivity", "네트워크 오류", t);
+            }
+        });
+    }
+
+    /**
+     * [기능 통합]
+     * 입력된 정보로 그룹 생성을 서버에 요청 (오류 처리 포함)
+     */
+    private void createGroup() {
+        String groupName = etGroupName.getText().toString().trim();
+        List<Long> selectedMemberIds = adapter.getSelectedFriendIds();
+
+        // [두 번째 코드 기준] 입력 유효성 검사
+        if (groupName.isEmpty() || destinationName == null || destinationLat == 0.0 || selectedMemberIds.isEmpty()) {
+            Toast.makeText(this, "그룹 이름, 목적지, 최소 한 명의 친구를 선택해야 합니다.", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        // [첫 번째 코드 기준] 시간 포맷팅
+        String startTimeStr = serverFormat.format(startTimeCalendar.getTime());
+        String endTimeStr = serverFormat.format(endTimeCalendar.getTime());
+
+        CreateGroupRequest request = new CreateGroupRequest();
+        request.setName(groupName);
+        request.setDestinationName(destinationName);
+        request.setDestinationLat(destinationLat);
+        request.setDestinationLng(destinationLng);
+        request.setStartTime(startTimeStr);
+        request.setEndTime(endTimeStr);
+        request.setMemberIds(selectedMemberIds);
+
+        GroupApiService groupApiService = ApiClient.getGroupApiService(this);
+        Call<Map<String, String>> call = groupApiService.createGroup(request);
+
+        // [두 번째 코드 기능] 상세 오류 처리 및 인증 실패 시 리디렉션
+        call.enqueue(new Callback<Map<String, String>>() {
+            @Override
+            public void onResponse(Call<Map<String, String>> call, Response<Map<String, String>> response) {
+                if (response.isSuccessful()) {
+                    Toast.makeText(CreateGroupActivity.this, "그룹이 생성되었습니다!", Toast.LENGTH_SHORT).show();
+                    finish();
+                } else {
+                    String errorBody = "N/A";
+                    try {
+                        if (response.errorBody() != null) errorBody = response.errorBody().string();
+                    } catch (Exception e) {
+                        Log.e("CreateGroupActivity", "Error body parsing failed", e);
+                    }
+                    Log.e("CreateGroupActivity", "그룹 생성 실패. 코드: " + response.code() + ", 본문: " + errorBody);
+
+                    if (response.code() == 403 || response.code() == 401) {
+                        handleAuthErrorAndRedirect();
+                    } else {
+                        Toast.makeText(CreateGroupActivity.this, "그룹 생성 실패 (코드: " + response.code() + ")", Toast.LENGTH_SHORT).show();
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Map<String, String>> call, Throwable t) {
+                Toast.makeText(CreateGroupActivity.this, "네트워크 오류: " + t.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    /**
+     * [두 번째 코드 기능]
+     * 인증 오류(401/403) 발생 시 토큰 삭제 및 로그인 화면으로 이동
+     */
+    private void handleAuthErrorAndRedirect() {
+        Toast.makeText(this, "세션이 만료되었습니다. 다시 로그인해주세요.", Toast.LENGTH_LONG).show();
+        TokenManager tokenManager = new TokenManager(getApplicationContext());
+        tokenManager.deleteToken();
+
+        Intent intent = new Intent(this, LoginActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
+        startActivity(intent);
+        finish();
+    }
+}
