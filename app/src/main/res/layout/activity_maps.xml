@@ -7,7 +7,6 @@
     android:layout_height="match_parent"
     tools:context=".activities.MapsActivity">
 
-    <!-- Main content -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/main_content"
         android:layout_width="match_parent"
@@ -147,7 +146,16 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:tint="@color/colorPrimary" />
 
-        <!-- 하단 중앙 메인 액션 버튼 -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btnTestMovement"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="16dp"
+            android:src="@android:drawable/ic_menu_send"
+            app:layout_constraintBottom_toTopOf="@id/btnMyLocation"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:contentDescription="테스트 이동 버튼" />
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/btnMainMenu"
             android:layout_width="wrap_content"
@@ -161,7 +169,6 @@
             app:layout_constraintStart_toStartOf="parent"
             app:tint="@color/white" />
 
-        <!-- 서브 메뉴 버튼들 (펼쳐지는 메뉴) -->
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/btnFriends"
             android:layout_width="wrap_content"
@@ -237,7 +244,6 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- Left Drawer: My Page -->
     <include
         layout="@layout/my_page_drawer"
         android:layout_width="320dp"
