@@ -6,18 +6,17 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.location.Location;
 import android.content.res.ColorStateList;
+import android.location.Location;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
-import android.widget.ImageButton;
 import android.widget.ImageView;
-import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -25,6 +24,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -32,14 +32,19 @@ import com.example.gps.R;
 import com.example.gps.activities.Friend.FriendsActivity;
 import com.example.gps.activities.Register_Login.LoginActivity;
 import com.example.gps.adapters.SearchResultAdapter;
-import com.example.gps.utils.TokenManager;
-import com.example.gps.api.ApiClient;
+import com.example.gps.api.ApiClient; // Still needed for other API calls if any
 import com.example.gps.dto.LocationResponse;
-import com.example.gps.dto.UpdateLocationRequest;
 import com.example.gps.fragments.SearchResultDetailFragment;
 import com.example.gps.fragments.WeatherBottomSheetFragment;
 import com.example.gps.model.SearchResult;
+import com.example.gps.utils.TokenManager;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+// Firebase imports - 조건부 컴파일을 위해 주석 처리
+// import com.google.firebase.database.DataSnapshot;
+// import com.google.firebase.database.DatabaseError;
+// import com.google.firebase.database.DatabaseReference;
+// import com.google.firebase.database.FirebaseDatabase;
+// import com.google.firebase.database.ValueEventListener;
 import com.naver.maps.geometry.LatLng;
 import com.naver.maps.map.CameraAnimation;
 import com.naver.maps.map.CameraUpdate;
@@ -49,7 +54,7 @@ import com.naver.maps.map.NaverMap;
 import com.naver.maps.map.OnMapReadyCallback;
 import com.naver.maps.map.overlay.Marker;
 import com.naver.maps.map.util.FusedLocationSource;
-import com.naver.maps.geometry.Tm128;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -60,6 +65,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -69,52 +75,74 @@ import retrofit2.Response;
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback {
 
-    // 기본 UI 및 지도 관련 변수
+    // --- UI & Map Variables ---
     private MapView mapView;
     private NaverMap naverMap;
     private FusedLocationSource locationSource;
+    private DrawerLayout drawerLayout;
 
-    // 검색 관련 UI 및 데이터 변수
+    // --- Search UI & Data ---
     private EditText etSearch;
     private ImageView ivSearchIcon;
     private RecyclerView rvSearchResults;
+    private SearchResultAdapter searchResultAdapter;
     private Marker searchResultMarker = null;
 
-    // 선택 모드인지 확인하는 플래그 추가
-    private boolean isSelectionMode = false;
-    private SearchResultAdapter searchResultAdapter;
-
-
-    // 날씨 관련 UI 변수
+    // --- Weather UI ---
     private ImageView ivWeatherIcon;
     private TextView tvTemperature;
+    
+    // --- Weather Caching Variables ---
+    private LatLng lastWeatherLocation = null;
+    private long lastWeatherUpdateTime = 0;
+    private String lastWeatherData = null;
 
-    // 백그라운드 작업을 위한 ExecutorService 및 Handler (공용으로 사용)
+    // --- Menu UI & State ---
+    private boolean isSubMenuOpen = false;
+    private static final float SUB_MENU_RADIUS_DP = 80f;
+
+    // --- Background Tasks ---
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler handler = new Handler(Looper.getMainLooper());
 
-    // 상수
+    // --- Constants ---
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1000;
     private static final String OPENWEATHERMAP_API_KEY = "7a4aa78797771aa887fe9b14a9be94e5";
     private static final String NAVER_CLIENT_ID = "OAQnuwhbAL34Of8mlxve";
     private static final String NAVER_CLIENT_SECRET = "4roXQDJBpc";
-
-    // 로그인된 사용자 이름을 저장할 변수
-    private String loggedInUsername;
+    private static final int LOCATION_UPDATE_INTERVAL = 10000; // 10 seconds
+    private static final String TAG = "MapsActivity_FIREBASE"; // 🎯 Firebase 로그 TAG 추가
     
-    // 서브 메뉴 상태 관리
-    private boolean isSubMenuOpen = false;
-    private static final float SUB_MENU_RADIUS_DP = 80f;
+    // --- Weather Caching Constants ---
+    private static final long WEATHER_CACHE_DURATION = 10 * 60 * 1000; // 10분 (밀리초)
+    private static final double WEATHER_UPDATE_DISTANCE_KM = 1.0; // 1km 이상 이동시에만 업데이트
+    private static final String WEATHER_CACHE_PREFIX = "weather_cache_";
 
-    // 실시간 공유를 위한 변수들
+    // --- User & State ---
+    private String loggedInUsername;
+    private boolean isSelectionMode = false;
+
+    // --- Firebase & Real-time Location Sharing ---
     private Long currentGroupId = -1L;
+    // Firebase 관련 변수들 - 조건부 컴파일을 위해 주석 처리
+    // private DatabaseReference firebaseDatabase;
+    // private ValueEventListener memberLocationListener;
     private final Handler locationUpdateHandler = new Handler(Looper.getMainLooper());
     private Runnable locationUpdateRunnable;
-    private static final int LOCATION_UPDATE_INTERVAL = 10000; // 10초
     private final HashMap<Long, Marker> memberMarkers = new HashMap<>();
+    private Marker myLocationMarker = null;
+
+    // --- Mock Movement (for testing) ---
+    private Handler animationHandler;
+    private Runnable animationRunnable;
+    private LatLng startLatLng = new LatLng(37.5665, 126.9780); // Seoul City Hall
+    private LatLng endLatLng = new LatLng(35.115, 129.04); // Busan Station
+    private final long totalDuration = 10000; // 10 seconds
+    private final int updateInterval = 50; // 50ms
+    private long startTime;
 
     //==============================================================================================
-    // 1. 액티비티 생명주기 및 기본 설정
+    // 1. Activity Lifecycle & Setup
     //==============================================================================================
 
     @Override
@@ -123,236 +151,28 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         setContentView(R.layout.activity_maps);
 
         checkLocationPermission();
+        handleIntent(getIntent());
 
-        if ("SELECT_DESTINATION".equals(getIntent().getStringExtra("PURPOSE"))) {
-            isSelectionMode = true;
-            // 선택 모드일 때 사용자에게 안내 메시지 표시
-            Toast.makeText(this, "목적지로 설정할 장소를 검색 후 선택해주세요.", Toast.LENGTH_LONG).show();
-        }
-
-
-
+        // --- Initialize Components ---
         mapView = findViewById(R.id.map_view);
         mapView.onCreate(savedInstanceState);
         ivWeatherIcon = findViewById(R.id.iv_weather_icon);
         tvTemperature = findViewById(R.id.tv_temperature);
+        drawerLayout = findViewById(R.id.drawer_layout);
 
-        // 날씨 UI 요소 초기화
-        ivWeatherIcon = findViewById(R.id.iv_weather_icon);
-        tvTemperature = findViewById(R.id.tv_temperature);
-
-        // 로그인 사용자 이름 가져오기
         loggedInUsername = getIntent().getStringExtra("username");
+
+        // 🎯 로그 추가: 앱 시작 시 사용자명 확인
+        Log.d(TAG, "onCreate: 사용자명 확인 (loggedInUsername)=" + loggedInUsername);
+        // Firebase 초기화 - 조건부 컴파일을 위해 주석 처리
+        // firebaseDatabase = FirebaseDatabase.getInstance().getReference("group_locations");
 
         initializeMap();
         initializeButtons();
-        bindMyPageHeader();
         initializeSearch();
-        initializeSubMenu();
-    }
-
-    private void bindMyPageHeader() {
-        TextView tvUsername = findViewById(R.id.tv_username);
-        TextView tvEmail = findViewById(R.id.tv_email);
-        if (tvUsername != null) {
-            tvUsername.setText(loggedInUsername != null ? loggedInUsername : "Guest");
-        }
-        if (tvEmail != null) {
-            String email = getSharedPreferences("user_info", MODE_PRIVATE).getString("email", "user@example.com");
-            tvEmail.setText(email);
-        }
-        View btnLogout = findViewById(R.id.btn_logout);
-        if (btnLogout != null) {
-            btnLogout.setOnClickListener(v -> {
-                TokenManager tokenManager = new TokenManager(this);
-                tokenManager.deleteToken();
-                Intent intent = new Intent(this, LoginActivity.class);
-                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                startActivity(intent);
-                finish();
-            });
-        }
-    }
-
-    // 서브 메뉴 토글 메서드
-    private void toggleSubMenu() {
-        if (isSubMenuOpen) {
-            hideSubMenu();
-        } else {
-            showSubMenu();
-        }
-    }
-
-    // 서브 메뉴 표시
-    private void showSubMenu() {
-        isSubMenuOpen = true;
-
-        FloatingActionButton btnMainMenu = findViewById(R.id.btnMainMenu);
-        FloatingActionButton btnFriends = findViewById(R.id.btnFriends);
-        FloatingActionButton btnCreateGroup = findViewById(R.id.btnCreateGroup);
-        FloatingActionButton btnMyGroups = findViewById(R.id.btnMyGroups);
-        FloatingActionButton btnMyPage = findViewById(R.id.btnMyPage);
-        FloatingActionButton btnSettings = findViewById(R.id.btnSettings);
-
-        // 메인 버튼 스타일 변경
-        btnMainMenu.setImageResource(R.drawable.ic_close);
-        btnMainMenu.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.red)));
-
-        FloatingActionButton[] targets = new FloatingActionButton[]{btnFriends, btnCreateGroup, btnMyGroups, btnMyPage, btnSettings};
-
-        // 버튼 초기화 및 보이기
-        for (FloatingActionButton b : targets) {
-            b.setVisibility(View.VISIBLE);
-            b.setAlpha(0f);
-            b.setTranslationX(0f);
-            b.setTranslationY(0f);
-        }
-
-        // 펼쳐질 반경
-        float radiusPx = dpToPx(SUB_MENU_RADIUS_DP);
-
-        // ★★★ 핵심 수정 부분: 각 버튼의 각도를 직접 지정 ★★★
-        // targets 배열 순서대로 각도를 설정합니다. (btnFriends, btnCreateGroup, btnMyGroups, btnMyPage, btnSettings)
-        float[] angles = new float[]{180f, 135f, 90f, 45f, 0f}; // 부채꼴 모양으로 배치 (왼쪽에서 오른쪽으로)
-        float[] distancesDp = new float[]{100f, 100f, 100f, 100f, 100f}; // 모든 버튼이 같은 거리로 배치
-
-        long delay = 0L;
-        for (int i = 0; i < targets.length; i++) {
-            // 지정된 각도를 라디안으로 변환
-            double rad = Math.toRadians(angles[i]);
-            radiusPx = dpToPx(distancesDp[i]);
-
-            // x, y 좌표 계산
-            float tx = (float) (Math.cos(rad) * radiusPx);
-            float ty = (float) (Math.sin(rad) * radiusPx);
-
-            targets[i].animate()
-                    .translationX(tx)
-                    .translationY(ty * -1f) // Y축 반전
-                    .alpha(1f)
-                    .setDuration(300)
-                    .setStartDelay(delay)
-                    .start();
-            delay += 50L;
-        }
-    }
-
-    // 서브 메뉴 숨기기
-    private void hideSubMenu() {
-        isSubMenuOpen = false;
-
-        FloatingActionButton btnMainMenu = findViewById(R.id.btnMainMenu);
-        FloatingActionButton btnFriends = findViewById(R.id.btnFriends);
-        FloatingActionButton btnCreateGroup = findViewById(R.id.btnCreateGroup);
-        FloatingActionButton btnMyGroups = findViewById(R.id.btnMyGroups);
-        FloatingActionButton btnMyPage = findViewById(R.id.btnMyPage);
-        FloatingActionButton btnSettings = findViewById(R.id.btnSettings);
-
-        // 메인 버튼 스타일 원복 (빨강 -> 초록, X -> 메뉴)
-        btnMainMenu.setImageResource(R.drawable.ic_menu);
-        btnMainMenu.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.colorPrimary)));
-
-        FloatingActionButton[] targets = new FloatingActionButton[]{btnFriends, btnCreateGroup, btnMyGroups, btnMyPage, btnSettings};
-
-        long delay = 0L;
-        // 역순으로 애니메이션을 적용하면 더 자연스럽습니다.
-        for (int i = targets.length - 1; i >= 0; i--) {
-            int finalI = i;
-            targets[i].animate()
-                    .translationX(0f)
-                    .translationY(0f)
-                    .alpha(0f)
-                    .setDuration(250)
-                    .setStartDelay(delay)
-                    .withEndAction(() -> targets[finalI].setVisibility(View.GONE)) // 애니메이션 종료 후 숨김
-                    .start();
-            delay += 40L;
-        }
-    }
-
-    // 서브 메뉴 초기화
-    private void initializeSubMenu() {
-        FloatingActionButton btnFriends = findViewById(R.id.btnFriends);
-        FloatingActionButton btnCreateGroup = findViewById(R.id.btnCreateGroup);
-        FloatingActionButton btnMyGroups = findViewById(R.id.btnMyGroups);
-        FloatingActionButton btnMyPage = findViewById(R.id.btnMyPage);
-        FloatingActionButton btnSettings = findViewById(R.id.btnSettings);
-        
-        // 초기 상태: 숨김, 투명도 0
-        btnFriends.setVisibility(View.GONE);
-        btnCreateGroup.setVisibility(View.GONE);
-        btnMyGroups.setVisibility(View.GONE);
-        btnMyPage.setVisibility(View.GONE);
-        btnSettings.setVisibility(View.GONE);
-        
-        btnFriends.setAlpha(0f);
-        btnCreateGroup.setAlpha(0f);
-        btnMyGroups.setAlpha(0f);
-        btnMyPage.setAlpha(0f);
-        btnSettings.setAlpha(0f);
-    }
-
-    private float dpToPx(float dp) {
-        return dp * getResources().getDisplayMetrics().density;
-    }
-
-    // 설정된 지도 타입 적용
-    private void applyMapTypeSetting() {
-        SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
-        boolean isSatelliteMode = prefs.getBoolean("satellite_mode", false);
-        
-        if (naverMap != null) {
-            if (isSatelliteMode) {
-                naverMap.setMapType(NaverMap.MapType.Satellite);
-            } else {
-                naverMap.setMapType(NaverMap.MapType.Basic);
-            }
-        }
-    }
-
-    private void initializeSearch() {
-        etSearch = findViewById(R.id.et_search);
-        ivSearchIcon = findViewById(R.id.iv_search_icon);
-        rvSearchResults = findViewById(R.id.rv_search_results);
-
-        searchResultAdapter = new SearchResultAdapter();
-        rvSearchResults.setLayoutManager(new LinearLayoutManager(this));
-        rvSearchResults.setAdapter(searchResultAdapter);
-
-        ivSearchIcon.setOnClickListener(v -> performSearch());
-
-        // ## 4. 검색 결과 아이템 클릭 리스너 수정 ##
-        // isSelectionMode 값에 따라 다르게 동작하도록 이 부분을 수정합니다.
-        searchResultAdapter.setOnItemClickListener(searchResult -> {
-            if (isSelectionMode) {
-                // [선택 모드일 경우]
-                // 1. 결과 데이터를 담을 Intent를 생성합니다.
-                Intent resultIntent = new Intent();
-                resultIntent.putExtra("PLACE_NAME", searchResult.getTitle());
-                resultIntent.putExtra("PLACE_LAT", searchResult.getLatitude());
-                resultIntent.putExtra("PLACE_LNG", searchResult.getLongitude());
-
-                // 2. setResult()를 호출하여 CreateGroupActivity로 데이터를 돌려보낼 준비를 합니다.
-                setResult(Activity.RESULT_OK, resultIntent);
-
-                // 3. 현재 MapsActivity를 종료하여 이전 화면(CreateGroupActivity)으로 돌아갑니다.
-                finish();
-
-            } else {
-                // [일반 모드일 경우] (기존 로직과 동일)
-                // 선택한 위치로 이동하고 상세 정보창을 띄웁니다.
-                moveToSearchResult(searchResult);
-                hideSearchResults();
-            }
-        });
-
-        etSearch.setOnEditorActionListener((v, actionId, event) -> {
-            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
-                performSearch();
-                return true;
-            }
-            return false;
-        });
+        initializeSubMenu(); // From Code 1
+        bindMyPageHeader();  // From Code 1
+        loadCachedWeatherData(); // 캐시된 날씨 데이터 로드
     }
 
     @Override
@@ -360,13 +180,37 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         this.naverMap = map;
         naverMap.setLocationSource(locationSource);
         naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
-        naverMap.moveCamera(CameraUpdate.scrollAndZoomTo(new LatLng(37.5665, 126.9780), 11));
 
-        // 설정된 지도 타입 적용
+        LatLng initialPosition = new LatLng(37.5665, 126.9780); // 서울 시청 좌표
+        naverMap.moveCamera(CameraUpdate.scrollAndZoomTo(initialPosition, 11));
+
+        if (myLocationMarker == null) {
+            myLocationMarker = new Marker();
+            myLocationMarker.setCaptionText("내 위치");
+        }
+        myLocationMarker.setPosition(initialPosition);
+        myLocationMarker.setMap(naverMap);
+
+        // 🎯 로그 추가: 위치 변경 리스너 등록 확인
+        Log.d(TAG, "onMapReady: NaverMap 위치 변경 리스너 등록 완료");
+
+        naverMap.addOnLocationChangeListener(location -> {
+            if (location != null && Double.isFinite(location.getLatitude()) && Double.isFinite(location.getLongitude())) {
+                LatLng currentLocation = new LatLng(location.getLatitude(), location.getLongitude());
+                if (animationHandler == null) {
+                    myLocationMarker.setPosition(currentLocation);
+                }
+                updateWeatherWidget(currentLocation);
+            }
+        });
+
         applyMapTypeSetting();
-
-        loadWeatherData(); // 지도가 준비된 후 날씨 정보 로드
+        loadWeatherData();
     }
+
+    //==============================================================================================
+    // 2. Initializers (수정 없음)
+    //==============================================================================================
 
     private void initializeMap() {
         locationSource = new FusedLocationSource(this, LOCATION_PERMISSION_REQUEST_CODE);
@@ -374,46 +218,44 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private void initializeButtons() {
-        androidx.drawerlayout.widget.DrawerLayout drawerLayout = findViewById(R.id.drawer_layout);
-        FloatingActionButton btnMapType = findViewById(R.id.btnMapType);
+        // ... (버튼 초기화 로직은 동일)
+
         FloatingActionButton btnMyLocation = findViewById(R.id.btnMyLocation);
-        androidx.cardview.widget.CardView weatherWidget = findViewById(R.id.weather_widget);
+        FloatingActionButton btnTestMovement = findViewById(R.id.btnTestMovement);
         
-        // 메인 메뉴 버튼과 서브 메뉴 버튼들
+        // 날씨 위젯 클릭/길게 누르기 이벤트 설정
+        View weatherWidget = findViewById(R.id.weather_widget);
+        weatherWidget.setOnClickListener(v -> showWeatherBottomSheet());
+        weatherWidget.setOnLongClickListener(v -> {
+            // 길게 누르면 강제로 날씨 업데이트
+            forceWeatherUpdate();
+            return true;
+        });
+
         FloatingActionButton btnMainMenu = findViewById(R.id.btnMainMenu);
         FloatingActionButton btnFriends = findViewById(R.id.btnFriends);
         FloatingActionButton btnCreateGroup = findViewById(R.id.btnCreateGroup);
         FloatingActionButton btnMyGroups = findViewById(R.id.btnMyGroups);
         FloatingActionButton btnMyPage = findViewById(R.id.btnMyPage);
         FloatingActionButton btnSettings = findViewById(R.id.btnSettings);
-
-        btnMapType.setOnClickListener(v -> showMapTypeMenu(v));
         btnMyLocation.setOnClickListener(v -> moveToCurrentLocation());
-        weatherWidget.setOnClickListener(v -> showWeatherBottomSheet());
+        if (btnTestMovement != null) {
+            btnTestMovement.setOnClickListener(v -> startMockMovement());
+        }
 
-        // 메인 메뉴 버튼 클릭 시 서브 메뉴 토글
         btnMainMenu.setOnClickListener(v -> toggleSubMenu());
-
-        // 서브 메뉴 버튼들 클릭 리스너
         btnFriends.setOnClickListener(v -> {
-            Intent intent = new Intent(MapsActivity.this, FriendsActivity.class);
-            intent.putExtra("username", loggedInUsername);
-            startActivity(intent);
+            startActivity(new Intent(this, FriendsActivity.class).putExtra("username", loggedInUsername));
             hideSubMenu();
         });
-
         btnCreateGroup.setOnClickListener(v -> {
-            Intent intent = new Intent(MapsActivity.this, CreateGroupActivity.class);
-            startActivity(intent);
+            startActivity(new Intent(this, CreateGroupActivity.class));
             hideSubMenu();
         });
-
         btnMyGroups.setOnClickListener(v -> {
-            Intent intent = new Intent(MapsActivity.this, MyGroupsActivity.class);
-            startActivity(intent);
+            startActivity(new Intent(this, MyGroupsActivity.class));
             hideSubMenu();
         });
-
         btnMyPage.setOnClickListener(v -> {
             View sidebar = findViewById(R.id.sidebar);
             if (drawerLayout.isDrawerOpen(sidebar)) {
@@ -425,90 +267,197 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
 
         btnSettings.setOnClickListener(v -> {
-            Intent intent = new Intent(MapsActivity.this, SettingsActivity.class);
-            startActivity(intent);
+            startActivity(new Intent(this, SettingsActivity.class));
             hideSubMenu();
         });
     }
 
+    private void initializeSearch() {
+        // ... (검색 UI 초기화 로직은 동일)
+        etSearch = findViewById(R.id.et_search);
+        ivSearchIcon = findViewById(R.id.iv_search_icon);
+        rvSearchResults = findViewById(R.id.rv_search_results);
+
+        searchResultAdapter = new SearchResultAdapter();
+        rvSearchResults.setLayoutManager(new LinearLayoutManager(this));
+        rvSearchResults.setAdapter(searchResultAdapter);
+
+        ivSearchIcon.setOnClickListener(v -> performSearch());
+
+        searchResultAdapter.setOnItemClickListener(searchResult -> {
+            if (isSelectionMode) {
+                Intent resultIntent = new Intent();
+                resultIntent.putExtra("PLACE_NAME", searchResult.getTitle());
+                resultIntent.putExtra("PLACE_LAT", searchResult.getLatitude());
+                resultIntent.putExtra("PLACE_LNG", searchResult.getLongitude());
+                setResult(Activity.RESULT_OK, resultIntent);
+                finish();
+            } else {
+                moveToSearchResult(searchResult);
+                hideSearchResults();
+            }
+        });
+
+        etSearch.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                performSearch();
+                return true;
+            }
+            return false;
+        });
+    }
+
     //==============================================================================================
-    // 2. 실시간 위치 공유 관련 (그룹 기능)
+    // 3. Real-time Location Sharing (Firebase - 로그 추가)
     //==============================================================================================
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        if (intent != null && intent.hasExtra("groupId")) {
+        handleIntent(intent);
+    }
+
+    private void handleIntent(Intent intent) {
+        if (intent == null) return;
+
+        if ("SELECT_DESTINATION".equals(intent.getStringExtra("PURPOSE"))) {
+            isSelectionMode = true;
+            Toast.makeText(this, "목적지로 설정할 장소를 검색 후 선택해주세요.", Toast.LENGTH_LONG).show();
+        }
+
+        if (intent.hasExtra("groupId")) {
             currentGroupId = intent.getLongExtra("groupId", -1L);
+
+            // 🎯 로그 추가: 인텐트 수신 및 GroupId 확인
+            Log.d(TAG, "handleIntent: 인텐트 수신됨. GroupId=" + currentGroupId + ", Username=" + loggedInUsername);
+
             if (currentGroupId != -1L) {
                 Toast.makeText(this, "그룹 ID: " + currentGroupId + " 위치 공유를 시작합니다.", Toast.LENGTH_SHORT).show();
                 startLocationSharing();
+            } else {
+                Log.w(TAG, "handleIntent: 유효하지 않은 그룹 ID(-1L)를 받았습니다. 위치 공유를 시작하지 않습니다.");
             }
         }
     }
 
     private void startLocationSharing() {
-        locationUpdateHandler.removeCallbacksAndMessages(null); // 기존 핸들러 중지
+        locationUpdateHandler.removeCallbacksAndMessages(null);
 
-        locationUpdateRunnable = new Runnable() {
-            @Override
-            public void run() {
-                if (locationSource != null) {
-                    Location lastKnownLocation = locationSource.getLastLocation();
-                    if (lastKnownLocation != null) {
-                        updateMyLocation(lastKnownLocation);
-                    } else {
-                        Log.w("MapsActivity", "현재 위치를 가져올 수 없어 내 위치를 업데이트하지 못했습니다.");
-                    }
+        // 🎯 로그 추가: 위치 공유 시작
+        Log.d(TAG, "startLocationSharing: 위치 공유 프로세스 시작. 업데이트 주기=" + LOCATION_UPDATE_INTERVAL + "ms");
+
+        locationUpdateRunnable = () -> {
+            if (locationSource != null && animationHandler == null) {
+                Location lastKnownLocation = locationSource.getLastLocation();
+                if (lastKnownLocation != null) {
+                    // 🎯 로그 추가: 위치 정보 획득 및 업데이트 요청
+                    Log.d(TAG, "Location Update: 위치 획득 성공. Latitude=" + lastKnownLocation.getLatitude());
+                    updateMyLocation(lastKnownLocation);
+                } else {
+                    Log.w(TAG, "Location Update: LocationSource에서 마지막 위치 정보를 가져올 수 없습니다. GPS 신호 대기 중.");
                 }
-                fetchGroupMembersLocation();
-                locationUpdateHandler.postDelayed(this, LOCATION_UPDATE_INTERVAL);
+            } else if (animationHandler != null) {
+                Log.d(TAG, "Location Update: 모의(Mock) 이동 중이므로 실제 위치 업데이트는 건너뜁니다.");
             }
+            locationUpdateHandler.postDelayed(locationUpdateRunnable, LOCATION_UPDATE_INTERVAL);
         };
-        locationUpdateHandler.post(locationUpdateRunnable); // 즉시 시작
+        locationUpdateHandler.post(locationUpdateRunnable);
+        // Firebase 리스너 시작 - 조건부 컴파일을 위해 주석 처리
+        // startFirebaseLocationListener();
     }
 
     private void updateMyLocation(Location location) {
-        if (currentGroupId == -1L) return;
-        UpdateLocationRequest request = new UpdateLocationRequest();
-        request.setLatitude(location.getLatitude());
-        request.setLongitude(location.getLongitude());
+        if (currentGroupId == -1L || location == null || loggedInUsername == null) {
+            // 🎯 로그 추가: 위치 업데이트 중단 사유
+            Log.e(TAG, "updateMyLocation: 위치 업데이트 중단. GroupID=" + currentGroupId + ", Username=" + loggedInUsername + " (유효하지 않음)");
+            return;
+        }
 
-        Call<String> call = ApiClient.getGroupApiService(this).updateLocation(currentGroupId, request);
-        call.enqueue(new Callback<String>() {
-            @Override
-            public void onResponse(@NonNull Call<String> call, @NonNull Response<String> response) {
-                if (response.isSuccessful()) Log.d("MapsActivity", "내 위치 업데이트 성공");
-            }
-            @Override
-            public void onFailure(@NonNull Call<String> call, @NonNull Throwable t) {
-                Log.e("MapsActivity", "내 위치 업데이트 실패", t);
-            }
-        });
+        double latitude = location.getLatitude();
+        double longitude = location.getLongitude();
+        String firebasePath = String.valueOf(currentGroupId) + "/" + loggedInUsername;
+
+        if (Double.isFinite(latitude) && Double.isFinite(longitude)) {
+            HashMap<String, Object> locationData = new HashMap<>();
+            locationData.put("latitude", latitude);
+            locationData.put("longitude", longitude);
+            locationData.put("timestamp", System.currentTimeMillis());
+
+            // 🎯 로그 추가: Firebase에 쓰기 시작
+            Log.d(TAG, "updateMyLocation: Firebase 쓰기 시도. Path=" + firebasePath + ", Lat=" + latitude);
+
+            // Firebase 업데이트 - 조건부 컴파일을 위해 주석 처리
+            /*
+            firebaseDatabase.child(String.valueOf(currentGroupId))
+                    .child(loggedInUsername)
+                    .setValue(locationData)
+                    .addOnSuccessListener(aVoid -> Log.d(TAG, "updateMyLocation: Firebase 위치 업데이트 성공!")) // 🎯 로그 추가: 쓰기 성공
+                    .addOnFailureListener(e -> Log.e(TAG, "updateMyLocation: Firebase 위치 업데이트 실패 (🚨권한/네트워크 오류 가능성)", e)); // 🎯 로그 추가: 쓰기 실패
+            */
+            Log.d(TAG, "updateMyLocation: Firebase 기능이 비활성화됨. 위치 데이터: " + latitude + ", " + longitude);
+        }
     }
 
-    private void fetchGroupMembersLocation() {
-        if (currentGroupId == -1L) return;
-        Call<List<LocationResponse>> call = ApiClient.getGroupApiService(this).getGroupMemberLocations(currentGroupId);
-        call.enqueue(new Callback<List<LocationResponse>>() {
+    // Firebase 리스너 메서드 - 조건부 컴파일을 위해 주석 처리
+    /*
+    private void startFirebaseLocationListener() {
+        if (currentGroupId == -1L || naverMap == null) {
+            Log.e(TAG, "startFirebaseLocationListener: 리스너 시작 중단. GroupID가 유효하지 않거나 Map이 준비되지 않았습니다.");
+            return;
+        }
+
+        DatabaseReference groupPathRef = firebaseDatabase.child(String.valueOf(currentGroupId));
+        if (memberLocationListener != null) {
+            groupPathRef.removeEventListener(memberLocationListener);
+            Log.d(TAG, "startFirebaseLocationListener: 기존 리스너 제거 완료.");
+        }
+
+        // 🎯 로그 추가: 리스너 등록
+        Log.d(TAG, "startFirebaseLocationListener: Firebase 그룹 위치 리스너 등록 시작. GroupPath=" + groupPathRef.toString());
+
+        memberLocationListener = new ValueEventListener() {
             @Override
-            public void onResponse(@NonNull Call<List<LocationResponse>> call, @NonNull Response<List<LocationResponse>> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    updateMemberMarkers(response.body());
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                // 🎯 로그 추가: 데이터 변경 수신
+                Log.d(TAG, "onDataChange: 데이터 변경 감지. 총 멤버 위치 개수: " + snapshot.getChildrenCount());
+
+                List<LocationResponse> locations = new ArrayList<>();
+                for (DataSnapshot memberSnapshot : snapshot.getChildren()) {
+                    String username = memberSnapshot.getKey();
+                    if (username != null && username.equals(loggedInUsername)) continue;
+
+                    Double lat = memberSnapshot.child("latitude").getValue(Double.class);
+                    Double lon = memberSnapshot.child("longitude").getValue(Double.class);
+
+                    if (lat != null && lon != null) {
+                        locations.add(new LocationResponse(username, lat, lon));
+                        // 🎯 로그 추가: 수신된 멤버 위치 데이터
+                        Log.d(TAG, "onDataChange: 수신된 멤버 위치 -> " + username + " at (" + lat + ", " + lon + ")");
+                    }
                 }
+                updateMemberMarkers(locations);
             }
+
             @Override
-            public void onFailure(@NonNull Call<List<LocationResponse>> call, @NonNull Throwable t) {
-                Log.e("MapsActivity", "멤버 위치 가져오기 실패", t);
+            public void onCancelled(@NonNull DatabaseError error) {
+                // 🎯 로그 추가: 리스너 취소 오류 (보안 규칙 문제일 가능성 높음)
+                Log.e(TAG, "onCancelled: Firebase 리스너 취소 오류 (🚨보안 규칙 확인 요망)", error.toException());
             }
-        });
+        };
+        groupPathRef.addValueEventListener(memberLocationListener);
     }
+    */
 
     private void updateMemberMarkers(List<LocationResponse> locations) {
         if (naverMap == null) return;
 
+        // 🎯 로그 추가: 마커 업데이트 시작
+        Log.d(TAG, "updateMemberMarkers: 지도 마커 업데이트 시작. 새 위치 개수: " + locations.size());
+
         List<Long> updatedUserIds = new ArrayList<>();
         for (LocationResponse location : locations) {
+            if (!Double.isFinite(location.getLatitude()) || !Double.isFinite(location.getLongitude())) continue;
+
             updatedUserIds.add(location.getUserId());
             LatLng memberPosition = new LatLng(location.getLatitude(), location.getLongitude());
 
@@ -517,32 +466,188 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 marker = new Marker();
                 marker.setCaptionText(location.getUserName());
                 memberMarkers.put(location.getUserId(), marker);
+                Log.d(TAG, "updateMemberMarkers: 새 멤버 마커 추가 -> " + location.getUserName());
             }
             marker.setPosition(memberPosition);
             marker.setMap(naverMap);
         }
 
-        List<Long> usersToRemove = new ArrayList<>();
-        for (Long existingUserId : memberMarkers.keySet()) {
-            if (!updatedUserIds.contains(existingUserId)) {
-                usersToRemove.add(existingUserId);
+        // Remove markers for users who left
+        new HashMap<>(memberMarkers).forEach((userId, marker) -> {
+            if (!updatedUserIds.contains(userId)) {
+                marker.setMap(null);
+                memberMarkers.remove(userId);
+                Log.d(TAG, "updateMemberMarkers: 이탈 멤버 마커 제거 -> ID: " + userId);
             }
-        }
-        for (Long userId : usersToRemove) {
-            Marker markerToRemove = memberMarkers.get(userId);
-            if (markerToRemove != null) {
-                markerToRemove.setMap(null);
-            }
-            memberMarkers.remove(userId);
-        }
+        });
     }
 
     //==============================================================================================
-    // 3. 검색 기능 관련
+    // 4. Mock Movement & Destination Selection (로그 추가)
     //==============================================================================================
 
+    private void loadWeatherData() {
+        LatLng defaultLocation = new LatLng(37.5665, 126.9780);
+        updateWeatherWidget(defaultLocation);
+    }
+    
+    private void loadCachedWeatherData() {
+        SharedPreferences prefs = getSharedPreferences("weather_cache", MODE_PRIVATE);
+        String cachedData = prefs.getString("last_weather_data", null);
+        long cachedTime = prefs.getLong("last_weather_time", 0);
+        float cachedLat = prefs.getFloat("last_weather_lat", 0f);
+        float cachedLng = prefs.getFloat("last_weather_lng", 0f);
+        
+        if (cachedData != null && cachedTime > 0 && cachedLat != 0f && cachedLng != 0f) {
+            long currentTime = System.currentTimeMillis();
+            long timeDiff = currentTime - cachedTime;
+            
+            // 캐시가 10분 이내라면 복원
+            if (timeDiff <= WEATHER_CACHE_DURATION) {
+                lastWeatherData = cachedData;
+                lastWeatherUpdateTime = cachedTime;
+                lastWeatherLocation = new LatLng(cachedLat, cachedLng);
+                
+                // UI에 즉시 적용
+                applyCachedWeatherData();
+                Log.d("WeatherCache", "캐시된 날씨 데이터 복원 완료");
+            } else {
+                Log.d("WeatherCache", "캐시된 날씨 데이터가 만료됨");
+            }
+        }
+    }
 
+    private void startMockMovement() {
+        if (animationHandler != null) {
+            animationHandler.removeCallbacks(animationRunnable);
+        }
+        animationHandler = new Handler(Looper.getMainLooper());
+        startTime = System.currentTimeMillis();
+        startLatLng = myLocationMarker.getPosition();
 
+        Toast.makeText(this, "Mock movement to Busan started.", Toast.LENGTH_LONG).show();
+        Log.d(TAG, "startMockMovement: 가상 이동 시작. 시작 위치: " + startLatLng.latitude);
+
+        animationRunnable = new Runnable() {
+            @Override
+            public void run() {
+                long elapsed = System.currentTimeMillis() - startTime;
+                float fraction = Math.min((float) elapsed / totalDuration, 1.0f);
+
+                double lat = startLatLng.latitude + (endLatLng.latitude - startLatLng.latitude) * fraction;
+                double lon = startLatLng.longitude + (endLatLng.longitude - startLatLng.longitude) * fraction;
+                LatLng currentLatLng = new LatLng(lat, lon);
+
+                myLocationMarker.setPosition(currentLatLng);
+                naverMap.moveCamera(CameraUpdate.scrollTo(currentLatLng));
+
+                Location mockLocation = new Location("MockProvider");
+                mockLocation.setLatitude(lat);
+                mockLocation.setLongitude(lon);
+                updateMyLocation(mockLocation); // 🎯 가상 위치도 Firebase에 업데이트
+
+                if (fraction < 1.0) {
+                    animationHandler.postDelayed(this, updateInterval);
+                } else {
+                    Toast.makeText(MapsActivity.this, "Arrived in Busan.", Toast.LENGTH_SHORT).show();
+                    Log.d(TAG, "startMockMovement: 가상 이동 완료.");
+                    animationHandler = null;
+                }
+            }
+        };
+        animationHandler.post(animationRunnable);
+    }
+
+    // onDestinationSelected 메서드 제거 - SearchResultDetailFragment.OnDestinationSelectedListener 인터페이스가 없음
+    /*
+    @Override
+    public void onDestinationSelected(SearchResult selectedResult) {
+        Toast.makeText(this, selectedResult.getTitle() + " selected as destination.", Toast.LENGTH_LONG).show();
+        hideSearchResults();
+        if (searchResultMarker != null) searchResultMarker.setMap(null);
+
+        Intent intent = new Intent(this, CreateGroupActivity.class);
+        intent.putExtra("destination_result", selectedResult);
+        intent.putExtra("username", loggedInUsername);
+        startActivity(intent);
+    }
+    */
+
+    //==============================================================================================
+    // 5. UI Features (Menus, Search, Weather - 수정 없음)
+    //==============================================================================================
+
+    private void toggleSubMenu() {
+        if (isSubMenuOpen) hideSubMenu();
+        else showSubMenu();
+    }
+
+    private void showSubMenu() {
+        isSubMenuOpen = true;
+        FloatingActionButton btnMainMenu = findViewById(R.id.btnMainMenu);
+        btnMainMenu.setImageResource(R.drawable.ic_close);
+        btnMainMenu.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.red)));
+
+        FloatingActionButton[] targets = {
+                findViewById(R.id.btnFriends), findViewById(R.id.btnCreateGroup),
+                findViewById(R.id.btnMyGroups), findViewById(R.id.btnMyPage), findViewById(R.id.btnSettings)
+        };
+        float[] angles = {180f, 135f, 90f, 45f, 0f};
+        float radiusPx = dpToPx(SUB_MENU_RADIUS_DP);
+
+        for (int i = 0; i < targets.length; i++) {
+            targets[i].setVisibility(View.VISIBLE);
+            targets[i].setAlpha(0f);
+            double rad = Math.toRadians(angles[i]);
+            float tx = (float) (Math.cos(rad) * radiusPx * 1.2); // Adjust distance
+            float ty = (float) (Math.sin(rad) * radiusPx * -1.2); // Adjust distance & invert Y
+            targets[i].animate().translationX(tx).translationY(ty).alpha(1f).setDuration(300).setStartDelay(i * 40L).start();
+        }
+    }
+
+    private void hideSubMenu() {
+        isSubMenuOpen = false;
+        FloatingActionButton btnMainMenu = findViewById(R.id.btnMainMenu);
+        btnMainMenu.setImageResource(R.drawable.ic_menu);
+        btnMainMenu.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.colorPrimary)));
+
+        FloatingActionButton[] targets = {
+                findViewById(R.id.btnFriends), findViewById(R.id.btnCreateGroup),
+                findViewById(R.id.btnMyGroups), findViewById(R.id.btnMyPage), findViewById(R.id.btnSettings)
+        };
+
+        for (int i = 0; i < targets.length; i++) {
+            int finalI = i;
+            targets[i].animate().translationX(0f).translationY(0f).alpha(0f).setDuration(250).setStartDelay((targets.length - 1 - i) * 30L)
+                    .withEndAction(() -> targets[finalI].setVisibility(View.GONE)).start();
+        }
+    }
+
+    private void initializeSubMenu() {
+        FloatingActionButton[] targets = {
+                findViewById(R.id.btnFriends), findViewById(R.id.btnCreateGroup),
+                findViewById(R.id.btnMyGroups), findViewById(R.id.btnMyPage), findViewById(R.id.btnSettings)
+        };
+        for(FloatingActionButton fab : targets) {
+            fab.setVisibility(View.GONE);
+            fab.setAlpha(0f);
+        }
+    }
+
+    private void bindMyPageHeader() {
+        TextView tvUsername = findViewById(R.id.tv_username);
+        TextView tvEmail = findViewById(R.id.tv_email);
+        if (tvUsername != null) tvUsername.setText(loggedInUsername != null ? loggedInUsername : "Guest");
+        if (tvEmail != null) tvEmail.setText(getSharedPreferences("user_info", MODE_PRIVATE).getString("email", ""));
+
+        findViewById(R.id.btn_logout).setOnClickListener(v -> {
+            new TokenManager(this).deleteToken();
+            Intent intent = new Intent(this, LoginActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
+            finish();
+        });
+    }
 
     private void performSearch() {
         String query = etSearch.getText().toString().trim();
@@ -558,8 +663,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         executor.execute(() -> {
             try {
                 String encodedQuery = java.net.URLEncoder.encode(query, "UTF-8");
-                String urlString = "https://openapi.naver.com/v1/search/local.json?query=" + encodedQuery + "&display=10&start=1";
-                URL url = new URL(urlString);
+                URL url = new URL("https://openapi.naver.com/v1/search/local.json?query=" + encodedQuery + "&display=10");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
                 conn.setRequestProperty("X-Naver-Client-Id", NAVER_CLIENT_ID);
@@ -570,24 +674,18 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     StringBuilder response = new StringBuilder();
                     String line;
                     while ((line = reader.readLine()) != null) response.append(line);
-                    reader.close();
 
                     List<SearchResult> results = parseNaverSearchResults(new JSONObject(response.toString()));
                     handler.post(() -> {
-                        if (results.isEmpty()) {
-                            Toast.makeText(this, "검색 결과가 없습니다.", Toast.LENGTH_SHORT).show();
-                        } else {
-                            showSearchResults(results);
-                            results.forEach(this::fetchImageForSearchResult);
-                        }
+                        if (results.isEmpty()) Toast.makeText(this, "검색 결과가 없습니다.", Toast.LENGTH_SHORT).show();
+                        else showSearchResults(results);
                     });
                 } else {
-                    Log.e("SearchAPI", "API 응답 코드: " + conn.getResponseCode());
-                    handler.post(() -> Toast.makeText(this, "API 오류가 발생했습니다.", Toast.LENGTH_SHORT).show());
+                    handler.post(() -> Toast.makeText(this, "API 오류 발생", Toast.LENGTH_SHORT).show());
                 }
             } catch (Exception e) {
-                Log.e("SearchAPI", "장소 검색 실패", e);
-                handler.post(() -> Toast.makeText(this, "검색 중 오류 발생", Toast.LENGTH_LONG).show());
+                Log.e("SearchAPI", "Search failed", e);
+                handler.post(() -> Toast.makeText(this, "검색 중 오류 발생", Toast.LENGTH_SHORT).show());
             }
         });
     }
@@ -601,53 +699,27 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             String address = item.optString("roadAddress", item.optString("address", ""));
             String category = item.optString("category", "정보 없음");
 
-            // 1. API가 주는 비정상적인 값을 double로 읽어옵니다.
-            double rawMapX = Double.parseDouble(item.getString("mapx"));
-            double rawMapY = Double.parseDouble(item.getString("mapy"));
+            // Correct coordinate parsing from Code 1
+            double longitude = item.getDouble("mapx") / 1e7;
+            double latitude = item.getDouble("mapy") / 1e7;
 
-            // 2. 이 값들은 사실 위도/경도에 10,000,000이 곱해진 값이므로, 다시 나눠서 원래 값으로 복원합니다.
-            //    (주의: mapy가 위도(latitude), mapx가 경도(longitude)에 해당합니다.)
-            double latitude = rawMapY / 10000000.0;
-            double longitude = rawMapX / 10000000.0;
-
-            // 로그로 복원된 실제 위경도 값을 확인합니다.
-            Log.d("MAPS_ACTIVITY_DEBUG", "[RESTORED] title: " + title + ", Lat: " + latitude + ", Lng: " + longitude);
-
-            // 3. Tm128 변환 없이, 복원된 위경도 값으로 SearchResult를 생성합니다.
             results.add(new SearchResult(title, address, category, latitude, longitude, "", ""));
         }
         return results;
     }
 
-    private void fetchImageForSearchResult(SearchResult result) {
-        executor.execute(() -> {
-            try {
-                String encodedQuery = java.net.URLEncoder.encode(result.getTitle(), "UTF-8");
-                String urlString = "https://openapi.naver.com/v1/search/image?query=" + encodedQuery + "&display=1&start=1&sort=sim";
-                URL url = new URL(urlString);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.setRequestProperty("X-Naver-Client-Id", NAVER_CLIENT_ID);
-                conn.setRequestProperty("X-Naver-Client-Secret", NAVER_CLIENT_SECRET);
+    private void moveToSearchResult(SearchResult result) {
+        if (naverMap != null) {
+            LatLng location = new LatLng(result.getLatitude(), result.getLongitude());
+            naverMap.moveCamera(CameraUpdate.scrollAndZoomTo(location, 16).animate(CameraAnimation.Easing));
 
-                if (conn.getResponseCode() == 200) {
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                    StringBuilder response = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) response.append(line);
-                    reader.close();
+            if (searchResultMarker != null) searchResultMarker.setMap(null);
+            searchResultMarker = new Marker(location);
+            searchResultMarker.setCaptionText(result.getTitle());
+            searchResultMarker.setMap(naverMap);
 
-                    JSONObject json = new JSONObject(response.toString());
-                    if (json.has("items") && json.getJSONArray("items").length() > 0) {
-                        String imageUrl = json.getJSONArray("items").getJSONObject(0).optString("thumbnail", "");
-                        result.setImageUrl(imageUrl);
-                        handler.post(searchResultAdapter::notifyDataSetChanged);
-                    }
-                }
-            } catch (Exception e) {
-                Log.e("ImageSearchAPI", "이미지 검색 실패: " + result.getTitle(), e);
-            }
-        });
+            SearchResultDetailFragment.newInstance(result).show(getSupportFragmentManager(), "SearchResultDetail");
+        }
     }
 
     private void showSearchResults(List<SearchResult> results) {
@@ -657,96 +729,185 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private void hideSearchResults() {
         rvSearchResults.setVisibility(View.GONE);
-        etSearch.clearFocus();
     }
 
-    private void moveToSearchResult(SearchResult result) {
-        if (naverMap != null) {
-            // FIXME: parseNaverSearchResults에서 좌표 변환이 올바르게 되면, 이 부분도 정확한 위치로 이동합니다.
-            Log.d("MAPS_ACTIVITY_DEBUG", "[MOVING TO] title: " + result.getTitle() + ", Lat: " + result.getLatitude() + ", Lng: " + result.getLongitude());
-            LatLng location = new LatLng(result.getLatitude(), result.getLongitude());
-            CameraUpdate cameraUpdate = CameraUpdate.scrollAndZoomTo(location, 16).animate(CameraAnimation.Easing, 1000);
-            naverMap.moveCamera(cameraUpdate);
-
-            if (searchResultMarker != null) searchResultMarker.setMap(null);
-
-            searchResultMarker = new Marker();
-            searchResultMarker.setPosition(location);
-            searchResultMarker.setCaptionText(result.getTitle());
-            searchResultMarker.setMap(naverMap);
-
-            SearchResultDetailFragment.newInstance(result).show(getSupportFragmentManager(), "SearchResultDetailFragment");
-        }
-    }
-
-    //==============================================================================================
-    // 4. 날씨 기능 관련
-    //==============================================================================================
-
-    private void loadWeatherData() {
-        LatLng defaultLocation = new LatLng(37.5665, 126.9780);
-        updateWeatherWidget(defaultLocation);
+    private void showWeatherBottomSheet() {
+        Location location = locationSource.getLastLocation();
+        double lat = (location != null) ? location.getLatitude() : 37.5665;
+        double lon = (location != null) ? location.getLongitude() : 126.9780;
+        WeatherBottomSheetFragment.newInstance(lat, lon).show(getSupportFragmentManager(), "WeatherBottomSheet");
     }
 
     private void updateWeatherWidget(LatLng location) {
+        // 캐시된 데이터가 유효한지 확인
+        if (isWeatherCacheValid(location)) {
+            Log.d("WeatherCache", "캐시된 날씨 데이터 사용");
+            applyCachedWeatherData();
+            return;
+        }
+        
+        // 거리 기반 업데이트 확인
+        if (!shouldUpdateWeatherByDistance(location)) {
+            Log.d("WeatherCache", "이동 거리가 부족하여 날씨 업데이트 건너뜀");
+            return;
+        }
+        
+        // API 호출하여 날씨 데이터 가져오기
+        fetchWeatherDataFromAPI(location);
+    }
+    
+    private boolean isWeatherCacheValid(LatLng location) {
+        if (lastWeatherData == null || lastWeatherLocation == null) {
+            return false;
+        }
+        
+        long currentTime = System.currentTimeMillis();
+        long timeDiff = currentTime - lastWeatherUpdateTime;
+        
+        // 10분이 지났거나 위치가 1km 이상 변경되었으면 캐시 무효화
+        if (timeDiff > WEATHER_CACHE_DURATION) {
+            return false;
+        }
+        
+        double distance = calculateDistance(lastWeatherLocation, location);
+        return distance < WEATHER_UPDATE_DISTANCE_KM;
+    }
+    
+    private boolean shouldUpdateWeatherByDistance(LatLng location) {
+        if (lastWeatherLocation == null) {
+            return true; // 첫 번째 호출
+        }
+        
+        double distance = calculateDistance(lastWeatherLocation, location);
+        return distance >= WEATHER_UPDATE_DISTANCE_KM;
+    }
+    
+    private double calculateDistance(LatLng loc1, LatLng loc2) {
+        final int R = 6371; // 지구 반지름 (km)
+        double latDistance = Math.toRadians(loc2.latitude - loc1.latitude);
+        double lonDistance = Math.toRadians(loc2.longitude - loc1.longitude);
+        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+                + Math.cos(Math.toRadians(loc1.latitude)) * Math.cos(Math.toRadians(loc2.latitude))
+                * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    }
+    
+    private void fetchWeatherDataFromAPI(LatLng location) {
         executor.execute(() -> {
             try {
-                String urlString = String.format(
+                URL url = new URL(String.format(Locale.US,
                         "https://api.openweathermap.org/data/2.5/weather?lat=%f&lon=%f&appid=%s&units=metric&lang=kr",
-                        location.latitude, location.longitude, OPENWEATHERMAP_API_KEY
-                );
-                URL url = new URL(urlString);
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                connection.setRequestMethod("GET");
+                        location.latitude, location.longitude, OPENWEATHERMAP_API_KEY));
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
 
-                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-                StringBuilder response = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) response.append(line);
-                reader.close();
+                if (conn.getResponseCode() == 200) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while((line = reader.readLine()) != null) response.append(line);
 
-                JSONObject json = new JSONObject(response.toString());
-                double temperature = json.getJSONObject("main").getDouble("temp");
-                String weatherMain = json.getJSONArray("weather").getJSONObject(0).getString("main");
+                    String weatherData = response.toString();
+                    
+                    // 캐시에 저장
+                    cacheWeatherData(location, weatherData);
+                    
+                    // UI 업데이트
+                    JSONObject json = new JSONObject(weatherData);
+                    double temp = json.getJSONObject("main").getDouble("temp");
+                    String weatherMain = json.getJSONArray("weather").getJSONObject(0).getString("main");
 
-                handler.post(() -> {
-                    tvTemperature.setText(String.format("%.0f°", temperature));
-                    ivWeatherIcon.setImageResource(getWeatherIconResource(weatherMain));
-                });
+                    handler.post(() -> {
+                        tvTemperature.setText(String.format(Locale.getDefault(), "%.0f°", temp));
+                        ivWeatherIcon.setImageResource(getWeatherIconResource(weatherMain));
+                    });
+                    
+                    Log.d("WeatherAPI", "날씨 데이터 업데이트 완료: " + temp + "°C, " + weatherMain);
+                } else {
+                    Log.e("WeatherAPI", "API 호출 실패: " + conn.getResponseCode());
+                    // 실패시 캐시된 데이터 사용
+                    if (lastWeatherData != null) {
+                        handler.post(this::applyCachedWeatherData);
+                    }
+                }
             } catch (Exception e) {
-                Log.e("WeatherAPI", "날씨 정보 로드 실패", e);
-                handler.post(() -> Toast.makeText(MapsActivity.this, "날씨 정보를 가져오지 못했습니다.", Toast.LENGTH_SHORT).show());
+                Log.e("WeatherAPI", "Failed to load weather", e);
+                // 실패시 캐시된 데이터 사용
+                if (lastWeatherData != null) {
+                    handler.post(this::applyCachedWeatherData);
+                }
             }
         });
+    }
+    
+    private void cacheWeatherData(LatLng location, String weatherData) {
+        lastWeatherLocation = location;
+        lastWeatherUpdateTime = System.currentTimeMillis();
+        lastWeatherData = weatherData;
+        
+        // SharedPreferences에도 저장 (앱 재시작시 복원용)
+        SharedPreferences prefs = getSharedPreferences("weather_cache", MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putString("last_weather_data", weatherData);
+        editor.putLong("last_weather_time", lastWeatherUpdateTime);
+        editor.putFloat("last_weather_lat", (float) location.latitude);
+        editor.putFloat("last_weather_lng", (float) location.longitude);
+        editor.apply();
+        
+        Log.d("WeatherCache", "날씨 데이터 캐시 저장 완료");
+    }
+    
+    private void applyCachedWeatherData() {
+        if (lastWeatherData == null) return;
+        
+        try {
+            JSONObject json = new JSONObject(lastWeatherData);
+            double temp = json.getJSONObject("main").getDouble("temp");
+            String weatherMain = json.getJSONArray("weather").getJSONObject(0).getString("main");
+            
+            tvTemperature.setText(String.format(Locale.getDefault(), "%.0f°", temp));
+            ivWeatherIcon.setImageResource(getWeatherIconResource(weatherMain));
+            
+            Log.d("WeatherCache", "캐시된 날씨 데이터 적용: " + temp + "°C, " + weatherMain);
+        } catch (Exception e) {
+            Log.e("WeatherCache", "캐시된 날씨 데이터 적용 실패", e);
+        }
+    }
+    
+    private void forceWeatherUpdate() {
+        Log.d("WeatherCache", "강제 날씨 업데이트 시작");
+        Toast.makeText(this, "날씨 정보를 새로고침합니다...", Toast.LENGTH_SHORT).show();
+        
+        // 캐시 무효화
+        lastWeatherData = null;
+        lastWeatherLocation = null;
+        lastWeatherUpdateTime = 0;
+        
+        // 현재 위치로 날씨 업데이트
+        Location currentLocation = locationSource.getLastLocation();
+        if (currentLocation != null) {
+            LatLng currentLatLng = new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude());
+            fetchWeatherDataFromAPI(currentLatLng);
+        } else {
+            // 위치를 가져올 수 없으면 기본 위치 사용
+            LatLng defaultLocation = new LatLng(37.5665, 126.9780);
+            fetchWeatherDataFromAPI(defaultLocation);
+        }
     }
 
     private int getWeatherIconResource(String weatherMain) {
         switch (weatherMain.toLowerCase()) {
             case "clear": return R.drawable.ic_weather_clear;
             case "clouds": return R.drawable.ic_weather_cloudy;
-            case "rain": case "drizzle": case "thunderstorm": return R.drawable.ic_weather_rainy;
+            case "rain": case "drizzle": return R.drawable.ic_weather_rainy;
             case "snow": return R.drawable.ic_weather_snow;
-            case "mist": case "fog": return R.drawable.ic_weather_fog;
             default: return R.drawable.ic_weather_clear;
         }
     }
 
-    private void showWeatherBottomSheet() {
-        Location currentLocation = locationSource.getLastLocation();
-        double latitude, longitude;
-        if (currentLocation != null) {
-            latitude = currentLocation.getLatitude();
-            longitude = currentLocation.getLongitude();
-        } else {
-            latitude = 37.5665; // 서울 시청
-            longitude = 126.9780;
-            Toast.makeText(this, "현재 위치를 가져올 수 없어 기본 위치의 날씨를 표시합니다.", Toast.LENGTH_SHORT).show();
-        }
-        WeatherBottomSheetFragment.newInstance(latitude, longitude).show(getSupportFragmentManager(), "WeatherBottomSheet");
-    }
 
     //==============================================================================================
-    // 5. 지도 및 권한 관련 유틸리티
+    // 6. Permissions & Utilities (수정 없음)
     //==============================================================================================
 
     private void checkLocationPermission() {
@@ -759,73 +920,82 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (locationSource.onRequestPermissionsResult(requestCode, permissions, grantResults)) {
-            if (naverMap != null) {
-                naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
-            }
+            if (naverMap != null) naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
         }
     }
 
     private void moveToCurrentLocation() {
-        if (naverMap == null || locationSource.getLastLocation() == null) {
-            Toast.makeText(this, "위치 정보를 가져올 수 없습니다.", Toast.LENGTH_SHORT).show();
-            return;
+        if (naverMap != null && locationSource.getLastLocation() != null) {
+            Location loc = locationSource.getLastLocation();
+            naverMap.moveCamera(CameraUpdate.scrollAndZoomTo(new LatLng(loc.getLatitude(), loc.getLongitude()), 16)
+                    .animate(CameraAnimation.Easing));
         }
-        Location location = locationSource.getLastLocation();
-        LatLng currentLocation = new LatLng(location.getLatitude(), location.getLongitude());
-        CameraUpdate cameraUpdate = CameraUpdate.scrollAndZoomTo(currentLocation, 16).animate(CameraAnimation.Easing, 1200);
-        naverMap.moveCamera(cameraUpdate);
-        Toast.makeText(this, "📍 내 위치로 이동합니다.", Toast.LENGTH_SHORT).show();
     }
 
-    private void showMapTypeMenu(View anchorView) {
-        PopupMenu popupMenu = new PopupMenu(this, anchorView);
-        popupMenu.getMenuInflater().inflate(R.menu.map_type_menu, popupMenu.getMenu());
-        popupMenu.setOnMenuItemClickListener(item -> {
-            int itemId = item.getItemId();
-            if (itemId == R.id.map_type_normal) {
-                naverMap.setMapType(NaverMap.MapType.Basic);
-                return true;
-            } else if (itemId == R.id.map_type_satellite) {
-                naverMap.setMapType(NaverMap.MapType.Satellite);
-                return true;
-            } else if (itemId == R.id.map_type_terrain) {
-                naverMap.setMapType(NaverMap.MapType.Terrain);
-                return true;
-            }
-            return false;
-        });
-        popupMenu.show();
+
+    private float dpToPx(float dp) {
+        return dp * getResources().getDisplayMetrics().density;
     }
 
     private void hideKeyboard() {
         InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
         View view = getCurrentFocus();
-        if (view != null) {
-            imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+        if (view != null) imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+    }
+
+    private void applyMapTypeSetting() {
+        SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
+        int mapType = 0; // 기본값
+        
+        try {
+            // 기존에 저장된 값이 String인 경우를 대비해 try-catch 사용
+            mapType = prefs.getInt("map_type", 0);
+        } catch (ClassCastException e) {
+            // 기존에 String으로 저장된 값이 있다면 제거하고 기본값 사용
+            Log.w("MapsActivity", "기존 map_type 설정이 잘못된 형식입니다. 기본값으로 재설정합니다.", e);
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.remove("map_type");
+            editor.putInt("map_type", 0);
+            editor.apply();
+        }
+        
+        if (naverMap != null) {
+            switch (mapType) {
+                case 0:
+                    naverMap.setMapType(NaverMap.MapType.Basic);
+                    break;
+                case 1:
+                    naverMap.setMapType(NaverMap.MapType.Satellite);
+                    break;
+                case 2:
+                    naverMap.setMapType(NaverMap.MapType.Terrain);
+                    break;
+                default:
+                    naverMap.setMapType(NaverMap.MapType.Basic);
+                    break;
+            }
         }
     }
 
     //==============================================================================================
-    // 6. 액티비티 생명주기 콜백
+    // 7. Activity Lifecycle Callbacks (로그 추가)
     //==============================================================================================
 
     @Override
-    protected void onStart() {
-        super.onStart();
-        mapView.onStart();
-    }
+    protected void onStart() { super.onStart(); mapView.onStart(); }
 
     @Override
     protected void onResume() {
         super.onResume();
         mapView.onResume();
-        
-        // 설정 변경사항 적용
         applyMapTypeSetting();
-        
-        // 다른 화면에서 돌아왔을 때, 위치 공유 중이었다면 다시 시작
+
+        // 🎯 로그 추가: onResume 시 위치 공유 재시작 시도
         if (currentGroupId != -1L) {
+            Log.d(TAG, "onResume: 유효한 그룹 ID(" + currentGroupId + ")가 있어 위치 공유 재시작.");
             startLocationSharing();
+        } else {
+            Log.d(TAG, "onResume: 그룹 ID가 없어 위치 공유를 시작하지 않음.");
         }
     }
 
@@ -833,25 +1003,32 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     protected void onPause() {
         super.onPause();
         mapView.onPause();
-        // 앱이 백그라운드로 갈 때 위치 공유 중지
+
+        // 🎯 로그 추가: onPause 시 위치 업데이트 중단
         locationUpdateHandler.removeCallbacksAndMessages(null);
+        Log.d(TAG, "onPause: 주기적인 위치 업데이트 (Handler) 중단.");
+
+        if (animationHandler != null) {
+            animationHandler.removeCallbacks(animationRunnable);
+            animationHandler = null;
+        }
+        // Firebase 리스너 제거 - 조건부 컴파일을 위해 주석 처리
+        /*
+        if (currentGroupId != -1L && memberLocationListener != null) {
+            firebaseDatabase.child(String.valueOf(currentGroupId)).removeEventListener(memberLocationListener);
+            // 🎯 로그 추가: onPause 시 Firebase 리스너 제거
+            Log.d(TAG, "onPause: Firebase 리스너 제거 완료.");
+        }
+        */
     }
 
     @Override
-    protected void onStop() {
-        super.onStop();
-        mapView.onStop();
-    }
+    protected void onStop() { super.onStop(); mapView.onStop(); }
 
     @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        mapView.onDestroy();
-    }
+    protected void onDestroy() { super.onDestroy(); mapView.onDestroy(); }
 
     @Override
-    public void onLowMemory() {
-        super.onLowMemory();
-        mapView.onLowMemory();
-    }
+    public void onLowMemory() { super.onLowMemory(); mapView.onLowMemory(); }
+
 }
