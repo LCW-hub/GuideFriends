@@ -10,4 +10,6 @@ import retrofit2.http.GET;
 public interface FriendApiService {
     @GET("/api/friends/group-members")
     Call<List<User>> getGroupSelectableMembers();
+    @GET("api/friends")
+    Call<List<FriendResponse>> getFriends();
 }

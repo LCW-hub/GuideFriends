@@ -105,4 +105,4 @@ router.post('/:alertId/respond', (req, res) => {
     }
 });
 
-module.exports = router; 
+module.exports = router;

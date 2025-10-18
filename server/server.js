@@ -25,6 +25,7 @@ app.use(limiter);
 app.use('/api/courses', require('./routes/courses'));
 app.use('/api/sos', require('./routes/sos'));
 app.use('/api/transport', require('./routes/transport'));
+app.use('/api/users', require('./routes/users'));
 
 // 기본 라우트
 app.get('/', (req, res) => {

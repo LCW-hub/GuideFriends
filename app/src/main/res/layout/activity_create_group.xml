@@ -11,12 +11,13 @@
         android:layout_height="wrap_content"
         android:hint="그룹 이름" />
 
-    <EditText
+    <Button
         android:id="@+id/etDestination"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:hint="목적지" />
+
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -24,14 +25,14 @@
         android:orientation="horizontal"
         android:layout_marginTop="8dp">
 
-        <EditText
+        <Button
             android:id="@+id/etStartTime"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:hint="시작 시간 (예: 2025-10-04T19:00:00)" />
 
-        <EditText
+        <Button
             android:id="@+id/etEndTime"
             android:layout_width="0dp"
             android:layout_height="wrap_content"

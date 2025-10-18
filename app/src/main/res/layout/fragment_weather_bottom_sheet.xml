@@ -16,7 +16,6 @@
         android:paddingTop="16dp"
         android:paddingBottom="16dp">
 
-        <!-- 상단 핸들 -->
         <View
             android:layout_width="40dp"
             android:layout_height="4dp"
@@ -24,7 +23,6 @@
             android:background="@drawable/bottom_sheet_handle"
             android:layout_marginBottom="16dp" />
 
-        <!-- 위치 및 닫기 버튼 -->
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -52,7 +50,6 @@
                 android:contentDescription="Close" />
         </RelativeLayout>
 
-        <!-- 현재 날씨 정보 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -96,7 +93,6 @@
                 android:textSize="16sp"
                 android:layout_marginBottom="8dp" />
 
-            <!-- 미세먼지 정보 -->
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -144,7 +140,6 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- 탭 레이아웃 (시간별/일별) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -174,7 +169,6 @@
                 android:paddingBottom="4dp" />
         </LinearLayout>
 
-        <!-- 시간별 예보 RecyclerView -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rv_hourly_forecast"
             android:layout_width="match_parent"
@@ -183,14 +177,24 @@
             app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
             android:paddingHorizontal="18dp"
             android:clipToPadding="false"
-            android:layout_marginBottom="16dp"
             tools:listitem="@layout/item_weather_forecast" />
 
-        <!-- 업데이트 정보 및 더보기 -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_daily_forecast"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="24dp"
+            android:visibility="gone"
+            tools:visibility="visible"
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+            tools:listitem="@layout/item_daily_forecast"
+            tools:itemCount="7"/>
+
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingHorizontal="24dp">
+            android:paddingHorizontal="24dp"
+            android:layout_marginTop="16dp">
 
             <LinearLayout
                 android:layout_width="wrap_content"
@@ -202,7 +206,7 @@
                     android:id="@+id/tv_update_time"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="업데이트 2025.09.22. 오후 02:00"
+                    android:text="업데이트 2025.10.12. 오전 10:19"
                     android:textColor="@color/textColorSecondary"
                     android:textSize="12sp" />
 
@@ -210,7 +214,7 @@
                     android:id="@+id/tv_weather_source"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="발표 기상청 · 제공 케이웨더"
+                    android:text="발표 OpenWeather · 제공 케이웨더"
                     android:textColor="@color/textColorSecondary"
                     android:textSize="12sp" />
             </LinearLayout>

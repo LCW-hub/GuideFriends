@@ -4,6 +4,7 @@ import com.google.gson.annotations.SerializedName;
 
 public class LocationResponse {
 
+
     @SerializedName("userId")
     private Long userId;
 
@@ -29,6 +30,13 @@ public class LocationResponse {
 
     public String getUserName() {
         return userName;
+    }
+    public LocationResponse(String userName, Double latitude, Double longitude) {
+        this.userName = userName;
+        this.latitude = latitude;
+        this.longitude = longitude;
+        // userId는 MapsActivity에서 임시로 해시코드로 설정하므로, 여기서는 생략하거나 필요에 따라 설정
+        // this.userId = (long) (userName != null ? userName.hashCode() : 0);
     }
 
     public Double getLatitude() {
@@ -66,4 +74,6 @@ public class LocationResponse {
     public void setLastUpdatedAt(String lastUpdatedAt) {
         this.lastUpdatedAt = lastUpdatedAt;
     }
+
+
 }

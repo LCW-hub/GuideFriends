@@ -1,5 +1,8 @@
 package com.example.gps.activities;
 
+import android.app.Activity;
+import android.app.DatePickerDialog;
+import android.app.TimePickerDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
@@ -7,6 +10,8 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -18,12 +23,14 @@ import com.example.gps.api.ApiClient;
 import com.example.gps.api.FriendApiService;
 import com.example.gps.api.GroupApiService;
 import com.example.gps.dto.CreateGroupRequest;
-import com.example.gps.model.SearchResult;
-import com.example.gps.model.User;
-import com.example.gps.utils.TokenManager; // ⭐ [추가] TokenManager를 import합니다.
+import com.example.gps.model.User; // ⭐️ [기준 변경] FriendResponse 대신 User 모델 사용
+import com.example.gps.utils.TokenManager; // ⭐ [기능 추가] TokenManager import
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import retrofit2.Call;
@@ -32,83 +39,123 @@ import retrofit2.Response;
 
 public class CreateGroupActivity extends AppCompatActivity {
 
-    private EditText etGroupName, etDestination, etStartTime, etEndTime;
+    // --- 변수 선언 (두 번째 코드 기준) ---
+    private EditText etGroupName;
+    private Button etDestination, etStartTime, etEndTime; // 목적지/시간 선택은 Button UI 유지
     private RecyclerView rvFriends;
     private Button btnCreate;
     private FriendSelectAdapter adapter;
-    private List<User> friendList = new ArrayList<>();
+    private List<User> friendList = new ArrayList<>(); // ⭐️ 데이터 모델 'User'로 변경
 
+    // 목적지 정보 저장 변수
+    private String destinationName;
     private double destinationLat = 0.0;
     private double destinationLng = 0.0;
 
-    // ---------------------------------------------------------------------------------------------
-    // 1. 액티비티 생명주기 및 초기 설정
-    // ---------------------------------------------------------------------------------------------
+    // 시간 정보 저장 변수
+    private Calendar startTimeCalendar = Calendar.getInstance();
+    private Calendar endTimeCalendar = Calendar.getInstance();
+    private SimpleDateFormat serverFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.KOREA);
+
+    // --- 기능 구현 (첫 번째 코드 기준) ---
+    private ActivityResultLauncher<Intent> destinationSelectorLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_create_group);
 
+        // --- UI 요소 초기화 (ID는 activity_create_group.xml에 맞춰야 함) ---
         etGroupName = findViewById(R.id.etGroupName);
-        etDestination = findViewById(R.id.etDestination);
+        etDestination = findViewById(R.id.etDestination); // XML의 ID는 btnSelectDestination 가정
         etStartTime = findViewById(R.id.etStartTime);
         etEndTime = findViewById(R.id.etEndTime);
         rvFriends = findViewById(R.id.rvFriends);
         btnCreate = findViewById(R.id.btnCreate);
 
+        // --- 기능 설정 ---
+        setupDestinationSelectorLauncher(); // 최신 결과 처리 방식 설정 (첫 번째 코드 기능)
         rvFriends.setLayoutManager(new LinearLayoutManager(this));
 
+        // 어댑터 초기화 (User 모델 사용)
         adapter = new FriendSelectAdapter(friendList);
         rvFriends.setAdapter(adapter);
 
-        handleIncomingDestination(getIntent());
-
-        etDestination.setFocusable(false);
+        // 클릭 리스너 설정
         etDestination.setOnClickListener(v -> launchDestinationSearch());
-
-        fetchGroupSelectableMembers();
+        etStartTime.setOnClickListener(v -> showDateTimePicker(true)); // 날짜/시간 선택 UI (첫 번째 코드 기능)
+        etEndTime.setOnClickListener(v -> showDateTimePicker(false));  // 날짜/시간 선택 UI (첫 번째 코드 기능)
         btnCreate.setOnClickListener(v -> createGroup());
+
+        // 데이터 로드
+        fetchGroupSelectableMembers(); // API 호출 (두 번째 코드 기능)
     }
 
-    // ... (onNewIntent, handleIncomingDestination, launchDestinationSearch 메서드는 동일하게 유지)
+    /**
+     * [첫 번째 코드 기능]
+     * MapsActivity를 실행하고 그 결과를 처리하는 ActivityResultLauncher 설정
+     */
+    private void setupDestinationSelectorLauncher() {
+        destinationSelectorLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                        Intent data = result.getData();
+                        destinationName = data.getStringExtra("PLACE_NAME");
+                        destinationLat = data.getDoubleExtra("PLACE_LAT", 0.0);
+                        destinationLng = data.getDoubleExtra("PLACE_LNG", 0.0);
 
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        setIntent(intent);
-        handleIncomingDestination(intent);
+                        if (destinationName != null && !destinationName.isEmpty()) {
+                            etDestination.setText(destinationName); // 버튼 텍스트를 장소 이름으로 변경
+                        }
+                    }
+                }
+        );
     }
 
-    private void handleIncomingDestination(Intent intent) {
-        if (intent != null && intent.hasExtra("destination_result")) {
-            SearchResult selectedPlace = intent.getParcelableExtra("destination_result");
-
-            if (selectedPlace != null) {
-                destinationLat = selectedPlace.getLatitude();
-                destinationLng = selectedPlace.getLongitude();
-                etDestination.setText(selectedPlace.getTitle());
-                Toast.makeText(this, "목적지: " + selectedPlace.getTitle() + " 설정 완료", Toast.LENGTH_SHORT).show();
-            }
-        }
-    }
-
+    /**
+     * [첫 번째 코드 기능]
+     * 지도(MapsActivity)를 목적지 선택 모드로 실행
+     */
     private void launchDestinationSearch() {
-        Toast.makeText(this, "지도 화면으로 이동하여 목적지를 검색해주세요.", Toast.LENGTH_SHORT).show();
-
-        Intent intent = new Intent(CreateGroupActivity.this, MapsActivity.class);
-        intent.putExtra("mode", "destination_selection");
-
-        startActivity(intent);
+        Intent intent = new Intent(this, MapsActivity.class);
+        intent.putExtra("PURPOSE", "SELECT_DESTINATION");
+        destinationSelectorLauncher.launch(intent);
     }
 
-    // ... (fetchGroupSelectableMembers 메서드도 동일하게 유지)
+    /**
+     * [첫 번째 코드 기능]
+     * 날짜와 시간을 선택할 수 있는 다이얼로그 표시
+     * @param isStart 시작 시간(true)인지 종료 시간(false)인지 구분
+     */
+    private void showDateTimePicker(final boolean isStart) {
+        final Calendar currentCalendar = Calendar.getInstance();
+        new DatePickerDialog(this, (view, year, month, dayOfMonth) -> {
+            new TimePickerDialog(this, (timeView, hourOfDay, minute) -> {
+                Calendar selectedCalendar = Calendar.getInstance();
+                selectedCalendar.set(year, month, dayOfMonth, hourOfDay, minute);
 
+                SimpleDateFormat displayFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.KOREA);
+                if (isStart) {
+                    startTimeCalendar = selectedCalendar;
+                    etStartTime.setText(displayFormat.format(startTimeCalendar.getTime()));
+                } else {
+                    endTimeCalendar = selectedCalendar;
+                    etEndTime.setText(displayFormat.format(endTimeCalendar.getTime()));
+                }
+            }, currentCalendar.get(Calendar.HOUR_OF_DAY), currentCalendar.get(Calendar.MINUTE), true).show();
+        }, currentCalendar.get(Calendar.YEAR), currentCalendar.get(Calendar.MONTH), currentCalendar.get(Calendar.DAY_OF_MONTH)).show();
+    }
+
+    /**
+     * [두 번째 코드 기능]
+     * 서버에서 그룹에 초대할 수 있는 멤버 목록을 가져옴
+     */
     private void fetchGroupSelectableMembers() {
         FriendApiService apiService = ApiClient.getClient(this).create(FriendApiService.class);
-        Call<List<User>> call = apiService.getGroupSelectableMembers();
+        Call<List<User>> call = apiService.getGroupSelectableMembers(); // ⭐️ API 호출 변경
 
-        call.enqueue(new Callback<List<User>>() {
+        call.enqueue(new Callback<List<User>>() { // ⭐️ User 모델로 변경
             @Override
             public void onResponse(Call<List<User>> call, Response<List<User>> response) {
                 if (response.isSuccessful() && response.body() != null) {
@@ -130,23 +177,23 @@ public class CreateGroupActivity extends AppCompatActivity {
         });
     }
 
-
-    // ---------------------------------------------------------------------------------------------
-    // 3. 그룹 생성 로직 (오류 처리 수정)
-    // ---------------------------------------------------------------------------------------------
-
+    /**
+     * [기능 통합]
+     * 입력된 정보로 그룹 생성을 서버에 요청 (오류 처리 포함)
+     */
     private void createGroup() {
         String groupName = etGroupName.getText().toString().trim();
-        String destinationName = etDestination.getText().toString().trim();
         List<Long> selectedMemberIds = adapter.getSelectedFriendIds();
 
-        if (groupName.isEmpty() || destinationName.isEmpty() || destinationLat == 0.0 || selectedMemberIds.isEmpty()) {
+        // [두 번째 코드 기준] 입력 유효성 검사
+        if (groupName.isEmpty() || destinationName == null || destinationLat == 0.0 || selectedMemberIds.isEmpty()) {
             Toast.makeText(this, "그룹 이름, 목적지, 최소 한 명의 친구를 선택해야 합니다.", Toast.LENGTH_LONG).show();
             return;
         }
 
-        String startTimeStr = etStartTime.getText().toString();
-        String endTimeStr = etEndTime.getText().toString();
+        // [첫 번째 코드 기준] 시간 포맷팅
+        String startTimeStr = serverFormat.format(startTimeCalendar.getTime());
+        String endTimeStr = serverFormat.format(endTimeCalendar.getTime());
 
         CreateGroupRequest request = new CreateGroupRequest();
         request.setName(groupName);
@@ -160,6 +207,7 @@ public class CreateGroupActivity extends AppCompatActivity {
         GroupApiService groupApiService = ApiClient.getGroupApiService(this);
         Call<Map<String, String>> call = groupApiService.createGroup(request);
 
+        // [두 번째 코드 기능] 상세 오류 처리 및 인증 실패 시 리디렉션
         call.enqueue(new Callback<Map<String, String>>() {
             @Override
             public void onResponse(Call<Map<String, String>> call, Response<Map<String, String>> response) {
@@ -169,16 +217,12 @@ public class CreateGroupActivity extends AppCompatActivity {
                 } else {
                     String errorBody = "N/A";
                     try {
-                        if (response.errorBody() != null) {
-                            errorBody = response.errorBody().string();
-                        }
+                        if (response.errorBody() != null) errorBody = response.errorBody().string();
                     } catch (Exception e) {
                         Log.e("CreateGroupActivity", "Error body parsing failed", e);
                     }
-
                     Log.e("CreateGroupActivity", "그룹 생성 실패. 코드: " + response.code() + ", 본문: " + errorBody);
 
-                    // ⭐ [수정] 403, 401 오류 발생 시 로그인 화면으로 리디렉션
                     if (response.code() == 403 || response.code() == 401) {
                         handleAuthErrorAndRedirect();
                     } else {
@@ -194,17 +238,15 @@ public class CreateGroupActivity extends AppCompatActivity {
         });
     }
 
-    // ⭐ [추가] 인증 오류(401/403) 발생 시 토큰 삭제 및 로그인 화면으로 리디렉션
+    /**
+     * [두 번째 코드 기능]
+     * 인증 오류(401/403) 발생 시 토큰 삭제 및 로그인 화면으로 이동
+     */
     private void handleAuthErrorAndRedirect() {
         Toast.makeText(this, "세션이 만료되었습니다. 다시 로그인해주세요.", Toast.LENGTH_LONG).show();
-
-        // TokenManager를 사용하여 토큰 및 사용자 정보 삭제
-        // ⚠️ TokenManager에 deleteToken() 및 deleteUsername() 메서드가 구현되어 있어야 합니다.
         TokenManager tokenManager = new TokenManager(getApplicationContext());
         tokenManager.deleteToken();
-        // tokenManager.deleteUsername(); // 사용자 이름도 삭제하여 완전히 로그아웃 상태로 만듦
 
-        // 로그인 화면으로 이동 (액티비티 스택을 비우고 이동하여, 뒤로 가기로 돌아올 수 없게 함)
         Intent intent = new Intent(this, LoginActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(intent);

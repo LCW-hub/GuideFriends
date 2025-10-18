@@ -55,7 +55,7 @@ android {
             exclude(group = "androidx.annotation", module = "annotation-experimental")
         }
     }
-    
+
     // 리소스 충돌 해결
     packagingOptions {
         resources {
@@ -99,7 +99,12 @@ dependencies {
     implementation ("com.github.bumptech.glide:glide:4.16.0")
     annotationProcessor("com.github.bumptech.glide:compiler:4.16.0") // 4.16.0에 맞는 컴파일러 버전 사용
 
+    implementation ("com.github.bumptech.glide:glide:4.16.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+
+    // CircleImageView for profile image in MyPage drawer
+    implementation("de.hdodenhof:circleimageview:3.1.0")
 }

@@ -1,4 +1,4 @@
-# 길잡이 친구 (GuideFriend)
+   # 길잡이 친구 (GuideFriend)
 
 ## 📱 프로젝트 개요
 자연과 함께하는 안전한 산책을 위한 GPS 기반 산책로 탐색 및 정보 제공 Android 애플리케이션

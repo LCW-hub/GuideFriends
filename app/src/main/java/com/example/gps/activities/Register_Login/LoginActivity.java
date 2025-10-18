@@ -120,6 +120,13 @@ public class LoginActivity extends AppCompatActivity {
                     TokenManager tokenManager = new TokenManager(LoginActivity.this);
                     tokenManager.saveToken(token);
 
+                    // 사용자 정보를 SharedPreferences에 저장
+                    SharedPreferences prefs = getSharedPreferences("user_info", MODE_PRIVATE);
+                    prefs.edit()
+                            .putString("username", username)
+                            .putString("email", username + "@example.com") // 실제로는 서버에서 가져와야 함
+                            .apply();
+
                     Toast.makeText(LoginActivity.this, "로그인 성공!", Toast.LENGTH_SHORT).show();
 
                     Intent intent = new Intent(LoginActivity.this, MapsActivity.class);

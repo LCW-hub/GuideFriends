@@ -8,70 +8,58 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import com.example.gps.R;
-import com.example.gps.fragments.WeatherBottomSheetFragment.WeatherData;
-import java.util.ArrayList;
 import java.util.List;
 
-public class WeatherForecastAdapter extends RecyclerView.Adapter<WeatherForecastAdapter.ViewHolder> {
+public class WeatherForecastAdapter extends RecyclerView.Adapter<WeatherForecastAdapter.WeatherViewHolder> {
 
-    private List<WeatherData> forecastList = new ArrayList<>();
+    private final List<WeatherData> forecastList;
 
-    public void updateData(List<WeatherData> newForecastList) {
-        this.forecastList = newForecastList != null ? newForecastList : new ArrayList<>();
-        notifyDataSetChanged();
+    public WeatherForecastAdapter(List<WeatherData> forecastList) {
+        this.forecastList = forecastList;
     }
 
+    // ... (onCreateViewHolder, onBindViewHolder, getItemCount, WeatherViewHolder 코드는 동일)
     @NonNull
     @Override
-    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext())
-                .inflate(R.layout.item_weather_forecast, parent, false);
-        return new ViewHolder(view);
+    public WeatherViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_weather_forecast, parent, false);
+        return new WeatherViewHolder(view);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        WeatherData weatherData = forecastList.get(position);
-        holder.bind(weatherData);
+    public void onBindViewHolder(@NonNull WeatherViewHolder holder, int position) {
+        WeatherData data = forecastList.get(position);
+        holder.tvTime.setText(data.time);
+        holder.ivWeatherIcon.setImageResource(data.iconRes);
+        holder.tvTemperature.setText(data.temperature);
     }
 
     @Override
-    public int getItemCount() {
-        return forecastList.size();
-    }
+    public int getItemCount() { return forecastList.size(); }
 
-    public static class ViewHolder extends RecyclerView.ViewHolder {
-        private TextView tvTime, tvPrecipitation, tvTemperature;
-        private ImageView ivWeatherIcon;
-
-        public ViewHolder(@NonNull View itemView) {
+    static class WeatherViewHolder extends RecyclerView.ViewHolder {
+        TextView tvTime, tvTemperature;
+        ImageView ivWeatherIcon;
+        public WeatherViewHolder(@NonNull View itemView) {
             super(itemView);
             tvTime = itemView.findViewById(R.id.tv_time);
-            tvPrecipitation = itemView.findViewById(R.id.tv_precipitation);
-            tvTemperature = itemView.findViewById(R.id.tv_temperature);
             ivWeatherIcon = itemView.findViewById(R.id.iv_weather_icon);
+            tvTemperature = itemView.findViewById(R.id.tv_temperature);
         }
+    }
 
-        public void bind(WeatherData weatherData) {
-            tvTime.setText(weatherData.time);
-            tvPrecipitation.setText(weatherData.description);
-            tvTemperature.setText(String.format("%.0f°", weatherData.temperature));
-            ivWeatherIcon.setImageResource(getWeatherIconResource(weatherData.weatherMain));
-        }
 
-        private int getWeatherIconResource(String weatherMain) {
-            switch (weatherMain.toLowerCase()) {
-                case "clear":
-                    return R.drawable.ic_weather_clear;
-                case "clouds":
-                    return R.drawable.ic_cloudy;
-                case "rain":
-                    return R.drawable.ic_weather_rainy;
-                case "snow":
-                    return R.drawable.ic_weather_snow;
-                default:
-                    return R.drawable.ic_cloudy;
-            }
+    // ★★★★★ '빨간 글씨'의 원인 ★★★★★
+    // WeatherData 클래스는 반드시 이 파일 안에, 'public static'으로 있어야 합니다.
+    public static class WeatherData {
+        public final String time;
+        public final int iconRes;
+        public final String temperature;
+
+        public WeatherData(String time, int iconRes, String temperature) {
+            this.time = time;
+            this.iconRes = iconRes;
+            this.temperature = temperature;
         }
     }
 }
