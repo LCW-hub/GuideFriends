@@ -115,7 +115,7 @@ public class LoginActivity extends AppCompatActivity {
             @Override
             public void onResponse(Call<LoginResponse> call, Response<LoginResponse> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    // --- ✨ 로그인 성공 및 토큰 처리 로직 ✨ ---
+                    // --- ✨ 로그인 성공 및 토큰 처리 로직 ✨ ---z
                     String token = response.body().getToken();
                     TokenManager tokenManager = new TokenManager(LoginActivity.this);
                     tokenManager.saveToken(token);

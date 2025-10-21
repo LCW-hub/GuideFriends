@@ -39,6 +39,18 @@ import com.example.gps.fragments.WeatherBottomSheetFragment;
 import com.example.gps.model.SearchResult;
 import com.example.gps.utils.TokenManager;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import de.hdodenhof.circleimageview.CircleImageView;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import android.provider.MediaStore;
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.RequestBody;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import com.bumptech.glide.Glide;
+import android.net.Uri;
 // Firebase imports - 조건부 컴파일을 위해 주석 처리
 // import com.google.firebase.database.DataSnapshot;
 // import com.google.firebase.database.DatabaseError;
@@ -91,6 +103,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // --- Weather UI ---
     private ImageView ivWeatherIcon;
     private TextView tvTemperature;
+    
+    // --- Profile Image UI ---
+    private CircleImageView ivProfile;
+    private ActivityResultLauncher<Intent> imagePickerLauncher;
     
     // --- Weather Caching Variables ---
     private LatLng lastWeatherLocation = null;
@@ -159,6 +175,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         ivWeatherIcon = findViewById(R.id.iv_weather_icon);
         tvTemperature = findViewById(R.id.tv_temperature);
         drawerLayout = findViewById(R.id.drawer_layout);
+        ivProfile = findViewById(R.id.iv_profile);
 
         loggedInUsername = getIntent().getStringExtra("username");
 
@@ -173,6 +190,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         initializeSubMenu(); // From Code 1
         bindMyPageHeader();  // From Code 1
         loadCachedWeatherData(); // 캐시된 날씨 데이터 로드
+        
+        // --- 프로필 이미지 초기화 ---
+        initializeProfileImage();
     }
 
     @Override
@@ -1030,5 +1050,141 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     public void onLowMemory() { super.onLowMemory(); mapView.onLowMemory(); }
+
+    //==============================================================================================
+    // 9. Profile Image Management
+    //==============================================================================================
+
+    private void initializeProfileImage() {
+        // 이미지 선택 결과 처리 런처 초기화
+        imagePickerLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                    Uri imageUri = result.getData().getData();
+                    if (imageUri != null) {
+                        uploadProfileImage(imageUri); // 이미지 업로드 함수 호출
+                    }
+                }
+            });
+
+        // 프로필 이미지 클릭 리스너 설정
+        if (ivProfile != null) {
+            ivProfile.setOnClickListener(v -> openImagePicker());
+        }
+
+        // 기존 프로필 이미지 로드
+        loadUserProfileImage();
+    }
+
+    // 사용자 정보 로드 시 기존 프로필 이미지 표시
+    private void loadUserProfileImage() {
+        // SharedPreferences 또는 서버에서 사용자 정보 로드 후
+        SharedPreferences prefs = getSharedPreferences("user_info", MODE_PRIVATE);
+        String existingImageUrl = prefs.getString("profileImageUrl", null);
+
+        if (ivProfile != null && existingImageUrl != null && !existingImageUrl.isEmpty()) {
+             Glide.with(this)
+                  .load(existingImageUrl)
+                  .placeholder(R.drawable.ic_person) // 로딩 중 이미지
+                  .error(R.drawable.ic_person)       // 에러 시 이미지
+                  .into(ivProfile);
+        }
+    }
+
+    // 이미지 선택기(갤러리) 열기
+    private void openImagePicker() {
+        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        imagePickerLauncher.launch(intent);
+    }
+
+    // 선택된 이미지를 서버로 업로드
+    private void uploadProfileImage(Uri imageUri) {
+        try {
+            // Uri로부터 실제 파일 경로를 얻거나 InputStream을 사용해야 함
+            // 여기서는 InputStream을 임시 파일로 복사하는 예시
+            InputStream inputStream = getContentResolver().openInputStream(imageUri);
+            File tempFile = File.createTempFile("profile", ".jpg", getCacheDir());
+            FileOutputStream outputStream = new FileOutputStream(tempFile);
+            byte[] buffer = new byte[1024];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, bytesRead);
+            }
+            inputStream.close();
+            outputStream.close();
+
+            // Multipart 요청 생성
+            RequestBody requestFile = RequestBody.create(MediaType.parse(getContentResolver().getType(imageUri)), tempFile);
+            MultipartBody.Part body = MultipartBody.Part.createFormData("image", tempFile.getName(), requestFile);
+
+            // API 호출 (UserApi 인터페이스에 uploadProfileImage 메소드 정의 필요)
+            // UserApi userApi = ApiClient.getClient(this).create(UserApi.class);
+            // Call<Map<String, Object>> call = userApi.uploadProfileImage(body); // UserApi에 메소드 정의 필요
+
+            /*
+            // UserApi.java 인터페이스에 아래와 같은 메소드 추가 필요
+            @Multipart
+            @PUT("/api/users/profile-image") // 백엔드 엔드포인트 경로
+            Call<Map<String, Object>> uploadProfileImage(@Part MultipartBody.Part image);
+            */
+
+            // --- API 호출 콜백 (임시 주석 처리) ---
+            /*
+            call.enqueue(new Callback<Map<String, Object>>() {
+                @Override
+                public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
+                    tempFile.delete(); // 임시 파일 삭제
+                    if (response.isSuccessful() && response.body() != null) {
+                        String status = (String) response.body().get("status");
+                        if ("success".equals(status)) {
+                            String newImageUrl = (String) response.body().get("imageUrl");
+                            Toast.makeText(MapsActivity.this, "프로필 이미지가 변경되었습니다.", Toast.LENGTH_SHORT).show();
+
+                            // Glide를 사용하여 이미지 뷰 업데이트
+                            if (ivProfile != null && newImageUrl != null) {
+                                Glide.with(MapsActivity.this)
+                                     .load(newImageUrl)
+                                     .placeholder(R.drawable.ic_person)
+                                     .error(R.drawable.ic_person)
+                                     .into(ivProfile);
+
+                                // SharedPreferences에 새 이미지 URL 저장
+                                SharedPreferences prefs = getSharedPreferences("user_info", MODE_PRIVATE);
+                                prefs.edit().putString("profileImageUrl", newImageUrl).apply();
+                            }
+                        } else {
+                            String message = (String) response.body().get("message");
+                            Toast.makeText(MapsActivity.this, "변경 실패: " + message, Toast.LENGTH_SHORT).show();
+                        }
+                    } else {
+                        Toast.makeText(MapsActivity.this, "서버 오류: " + response.code(), Toast.LENGTH_SHORT).show();
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<Map<String, Object>> call, Throwable t) {
+                    tempFile.delete(); // 임시 파일 삭제
+                    Toast.makeText(MapsActivity.this, "네트워크 오류: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+            });
+            */
+             // --- 임시 코드: UI 즉시 업데이트 (API 호출 콜백 부분 구현 후 제거) ---
+             Toast.makeText(MapsActivity.this, "(임시) 프로필 이미지가 변경되었습니다.", Toast.LENGTH_SHORT).show();
+             if (ivProfile != null) {
+                 Glide.with(MapsActivity.this)
+                      .load(imageUri) // 선택한 이미지 바로 표시
+                      .placeholder(R.drawable.ic_person)
+                      .error(R.drawable.ic_person)
+                      .into(ivProfile);
+             }
+             tempFile.delete(); // 임시 파일 삭제
+             // -----------------------------------------------------------------
+
+        } catch (Exception e) {
+            Toast.makeText(this, "이미지 처리 중 오류 발생: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            Log.e("ImageUpload", "Error", e);
+        }
+    }
 
 }

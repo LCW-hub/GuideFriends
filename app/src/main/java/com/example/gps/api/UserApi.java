@@ -13,9 +13,9 @@ import retrofit2.http.HTTP;
 import retrofit2.http.POST;
 import retrofit2.http.PUT;
 import retrofit2.http.Path;
-
-import com.example.gps.dto.LoginResponse; // LoginResponse import
-import java.util.Map; // Map import
+import okhttp3.MultipartBody;
+import retrofit2.http.Multipart;
+import retrofit2.http.Part;
 
 
 public interface UserApi {
@@ -74,4 +74,10 @@ public interface UserApi {
     @HTTP(method = "DELETE", path = "api/friends/delete", hasBody = true)
     Call<Map<String, Object>> deleteFriend(@Body Map<String, String> body);
 
+    @Multipart // 파일 업로드를 의미
+    @POST("/api/users/{userId}/profile-image")
+    Call<Map<String, Object>> uploadProfileImage(
+            @Path("userId") Long userId,
+            @Part MultipartBody.Part image
+    );
 }
