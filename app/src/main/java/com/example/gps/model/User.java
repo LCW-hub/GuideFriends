@@ -9,6 +9,13 @@ public class User {
     // ✅ 기본 생성자 (필수)
     public User() {}
 
+    // ⭐ [추가 필요] 서버의 User 모델과 동일한 타입의 ID 필드
+    private Long id;
+
+    // ⭐ [추가 필요] id 값을 반환하는 Getter 메서드
+    public Long getId() {
+        return id;
+    }
     // 전체 필드 생성자
     public User(String username, String password, String email, String phoneNum) {
         this.username = username;

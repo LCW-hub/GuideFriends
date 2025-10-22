@@ -12,11 +12,12 @@
         android:hint="그룹 이름" />
 
     <Button
-        android:id="@+id/btnSelectDestination"
+        android:id="@+id/etDestination"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:hint="목적지" />
+
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -25,20 +26,18 @@
         android:layout_marginTop="8dp">
 
         <Button
-            android:id="@+id/btnStartTime"
+            android:id="@+id/etStartTime"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="시작 시간 선택"
-            android:layout_marginEnd="4dp"/>
+            android:hint="시작 시간 (예: 2025-10-04T19:00:00)" />
 
         <Button
-            android:id="@+id/btnEndTime"
+            android:id="@+id/etEndTime"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="종료 시간 선택"
-            android:layout_marginStart="4dp"/>
+            android:hint="종료 시간 (예: 2025-10-04T21:00:00)" />
     </LinearLayout>
 
     <TextView

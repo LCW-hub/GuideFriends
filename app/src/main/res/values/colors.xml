@@ -61,7 +61,7 @@
     
     <!-- 정보 카드 색상 -->
     <color name="colorInfo">#E3F2FD</color>
-    
+
     <!-- 봄 계절 시원하고 청량한 색상들 -->
     <color name="springMint">#A5D6A7</color>
     <color name="springSky">#81D4FA</color>
@@ -69,7 +69,7 @@
     <color name="springGreen">#A5D6A7</color>
     <color name="springBlue">#90CAF9</color>
     <color name="springCyan">#80DEEA</color>
-    
+
     <!-- 봄 계절 그라데이션 색상들 -->
     <color name="gradientSpring">#4FC3F7</color>
     <color name="gradientSky">#29B6F6</color>
@@ -77,25 +77,25 @@
     <color name="gradientLime">#8BC34A</color>
     <color name="gradientGreen">#66BB6A</color>
     <color name="gradientBlue">#42A5F5</color>
-    
+
     <!-- 봄 계절 카드 배경 색상들 -->
     <color name="cardBackground">#FFFFFF</color>
     <color name="cardBackgroundLight">#F1F8E9</color>
     <color name="cardBackgroundMint">#E8F5E8</color>
     <color name="cardBackgroundSky">#E3F2FD</color>
     <color name="cardBackgroundSpring">#F0F8F0</color>
-    
+
     <!-- 텍스트 색상들 -->
     <color name="textPrimary">#2C2C2C</color>
     <color name="textSecondary">#666666</color>
     <color name="textHint">#999999</color>
     <color name="textWhite">#FFFFFF</color>
-    
+
     <!-- 그림자 색상들 -->
     <color name="shadowLight">#1A000000</color>
     <color name="shadowMedium">#33000000</color>
     <color name="shadowDark">#4D000000</color>
-    
+
     <!-- 마이페이지 색상 -->
     <color name="primary_color">#4CAF50</color>
     <color name="red">#F44336</color>
