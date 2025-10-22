@@ -159,8 +159,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         initializeMap();
         initializeButtons();
         initializeSearch();
-        initializeSubMenu(); // From Code 1
-        bindMyPageHeader();  // From Code 1
+        initializeSubMenu();
+        bindMyPageHeader();
     }
 
     @Override
@@ -197,7 +197,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     //==============================================================================================
-    // 2. Initializers (수정 없음)
+    // 2. Initializers
     //==============================================================================================
 
     private void initializeMap() {
@@ -206,7 +206,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private void initializeButtons() {
-        // ... (버튼 초기화 로직은 동일)
 
         FloatingActionButton btnMapType = findViewById(R.id.btnMapType);
         FloatingActionButton btnMyLocation = findViewById(R.id.btnMyLocation);
@@ -227,18 +226,27 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
 
         btnMainMenu.setOnClickListener(v -> toggleSubMenu());
+
+        // ⭐ [수정] FriendsActivity로 username 전달
         btnFriends.setOnClickListener(v -> {
             startActivity(new Intent(this, FriendsActivity.class).putExtra("username", loggedInUsername));
             hideSubMenu();
         });
+
+        // ⭐ [수정] CreateGroupActivity로 username 전달
         btnCreateGroup.setOnClickListener(v -> {
-            startActivity(new Intent(this, CreateGroupActivity.class));
+            startActivity(new Intent(this, CreateGroupActivity.class).putExtra("username", loggedInUsername));
             hideSubMenu();
         });
+
+        // ⭐ [핵심 수정] MyGroupsActivity로 username 전달
         btnMyGroups.setOnClickListener(v -> {
-            startActivity(new Intent(this, MyGroupsActivity.class));
+            Intent intent = new Intent(this, MyGroupsActivity.class);
+            intent.putExtra("username", loggedInUsername);
+            startActivity(intent);
             hideSubMenu();
         });
+
         btnMyPage.setOnClickListener(v -> {
             View sidebar = findViewById(R.id.sidebar);
             if (drawerLayout.isDrawerOpen(sidebar)) {
@@ -297,11 +305,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        // ⭐ [추가] onNewIntent에서 handleIntent를 호출하기 전에 setIntent(intent)를 추가하여,
+        //      액티비티가 현재 Intent를 새 Intent로 갱신하도록 강제합니다.
+        setIntent(intent);
         handleIntent(intent);
     }
 
     private void handleIntent(Intent intent) {
         if (intent == null) return;
+
+        // 💡 [추가] CreateGroupActivity에서 돌아올 때 username이 갱신되어야 합니다.
+        if (intent.hasExtra("username")) {
+            loggedInUsername = intent.getStringExtra("username");
+        }
 
         if ("SELECT_DESTINATION".equals(intent.getStringExtra("PURPOSE"))) {
             isSelectionMode = true;
