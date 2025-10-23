@@ -20,6 +20,7 @@ import android.widget.ImageView;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
+import java.util.Iterator;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -66,8 +67,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import com.example.gps.api.GroupApiService; // ⭐️ 추가: 그룹 API
+import com.example.gps.api.UserApiService;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -118,7 +123,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private ValueEventListener memberLocationListener;
     private final Handler locationUpdateHandler = new Handler(Looper.getMainLooper());
     private Runnable locationUpdateRunnable;
-    private final HashMap<Long, Marker> memberMarkers = new HashMap<>();
+    private final HashMap<String, Marker> memberMarkers = new HashMap<>();
+
+    private final Map<Long, Boolean> incomingSharingRules = new HashMap<>();
     private Marker myLocationMarker = null;
 
     // --- Mock Movement (for testing) ---
@@ -129,6 +136,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private final long totalDuration = 10000; // 10 seconds
     private final int updateInterval = 50; // 50ms
     private long startTime;
+
+    private Long loggedInUserId = -1L;
+
+    private boolean rulesNeedReload = false;
+
+    private DatabaseReference rulesVersionRef;
+    private ValueEventListener rulesVersionListener;
+
+    private List<LocationResponse> currentMemberLocations = new ArrayList<>();
 
     //==============================================================================================
     // 1. Activity Lifecycle & Setup
@@ -161,6 +177,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         initializeSearch();
         initializeSubMenu();
         bindMyPageHeader();
+
+        if (loggedInUsername != null) {
+            fetchLoggedInUserId();
+        }
     }
 
     @Override
@@ -307,6 +327,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         super.onNewIntent(intent);
         // ⭐ [추가] onNewIntent에서 handleIntent를 호출하기 전에 setIntent(intent)를 추가하여,
         //      액티비티가 현재 Intent를 새 Intent로 갱신하도록 강제합니다.
+
+        if (intent != null && intent.getBooleanExtra("RULES_UPDATED", false)) {
+            rulesNeedReload = true;
+            Log.d(TAG, "onNewIntent: 공유 설정 변경 감지. 규칙 재로드 플래그 설정.");
+        }
+
         setIntent(intent);
         handleIntent(intent);
     }
@@ -332,15 +358,76 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             if (currentGroupId != -1L) {
                 Toast.makeText(this, "그룹 ID: " + currentGroupId + " 위치 공유를 시작합니다.", Toast.LENGTH_SHORT).show();
-                startLocationSharing();
+                if (loggedInUserId != -1L) {
+                    startLocationSharing();
+                } else {
+                    // ID 조회는 onCreate에서 이미 시작했거나, 여기서 다시 시작하여
+                    // 성공 시 startLocationSharing()을 호출하도록 만듭니다.
+                    fetchLoggedInUserId();
+                }
             } else {
                 Log.w(TAG, "handleIntent: 유효하지 않은 그룹 ID(-1L)를 받았습니다. 위치 공유를 시작하지 않습니다.");
             }
         }
     }
 
+    private void reapplyRulesAndRefreshMarkers() {
+        // 로그를 통해 규칙 변경으로 인한 마커 갱신이 시작됨을 확인합니다.
+        Log.d(TAG, "reapplyRulesAndRefreshMarkers: 규칙 변경으로 마커 즉시 갱신 시작.");
+
+        // currentMemberLocations에 저장된 최신 위치 데이터를 사용하여
+        // updateMemberMarkers를 호출합니다. updateMemberMarkers 내부에서
+        // 새로 로드된 incomingSharingRules에 따라 마커 필터링 및 제거가 일어납니다.
+        updateMemberMarkers(currentMemberLocations);
+    }
+
+    private void fetchLoggedInUserId() {
+        UserApiService apiService = ApiClient.getUserApiService(this);
+
+        // ⭐️ [수정]: UserApiService의 정의인 Call<Map<String, Long>>와 일치시킴
+        Call<Map<String, Long>> call = apiService.getUserIdByUsername(loggedInUsername);
+
+        // ⭐️ [수정]: Callback 타입도 Map<String, Long>으로 일치시킴
+        call.enqueue(new Callback<Map<String, Long>>() {
+            @Override
+            public void onResponse(@NonNull Call<Map<String, Long>> call, @NonNull Response<Map<String, Long>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    // 키는 "userId"로, 값은 Long 타입으로 가져옴
+                    Long userId = response.body().get("userId");
+
+                    if (userId != null && userId != -1L) {
+                        loggedInUserId = userId;
+                        Log.d(TAG, "사용자 ID 획득 성공: " + loggedInUserId);
+                        return;
+                    }
+                    reapplyRulesAndRefreshMarkers();
+                }
+                Log.e(TAG, "❌ 사용자 ID 획득 실패. 응답 코드: " + response.code());
+                finish();
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<Map<String, Long>> call, @NonNull Throwable t) {
+                Log.e(TAG, "사용자 ID 네트워크 오류", t);
+                finish();
+            }
+        });
+    }
+
     private void startLocationSharing() {
         locationUpdateHandler.removeCallbacksAndMessages(null);
+
+        if (loggedInUserId != -1L) {
+            fetchIncomingSharingRules();
+        } else {
+            Log.w(TAG, "startLocationSharing: UserID 로드 대기 중. 규칙 로딩 생략.");
+        }
+
+        Log.d(TAG, "startLocationSharing: 위치 공유 프로세스 시작. 업데이트 주기=" + LOCATION_UPDATE_INTERVAL + "ms");
+
+        // ... (locationUpdateRunnable 로직은 동일)
+        locationUpdateHandler.post(locationUpdateRunnable);
+        startFirebaseLocationListener();
 
         // 🎯 로그 추가: 위치 공유 시작
         Log.d(TAG, "startLocationSharing: 위치 공유 프로세스 시작. 업데이트 주기=" + LOCATION_UPDATE_INTERVAL + "ms");
@@ -364,8 +451,41 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         startFirebaseLocationListener();
     }
 
+    private void fetchIncomingSharingRules() {
+        if (currentGroupId == -1L || loggedInUserId == -1L) {
+            Log.e(TAG, "fetchIncomingSharingRules: 로드 중단. GroupID 또는 UserID가 유효하지 않습니다.");
+            return;
+        }
+
+        GroupApiService apiService = ApiClient.getGroupApiService(this);
+        // 💡 API 호출: 내가 Target일 때, 누가 나에게 공유를 허용했는지 규칙을 가져옵니다.
+        Call<Map<Long, Boolean>> call = apiService.getSharingRulesForTarget(currentGroupId, loggedInUserId);
+
+        call.enqueue(new Callback<Map<Long, Boolean>>() {
+            @Override
+            public void onResponse(@NonNull Call<Map<Long, Boolean>> call, @NonNull Response<Map<Long, Boolean>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    incomingSharingRules.clear();
+                    incomingSharingRules.putAll(response.body());
+                    Log.d(TAG, "✅ Incoming 규칙 로드 성공. 로드된 규칙 수: " + incomingSharingRules.size());
+                    Log.d(TAG, "Debugging Rules: Incoming rule for ID 17 (xxx) is " + incomingSharingRules.get(17L));
+                } else {
+                    Log.e(TAG, "❌ Incoming 규칙 로드 실패. 응답 코드: " + response.code());
+                    Toast.makeText(MapsActivity.this, "위치 공유 규칙 로드 실패. 모든 멤버 위치 표시 시도.", Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<Map<Long, Boolean>> call, @NonNull Throwable t) {
+                Log.e(TAG, "❌ Incoming 규칙 로드 네트워크 오류", t);
+                Toast.makeText(MapsActivity.this, "위치 공유 규칙 로드 네트워크 오류.", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+
     private void updateMyLocation(Location location) {
-        if (currentGroupId == -1L || location == null || loggedInUsername == null) {
+        if (currentGroupId == -1L || location == null || loggedInUsername == null || loggedInUserId == -1L) {
             // 🎯 로그 추가: 위치 업데이트 중단 사유
             Log.e(TAG, "updateMyLocation: 위치 업데이트 중단. GroupID=" + currentGroupId + ", Username=" + loggedInUsername + " (유효하지 않음)");
             return;
@@ -380,15 +500,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             locationData.put("latitude", latitude);
             locationData.put("longitude", longitude);
             locationData.put("timestamp", System.currentTimeMillis());
+            locationData.put("userId", loggedInUserId);
 
             // 🎯 로그 추가: Firebase에 쓰기 시작
             Log.d(TAG, "updateMyLocation: Firebase 쓰기 시도. Path=" + firebasePath + ", Lat=" + latitude);
 
-            firebaseDatabase.child(String.valueOf(currentGroupId))
-                    .child(loggedInUsername)
-                    .setValue(locationData)
-                    .addOnSuccessListener(aVoid -> Log.d(TAG, "updateMyLocation: Firebase 위치 업데이트 성공!")) // 🎯 로그 추가: 쓰기 성공
-                    .addOnFailureListener(e -> Log.e(TAG, "updateMyLocation: Firebase 위치 업데이트 실패 (🚨권한/네트워크 오류 가능성)", e)); // 🎯 로그 추가: 쓰기 실패
         }
     }
 
@@ -413,21 +529,67 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 // 🎯 로그 추가: 데이터 변경 수신
                 Log.d(TAG, "onDataChange: 데이터 변경 감지. 총 멤버 위치 개수: " + snapshot.getChildrenCount());
 
-                List<LocationResponse> locations = new ArrayList<>();
+                // ⭐️ [수정] 모든 수신 위치를 저장할 임시 목록 (필터링되지 않음)
+                List<LocationResponse> rawLocations = new ArrayList<>();
+                // ⭐️ [변경] 규칙을 통과한 데이터만 담는 목록
+                List<LocationResponse> filteredLocations = new ArrayList<>();
+
                 for (DataSnapshot memberSnapshot : snapshot.getChildren()) {
                     String username = memberSnapshot.getKey();
+
+                    // 1. 자기 자신의 위치는 마커 업데이트 목록에서 제외
                     if (username != null && username.equals(loggedInUsername)) continue;
 
-                    Double lat = memberSnapshot.child("latitude").getValue(Double.class);
-                    Double lon = memberSnapshot.child("longitude").getValue(Double.class);
+                    LocationResponse locationData = memberSnapshot.getValue(LocationResponse.class);
 
-                    if (lat != null && lon != null) {
-                        locations.add(new LocationResponse(username, lat, lon));
-                        // 🎯 로그 추가: 수신된 멤버 위치 데이터
-                        Log.d(TAG, "onDataChange: 수신된 멤버 위치 -> " + username + " at (" + lat + ", " + lon + ")");
+                    if (locationData != null) {
+                        // Firebase Realtime DB는 username을 Key로 사용하므로, DTO에 수동 설정
+                        locationData.setUserName(username);
+
+                        // 유효성 검사 (latitude와 longitude는 필수)
+                        if (locationData.getLatitude() != null && locationData.getLongitude() != null) {
+
+                            // ⭐️ [추가]: 필터링 여부와 관계없이 일단 모든 유효한 위치 데이터를 rawLocations에 추가합니다.
+                            rawLocations.add(locationData);
+
+                            Long sharerId = locationData.getUserId();
+                            boolean isAllowed = false;
+
+                            // ⭐ [디버그 및 필터링 로직 시작]
+                            if (sharerId != null && sharerId != -1L) {
+                                isAllowed = incomingSharingRules.getOrDefault(sharerId, false);
+
+                                // 💡 핵심 디버깅 로그: 필터링 결정 이유를 확인합니다.
+                                Log.d(TAG, "DEBUG_FILTER_RULE: Sharer ID " + sharerId + " (" + username + ")" +
+                                        " | isAllowed=" + isAllowed +
+                                        " | Rule in Map: " + (incomingSharingRules.containsKey(sharerId) ? incomingSharingRules.get(sharerId) : "NOT_IN_MAP(false)") );
+
+                                if (!isAllowed) {
+                                    Log.d(TAG, "Filtering: Sharer ID " + sharerId + " (" + username + ")의 위치는 수신 규칙에 따라 표시되지 않습니다. (차단)");
+                                    continue; // 마커 업데이트 건너뛰기
+                                }
+                            } else {
+                                Log.w(TAG, "Filtering Skip: Sharer ID가 없어 필터링을 건너뜀 (" + username + ")");
+                                // ID가 없는 경우에도 마커를 표시하지 않으려면 여기에도 continue; 를 추가해야 합니다.
+                            }
+                            // ⭐ [디버그 및 필터링 로직 끝]
+
+                            // ⭐️ [수정]: 필터링 통과 시 filteredLocations에 추가합니다.
+                            filteredLocations.add(locationData);
+
+                            // ⭐ 로그 수정: userId 정보가 포함되었는지 확인
+                            Log.d(TAG, "onDataChange: 수신된 멤버 위치 -> " + username +
+                                    " at (" + locationData.getLatitude() + ", " + locationData.getLongitude() + ")" +
+                                    " / ID: " + locationData.getUserId());
+                        }
                     }
                 }
-                updateMemberMarkers(locations);
+
+                // ⭐️ [필수 추가]: rawLocations를 클래스 필드에 저장합니다. (reapplyRulesAndRefreshMarkers에서 사용)
+                currentMemberLocations = rawLocations;
+
+                // ⭐️ [수정]: 필터링된 목록을 updateMemberMarkers에 전달합니다.
+                updateMemberMarkers(filteredLocations);
             }
 
             @Override
@@ -445,32 +607,64 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         // 🎯 로그 추가: 마커 업데이트 시작
         Log.d(TAG, "updateMemberMarkers: 지도 마커 업데이트 시작. 새 위치 개수: " + locations.size());
 
-        List<Long> updatedUserIds = new ArrayList<>();
+        List<String> updatedUsernames = new ArrayList<>();
         for (LocationResponse location : locations) {
             if (!Double.isFinite(location.getLatitude()) || !Double.isFinite(location.getLongitude())) continue;
 
-            updatedUserIds.add(location.getUserId());
+            String username = location.getUserName();
+            Long sharerId = location.getUserId();
+
+            // -----------------------------------------------------------------------------------
+            // ⭐️ [핵심 필터링 로직]
+            // -----------------------------------------------------------------------------------
+            boolean isAllowed = false;
+            if (sharerId != null && sharerId != -1L) {
+                // isAllowed의 기본값을 'false'(차단)로 설정합니다.
+                isAllowed = incomingSharingRules.getOrDefault(sharerId, false);
+
+                if (!isAllowed) {
+                    // ❌ [수정]: 마커 제거 로직을 이 위치에서 제거합니다.
+                    // 최종 정리 단계에서 모든 제거를 일괄 처리합니다.
+                    Log.d(TAG, "Filtering: Sharer ID " + sharerId + " (" + username + ")의 위치는 수신 규칙에 따라 표시되지 않습니다. (차단)");
+                    continue; // 마커 업데이트 건너뛰기
+                }
+            } else {
+                // sharerId가 없으면 필터링 불가 (서버 수정이 필요합니다). 임시로 계속 표시합니다.
+                Log.w(TAG, "Filtering Skip: Sharer ID가 없으므로 (" + username + ")의 위치는 규칙 확인 없이 표시됩니다. (서버 수정이 완료되면 해결됨)");
+            }
+
+            // 필터링 통과 (또는 필터링 생략)
+            updatedUsernames.add(username);
             LatLng memberPosition = new LatLng(location.getLatitude(), location.getLongitude());
 
-            Marker marker = memberMarkers.get(location.getUserId());
+            // 마커 추가/업데이트 로직 (기존과 동일)
+            Marker marker = memberMarkers.get(username);
             if (marker == null) {
                 marker = new Marker();
-                marker.setCaptionText(location.getUserName());
-                memberMarkers.put(location.getUserId(), marker);
-                Log.d(TAG, "updateMemberMarkers: 새 멤버 마커 추가 -> " + location.getUserName());
+                marker.setCaptionText(username);
+                memberMarkers.put(username, marker);
+                Log.d(TAG, "updateMemberMarkers: 새 멤버 마커 추가 -> " + username);
             }
             marker.setPosition(memberPosition);
             marker.setMap(naverMap);
         }
 
-        // Remove markers for users who left
-        new HashMap<>(memberMarkers).forEach((userId, marker) -> {
-            if (!updatedUserIds.contains(userId)) {
-                marker.setMap(null);
-                memberMarkers.remove(userId);
-                Log.d(TAG, "updateMemberMarkers: 이탈 멤버 마커 제거 -> ID: " + userId);
+        // -----------------------------------------------------------------------------------
+        // ⭐️ [최종 정리 로직 수정]: 지도에 남아있는 마커를 확실하게 제거
+        // -----------------------------------------------------------------------------------
+        // updatedUsernames에 없는 모든 마커(차단된 멤버, 위치가 끊긴 멤버)는 지도에서 제거해야 합니다.
+        Iterator<Map.Entry<String, Marker>> iterator = memberMarkers.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<String, Marker> entry = iterator.next();
+            String username = entry.getKey();
+
+            // updatedUsernames에 포함되지 않은 마커는 제거 대상입니다.
+            if (!updatedUsernames.contains(username)) {
+                entry.getValue().setMap(null); // 지도에서 마커 제거
+                iterator.remove();             // 맵에서 해당 엔트리 제거
+                Log.d(TAG, "updateMemberMarkers: 최종 정리 마커 제거 -> Name: " + username);
             }
-        });
+        }
     }
 
     //==============================================================================================
@@ -779,6 +973,38 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         popup.show();
     }
 
+    private void startRulesVersionListener() {
+        if (currentGroupId == -1L) return;
+
+        // 규칙 버전 참조 설정: group_rules_version/{groupId}
+        rulesVersionRef = FirebaseDatabase.getInstance()
+                .getReference("group_rules_version")
+                .child(String.valueOf(currentGroupId));
+
+        // 기존 리스너 제거 (중복 방지)
+        if (rulesVersionListener != null) {
+            rulesVersionRef.removeEventListener(rulesVersionListener);
+        }
+
+        rulesVersionListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                // 규칙 버전이 변경되었을 때 (다른 멤버가 설정을 저장 시)
+                Log.d(TAG, "Rules Version Change Detected for Group " + currentGroupId + ". Reloading incoming sharing rules.");
+                // 모든 디바이스에서 이 코드가 실행되며 규칙을 서버에서 다시 가져옵니다.
+                fetchIncomingSharingRules();
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Log.e(TAG, "Rules Version Listener Cancelled", error.toException());
+            }
+        };
+        // 리스너 등록
+        rulesVersionRef.addValueEventListener(rulesVersionListener);
+        Log.d(TAG, "startRulesVersionListener: 규칙 버전 리스너 등록 완료. Group ID: " + currentGroupId);
+    }
+
     private float dpToPx(float dp) {
         return dp * getResources().getDisplayMetrics().density;
     }
@@ -808,10 +1034,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         mapView.onResume();
         applyMapTypeSetting();
 
-        // 🎯 로그 추가: onResume 시 위치 공유 재시작 시도
         if (currentGroupId != -1L) {
             Log.d(TAG, "onResume: 유효한 그룹 ID(" + currentGroupId + ")가 있어 위치 공유 재시작.");
+
+            if (rulesNeedReload) {
+                Log.d(TAG, "onResume: 공유 설정 변경 감지. Incoming 규칙 강제 재로드 시작.");
+                fetchIncomingSharingRules();
+                rulesNeedReload = false;
+            }
+
             startLocationSharing();
+            // ⭐ [변경] onResume 시 규칙 버전 리스너 시작 (실시간 동기화)
+            startRulesVersionListener();
+
         } else {
             Log.d(TAG, "onResume: 그룹 ID가 없어 위치 공유를 시작하지 않음.");
         }
@@ -822,7 +1057,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         super.onPause();
         mapView.onPause();
 
-        // 🎯 로그 추가: onPause 시 위치 업데이트 중단
         locationUpdateHandler.removeCallbacksAndMessages(null);
         Log.d(TAG, "onPause: 주기적인 위치 업데이트 (Handler) 중단.");
 
@@ -830,10 +1064,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             animationHandler.removeCallbacks(animationRunnable);
             animationHandler = null;
         }
-        if (currentGroupId != -1L && memberLocationListener != null) {
-            firebaseDatabase.child(String.valueOf(currentGroupId)).removeEventListener(memberLocationListener);
-            // 🎯 로그 추가: onPause 시 Firebase 리스너 제거
-            Log.d(TAG, "onPause: Firebase 리스너 제거 완료.");
+
+        if (currentGroupId != -1L) {
+            if (memberLocationListener != null) {
+                firebaseDatabase.child(String.valueOf(currentGroupId)).removeEventListener(memberLocationListener);
+                Log.d(TAG, "onPause: Firebase 위치 리스너 제거 완료.");
+            }
+            // ⭐ [변경] 규칙 버전 리스너 제거
+            if (rulesVersionRef != null && rulesVersionListener != null) {
+                rulesVersionRef.removeEventListener(rulesVersionListener);
+                Log.d(TAG, "onPause: Firebase 규칙 버전 리스너 제거 완료.");
+            }
         }
     }
 
@@ -841,7 +1082,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     protected void onStop() { super.onStop(); mapView.onStop(); }
 
     @Override
-    protected void onDestroy() { super.onDestroy(); mapView.onDestroy(); }
+    protected void onDestroy() {
+        super.onDestroy();
+        mapView.onDestroy();
+
+        // ⭐ [추가] 규칙 버전 리스너 해제 (중복 호출 방지)
+        if (rulesVersionRef != null && rulesVersionListener != null) {
+            rulesVersionRef.removeEventListener(rulesVersionListener);
+            Log.d(TAG, "onDestroy: Firebase 규칙 버전 리스너 제거 완료.");
+        }
+    }
 
     @Override
     public void onLowMemory() { super.onLowMemory(); mapView.onLowMemory(); }

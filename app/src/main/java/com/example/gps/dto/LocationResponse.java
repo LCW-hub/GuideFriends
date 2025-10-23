@@ -31,6 +31,10 @@ public class LocationResponse {
     public String getUserName() {
         return userName;
     }
+
+    public LocationResponse() {
+        // Firebase가 데이터를 로드할 때 이 생성자를 사용합니다.
+    }
     public LocationResponse(String userName, Double latitude, Double longitude) {
         this.userName = userName;
         this.latitude = latitude;
