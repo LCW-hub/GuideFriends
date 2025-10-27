@@ -44,7 +44,7 @@ public class MyGroupsActivity extends AppCompatActivity implements GroupListAdap
     @Override
     public void onGroupClick(Long groupId, String groupName) {
         // 그룹 클릭 시 GroupSharingSettingsActivity로 이동
-        Intent intent = new Intent(MyGroupsActivity.this, GroupSharingSettingsActivity.class);
+        Intent intent = new Intent(MyGroupsActivity.this, ChatRoomActivity.class);
 
         // ⭐⭐ 상호 차단 설정을 위해 필수 정보 전달 ⭐⭐
         intent.putExtra("groupId", groupId);

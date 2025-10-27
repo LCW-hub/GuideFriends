@@ -44,6 +44,9 @@
         <activity android:name=".activities.Register_Login.RegisterActivity" />
         <activity android:name=".activities.Register_Login.FindIdActivity" />
         <activity android:name=".activities.Register_Login.FindPwActivity" />
+
+        <activity android:name=".activities.ChatRoomActivity"/>
+
         <activity
             android:name=".activities.Register_Login.ResetPasswordActivity"
             android:exported="true">
