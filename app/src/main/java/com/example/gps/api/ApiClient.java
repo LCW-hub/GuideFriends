@@ -40,4 +40,9 @@ public class ApiClient {
         }
         return groupApiService;
     }
+
+    public static UserApiService getUserApiService(Context context) {
+        // 토큰 관리 등을 위한 getClient(context)를 사용하여 UserApiService를 생성합니다.
+        return getClient(context).create(UserApiService.class);
+    }
 }

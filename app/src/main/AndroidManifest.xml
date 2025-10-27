@@ -63,6 +63,11 @@
             android:exported="false" />
 
         <activity android:name=".activities.CreateGroupActivity" />
+        <activity android:name=".activities.SettingsActivity" />
+        <activity
+            android:name=".activities.GroupSharingSettingsActivity"
+            android:exported="false"
+            android:label="위치 공유 설정" />
 
     </application>
 
