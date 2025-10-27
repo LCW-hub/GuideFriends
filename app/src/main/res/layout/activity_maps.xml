@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.drawerlayout.widget.DrawerLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/drawer_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".activities.MapsActivity">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/main_content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <com.naver.maps.map.MapView
+            android:id="@+id/map_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <androidx.cardview.widget.CardView
+            android:id="@+id/search_card"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginEnd="16dp"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="4dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <EditText
+                    android:id="@+id/et_search"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:autofillHints="name"
+                    android:background="@android:color/transparent"
+                    android:hint="장소나 산책로를 검색해보세요..."
+                    android:imeOptions="actionSearch"
+                    android:inputType="text"
+                    android:maxLines="1"
+                    android:paddingStart="20dp"
+                    android:paddingEnd="16dp"
+                    android:textSize="14sp" />
+
+                <ImageView
+                    android:id="@+id/iv_search_icon"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:clickable="true"
+                    android:contentDescription="@string/desc_search_button"
+                    android:focusable="true"
+                    android:padding="12dp"
+                    android:src="@drawable/ic_search"
+                    app:tint="@color/colorPrimary" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_search_results"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_card_round"
+            android:elevation="4dp"
+            android:visibility="gone"
+            app:layout_constrainedHeight="true"
+            app:layout_constraintEnd_toEndOf="@id/search_card"
+            app:layout_constraintStart_toStartOf="@id/search_card"
+            app:layout_constraintTop_toBottomOf="@id/search_card"
+            tools:listitem="@layout/item_search_result" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btnMapType"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="16dp"
+            android:contentDescription="@string/desc_map_type_button"
+            android:src="@drawable/ic_map"
+            app:backgroundTint="@android:color/white"
+            app:fabSize="mini"
+            app:layout_constraintBottom_toTopOf="@id/weather_widget"
+            app:layout_constraintStart_toStartOf="parent"
+            app:tint="@color/colorPrimary" />
+
+        <androidx.cardview.widget.CardView
+            android:id="@+id/weather_widget"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="16dp"
+            android:clickable="true"
+            android:focusable="true"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="4dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="12dp">
+
+                <ImageView
+                    android:id="@+id/iv_weather_icon"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginEnd="8dp"
+                    android:contentDescription="@string/desc_weather_icon"
+                    tools:src="@drawable/ic_weather_clear" />
+
+                <TextView
+                    android:id="@+id/tv_temperature"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/colorPrimary"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    tools:text="23°" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btnMyLocation"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="16dp"
+            android:contentDescription="@string/desc_my_location_button"
+            android:src="@drawable/ic_my_location"
+            app:backgroundTint="@android:color/white"
+            app:fabSize="normal"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:tint="@color/colorPrimary" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btnTestMovement"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="16dp"
+            android:src="@android:drawable/ic_menu_send"
+            app:layout_constraintBottom_toTopOf="@id/btnMyLocation"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:contentDescription="테스트 이동 버튼" />
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btnMainMenu"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="32dp"
+            android:src="@drawable/ic_menu"
+            app:backgroundTint="@color/colorPrimary"
+            app:fabSize="normal"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:tint="@color/white" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btnFriends"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_person"
+            android:visibility="gone"
+            app:backgroundTint="@color/white"
+            app:fabSize="mini"
+            app:tint="@color/colorPrimary"
+
+            app:layout_constraintTop_toTopOf="@id/btnMainMenu"
+            app:layout_constraintBottom_toBottomOf="@id/btnMainMenu"
+            app:layout_constraintStart_toStartOf="@id/btnMainMenu"
+            app:layout_constraintEnd_toEndOf="@id/btnMainMenu" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btnCreateGroup"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_person_add"
+            android:visibility="gone"
+            app:backgroundTint="@color/white"
+            app:fabSize="mini"
+            app:tint="@color/colorPrimary"
+
+            app:layout_constraintTop_toTopOf="@id/btnMainMenu"
+            app:layout_constraintBottom_toBottomOf="@id/btnMainMenu"
+            app:layout_constraintStart_toStartOf="@id/btnMainMenu"
+            app:layout_constraintEnd_toEndOf="@id/btnMainMenu" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btnMyGroups"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_forum"
+            android:visibility="gone"
+            app:backgroundTint="@color/white"
+            app:fabSize="mini"
+            app:tint="@color/colorPrimary"
+
+            app:layout_constraintTop_toTopOf="@id/btnMainMenu"
+            app:layout_constraintBottom_toBottomOf="@id/btnMainMenu"
+            app:layout_constraintStart_toStartOf="@id/btnMainMenu"
+            app:layout_constraintEnd_toEndOf="@id/btnMainMenu" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btnMyPage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_my_page"
+            android:visibility="gone"
+            app:backgroundTint="@color/white"
+            app:fabSize="mini"
+            app:tint="@color/colorPrimary"
+            app:layout_constraintTop_toTopOf="@id/btnMainMenu"
+            app:layout_constraintBottom_toBottomOf="@id/btnMainMenu"
+            app:layout_constraintStart_toStartOf="@id/btnMainMenu"
+            app:layout_constraintEnd_toEndOf="@id/btnMainMenu" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btnSettings"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_settings"
+            android:visibility="gone"
+            app:backgroundTint="@color/white"
+            app:fabSize="mini"
+            app:tint="@color/colorPrimary"
+            app:layout_constraintTop_toTopOf="@id/btnMainMenu"
+            app:layout_constraintBottom_toBottomOf="@id/btnMainMenu"
+            app:layout_constraintStart_toStartOf="@id/btnMainMenu"
+            app:layout_constraintEnd_toEndOf="@id/btnMainMenu" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <include
+        layout="@layout/my_page_drawer"
+        android:layout_width="320dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="start" />
+
+</androidx.drawerlayout.widget.DrawerLayout>

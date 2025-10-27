@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@android:color/white">
+
+    <ImageView
+        android:id="@+id/iv_place_image"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:scaleType="centerCrop"
+        tools:src="@android:drawable/ic_menu_gallery" />
+
+    <TextView
+        android:id="@+id/tv_place_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="16dp"
+        android:textColor="@android:color/black"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        tools:text="장소 이름" />
+
+    <TextView
+        android:id="@+id/tv_place_address"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="8dp"
+        android:textColor="@android:color/darker_gray"
+        android:textSize="14sp"
+        tools:text="상세 주소" />
+
+    <TextView
+        android:id="@+id/tv_place_category"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="4dp"
+        android:textColor="@android:color/darker_gray"
+        android:textSize="12sp"
+        tools:text="카테고리" />
+
+    <Button
+        android:id="@+id/btn_get_directions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:text="길찾기" />
+
+    <Button
+        android:id="@+id/btn_get_directions2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:text="저장" />
+
+</LinearLayout>

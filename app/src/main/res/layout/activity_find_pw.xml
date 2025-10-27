@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:gravity="center"
+    tools:context=".activities.Register_Login.FindPwActivity">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="비밀번호 찾기"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="24dp"/>
+
+    <EditText
+        android:id="@+id/etUsername"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="아이디 입력"
+        android:inputType="text"
+        android:layout_marginBottom="8dp"/>
+
+    <EditText
+        android:id="@+id/etEmail"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="가입 시 사용한 이메일 입력"
+        android:inputType="textEmailAddress"
+        android:layout_marginBottom="16dp"/>
+
+    <Button
+        android:id="@+id/btnRequestReset"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="비밀번호 재설정 이메일 받기" />
+
+    <TextView
+        android:id="@+id/tvResult"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:textSize="16sp"
+        android:visibility="gone"
+        tools:text="입력하신 이메일로 재설정 안내 메일을 보냈습니다."
+        tools:visibility="visible" />
+
+</LinearLayout>

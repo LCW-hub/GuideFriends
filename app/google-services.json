@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "237177999879",
+    "firebase_url": "https://gps4-f19d8-default-rtdb.firebaseio.com",
+    "project_id": "gps4-f19d8",
+    "storage_bucket": "gps4-f19d8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:237177999879:android:85e6c8dbd8f6682ffed0a2",
+        "android_client_info": {
+          "package_name": "com.example.gps"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA1mGFacLjxAdnj45-qx9T4dFEV02P_Mxs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

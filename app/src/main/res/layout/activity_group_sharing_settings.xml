@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    tools:context=".activities.GroupSharingSettingsActivity">
+
+    <TextView
+        android:id="@+id/tv_group_name_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="위치 공유 설정 (그룹 ID: -1)"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:paddingBottom="8dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <TextView
+        android:id="@+id/tv_instruction"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="체크 해제 시: 해당 멤버에게 나의 위치를 숨기고, 나도 해당 멤버의 위치를 볼 수 없게 됩니다."
+        android:textColor="@android:color/holo_red_dark"
+        android:textSize="12sp"
+        android:paddingBottom="16dp"
+        app:layout_constraintTop_toBottomOf="@id/tv_group_name_title"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- 그룹 멤버 목록 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_group_members_settings"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginBottom="16dp"
+        app:layout_constraintTop_toBottomOf="@id/tv_instruction"
+        app:layout_constraintBottom_toTopOf="@id/btn_save_sharing_settings"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:listitem="@layout/item_member_sharing_setting" />
+
+    <!-- 설정 저장 버튼 -->
+    <Button
+        android:id="@+id/btn_save_sharing_settings"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="설정 저장 및 상호 차단 적용"
+        android:backgroundTint="@color/purple_500"
+        android:textColor="@android:color/white"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

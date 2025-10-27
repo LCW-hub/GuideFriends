@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/colorCard" />
+    <corners android:radius="28dp" />
+    <stroke
+        android:width="1dp"
+        android:color="@color/trailLightGreen" />
+    
+    <!-- Subtle gradient effect for enhanced appearance -->
+    <gradient
+        android:angle="45"
+        android:startColor="@color/colorCard"
+        android:endColor="@color/colorCard"
+        android:type="linear" />
+</shape> 

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    
+    <item
+        android:id="@+id/map_type_normal"
+        android:icon="@drawable/ic_map"
+        android:title="일반 지도" />
+    
+    <item
+        android:id="@+id/map_type_satellite"
+        android:icon="@drawable/ic_satellite"
+        android:title="위성 지도" />
+    
+    <item
+        android:id="@+id/map_type_terrain"
+        android:icon="@drawable/ic_terrain"
+        android:title="지형 지도" />
+        
+</menu>
