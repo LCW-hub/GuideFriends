@@ -95,6 +95,9 @@ dependencies {
 
     implementation("com.google.firebase:firebase-analytics")
 
+    // Cloud Firestore 라이브러리 추가
+    implementation("com.google.firebase:firebase-firestore")
+
     // ✅ Glide 최신 버전으로 통일 및 컴파일러 추가
     implementation ("com.github.bumptech.glide:glide:4.16.0")
     annotationProcessor("com.github.bumptech.glide:compiler:4.16.0") // 4.16.0에 맞는 컴파일러 버전 사용

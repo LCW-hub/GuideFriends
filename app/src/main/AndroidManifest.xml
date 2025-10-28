@@ -44,6 +44,9 @@
         <activity android:name=".activities.Register_Login.RegisterActivity" />
         <activity android:name=".activities.Register_Login.FindIdActivity" />
         <activity android:name=".activities.Register_Login.FindPwActivity" />
+
+        <activity android:name=".activities.ChatRoomActivity"/>
+
         <activity
             android:name=".activities.Register_Login.ResetPasswordActivity"
             android:exported="true">
@@ -63,8 +66,11 @@
             android:exported="false" />
 
         <activity android:name=".activities.CreateGroupActivity" />
-        <activity android:name=".activities.CreateGroupActivity" />
         <activity android:name=".activities.SettingsActivity" />
+        <activity
+            android:name=".activities.GroupSharingSettingsActivity"
+            android:exported="false"
+            android:label="위치 공유 설정" />
 
     </application>
 

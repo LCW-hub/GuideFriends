@@ -23,8 +23,8 @@ import com.example.gps.api.ApiClient;
 import com.example.gps.api.FriendApiService;
 import com.example.gps.api.GroupApiService;
 import com.example.gps.dto.CreateGroupRequest;
-import com.example.gps.model.User; // ⭐️ [기준 변경] FriendResponse 대신 User 모델 사용
-import com.example.gps.utils.TokenManager; // ⭐ [기능 추가] TokenManager import
+import com.example.gps.model.User;
+import com.example.gps.utils.TokenManager;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -39,13 +39,16 @@ import retrofit2.Response;
 
 public class CreateGroupActivity extends AppCompatActivity {
 
-    // --- 변수 선언 (두 번째 코드 기준) ---
+    // --- UI/Data Variables ---
     private EditText etGroupName;
-    private Button etDestination, etStartTime, etEndTime; // 목적지/시간 선택은 Button UI 유지
+    private Button etDestination, etStartTime, etEndTime;
     private RecyclerView rvFriends;
     private Button btnCreate;
     private FriendSelectAdapter adapter;
-    private List<User> friendList = new ArrayList<>(); // ⭐️ 데이터 모델 'User'로 변경
+    private List<User> friendList = new ArrayList<>();
+
+    // 사용자 정보
+    private String loggedInUsername; // ⭐ [추가] 클래스 멤버 변수로 선언
 
     // 목적지 정보 저장 변수
     private String destinationName;
@@ -57,7 +60,7 @@ public class CreateGroupActivity extends AppCompatActivity {
     private Calendar endTimeCalendar = Calendar.getInstance();
     private SimpleDateFormat serverFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.KOREA);
 
-    // --- 기능 구현 (첫 번째 코드 기준) ---
+    // --- 기능 구현 ---
     private ActivityResultLauncher<Intent> destinationSelectorLauncher;
 
     @Override
@@ -65,34 +68,35 @@ public class CreateGroupActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_create_group);
 
-        // --- UI 요소 초기화 (ID는 activity_create_group.xml에 맞춰야 함) ---
+        // ⭐ [추가] username 초기화 (MapsActivity에서 전달받음)
+        loggedInUsername = getIntent().getStringExtra("username");
+
+        // --- UI 요소 초기화 ---
         etGroupName = findViewById(R.id.etGroupName);
-        etDestination = findViewById(R.id.etDestination); // XML의 ID는 btnSelectDestination 가정
+        etDestination = findViewById(R.id.etDestination);
         etStartTime = findViewById(R.id.etStartTime);
         etEndTime = findViewById(R.id.etEndTime);
         rvFriends = findViewById(R.id.rvFriends);
         btnCreate = findViewById(R.id.btnCreate);
 
         // --- 기능 설정 ---
-        setupDestinationSelectorLauncher(); // 최신 결과 처리 방식 설정 (첫 번째 코드 기능)
+        setupDestinationSelectorLauncher();
         rvFriends.setLayoutManager(new LinearLayoutManager(this));
 
-        // 어댑터 초기화 (User 모델 사용)
         adapter = new FriendSelectAdapter(friendList);
         rvFriends.setAdapter(adapter);
 
         // 클릭 리스너 설정
         etDestination.setOnClickListener(v -> launchDestinationSearch());
-        etStartTime.setOnClickListener(v -> showDateTimePicker(true)); // 날짜/시간 선택 UI (첫 번째 코드 기능)
-        etEndTime.setOnClickListener(v -> showDateTimePicker(false));  // 날짜/시간 선택 UI (첫 번째 코드 기능)
+        etStartTime.setOnClickListener(v -> showDateTimePicker(true));
+        etEndTime.setOnClickListener(v -> showDateTimePicker(false));
         btnCreate.setOnClickListener(v -> createGroup());
 
         // 데이터 로드
-        fetchGroupSelectableMembers(); // API 호출 (두 번째 코드 기능)
+        fetchGroupSelectableMembers();
     }
 
     /**
-     * [첫 번째 코드 기능]
      * MapsActivity를 실행하고 그 결과를 처리하는 ActivityResultLauncher 설정
      */
     private void setupDestinationSelectorLauncher() {
@@ -114,19 +118,18 @@ public class CreateGroupActivity extends AppCompatActivity {
     }
 
     /**
-     * [첫 번째 코드 기능]
      * 지도(MapsActivity)를 목적지 선택 모드로 실행
      */
     private void launchDestinationSearch() {
         Intent intent = new Intent(this, MapsActivity.class);
         intent.putExtra("PURPOSE", "SELECT_DESTINATION");
+        // ⭐ [추가] MapsActivity로 username 전달
+        intent.putExtra("username", loggedInUsername);
         destinationSelectorLauncher.launch(intent);
     }
 
     /**
-     * [첫 번째 코드 기능]
      * 날짜와 시간을 선택할 수 있는 다이얼로그 표시
-     * @param isStart 시작 시간(true)인지 종료 시간(false)인지 구분
      */
     private void showDateTimePicker(final boolean isStart) {
         final Calendar currentCalendar = Calendar.getInstance();
@@ -148,14 +151,13 @@ public class CreateGroupActivity extends AppCompatActivity {
     }
 
     /**
-     * [두 번째 코드 기능]
      * 서버에서 그룹에 초대할 수 있는 멤버 목록을 가져옴
      */
     private void fetchGroupSelectableMembers() {
         FriendApiService apiService = ApiClient.getClient(this).create(FriendApiService.class);
-        Call<List<User>> call = apiService.getGroupSelectableMembers(); // ⭐️ API 호출 변경
+        Call<List<User>> call = apiService.getGroupSelectableMembers();
 
-        call.enqueue(new Callback<List<User>>() { // ⭐️ User 모델로 변경
+        call.enqueue(new Callback<List<User>>() {
             @Override
             public void onResponse(Call<List<User>> call, Response<List<User>> response) {
                 if (response.isSuccessful() && response.body() != null) {
@@ -178,20 +180,17 @@ public class CreateGroupActivity extends AppCompatActivity {
     }
 
     /**
-     * [기능 통합]
-     * 입력된 정보로 그룹 생성을 서버에 요청 (오류 처리 포함)
+     * 입력된 정보로 그룹 생성을 서버에 요청하고, 성공 시 MapsActivity로 이동하여 위치 공유를 시작합니다.
      */
     private void createGroup() {
         String groupName = etGroupName.getText().toString().trim();
         List<Long> selectedMemberIds = adapter.getSelectedFriendIds();
 
-        // [두 번째 코드 기준] 입력 유효성 검사
         if (groupName.isEmpty() || destinationName == null || destinationLat == 0.0 || selectedMemberIds.isEmpty()) {
             Toast.makeText(this, "그룹 이름, 목적지, 최소 한 명의 친구를 선택해야 합니다.", Toast.LENGTH_LONG).show();
             return;
         }
 
-        // [첫 번째 코드 기준] 시간 포맷팅
         String startTimeStr = serverFormat.format(startTimeCalendar.getTime());
         String endTimeStr = serverFormat.format(endTimeCalendar.getTime());
 
@@ -207,13 +206,39 @@ public class CreateGroupActivity extends AppCompatActivity {
         GroupApiService groupApiService = ApiClient.getGroupApiService(this);
         Call<Map<String, String>> call = groupApiService.createGroup(request);
 
-        // [두 번째 코드 기능] 상세 오류 처리 및 인증 실패 시 리디렉션
         call.enqueue(new Callback<Map<String, String>>() {
             @Override
             public void onResponse(Call<Map<String, String>> call, Response<Map<String, String>> response) {
-                if (response.isSuccessful()) {
-                    Toast.makeText(CreateGroupActivity.this, "그룹이 생성되었습니다!", Toast.LENGTH_SHORT).show();
-                    finish();
+                if (response.isSuccessful() && response.body() != null) {
+
+                    Map<String, String> responseBody = response.body();
+                    String groupIdStr = responseBody.get("groupId"); // 서버에서 반환한 그룹 ID 키
+
+                    if (groupIdStr != null) {
+                        try {
+                            long newGroupId = Long.parseLong(groupIdStr);
+
+                            Toast.makeText(CreateGroupActivity.this, "그룹이 생성되었습니다! 위치 공유를 시작합니다.", Toast.LENGTH_LONG).show();
+
+                            // ⭐ [핵심 수정] MapsActivity로 ID 및 username 전달하여 위치 공유 시작
+                            Intent intent = new Intent(CreateGroupActivity.this, MapsActivity.class);
+                            intent.putExtra("groupId", newGroupId);
+                            intent.putExtra("username", loggedInUsername); // MapsActivity에 username 전달
+
+                            intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                            startActivity(intent);
+
+                            finish();
+
+                        } catch (NumberFormatException e) {
+                            Log.e("CreateGroupActivity", "그룹 ID를 파싱할 수 없습니다: " + groupIdStr, e);
+                            Toast.makeText(CreateGroupActivity.this, "그룹은 생성되었으나 ID 오류로 맵 이동 실패.", Toast.LENGTH_LONG).show();
+                            finish();
+                        }
+                    } else {
+                        Toast.makeText(CreateGroupActivity.this, "그룹 생성은 성공했으나, 그룹 ID를 받지 못했습니다. 맵 이동 실패.", Toast.LENGTH_LONG).show();
+                        finish();
+                    }
                 } else {
                     String errorBody = "N/A";
                     try {
@@ -239,7 +264,6 @@ public class CreateGroupActivity extends AppCompatActivity {
     }
 
     /**
-     * [두 번째 코드 기능]
      * 인증 오류(401/403) 발생 시 토큰 삭제 및 로그인 화면으로 이동
      */
     private void handleAuthErrorAndRedirect() {
