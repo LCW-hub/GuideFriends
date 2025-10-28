@@ -240,19 +240,36 @@ public class CreateGroupActivity extends AppCompatActivity {
                         finish();
                     }
                 } else {
+                    // --- ⭐ [수정] 409 Conflict(충돌) 처리를 위해 else 블록 전체 수정 ---
+                    String errorMessage = "그룹 생성 실패 (코드: " + response.code() + ")"; // 기본 에러 메시지
                     String errorBody = "N/A";
-                    try {
-                        if (response.errorBody() != null) errorBody = response.errorBody().string();
-                    } catch (Exception e) {
-                        Log.e("CreateGroupActivity", "Error body parsing failed", e);
+
+                    if (response.errorBody() != null) {
+                        try {
+                            errorBody = response.errorBody().string();
+                            // 서버가 {"message":"..."} 형태로 응답하므로 간단히 메시지 추출
+                            if (errorBody.contains("\"message\"")) {
+                                errorMessage = errorBody.split("\"message\":\"")[1].split("\"")[0];
+                            }
+                        } catch (Exception e) {
+                            Log.e("CreateGroupActivity", "Error body parsing failed", e);
+                        }
                     }
+
                     Log.e("CreateGroupActivity", "그룹 생성 실패. 코드: " + response.code() + ", 본문: " + errorBody);
 
                     if (response.code() == 403 || response.code() == 401) {
+                        // 인증 오류 (토큰 만료 등)
                         handleAuthErrorAndRedirect();
+                    } else if (response.code() == 409) {
+                        // ⭐ 409 Conflict(충돌) 코드 확인! (이미 활성 그룹이 있는 경우)
+                        // 서버에서 보낸 "이미 참여 중인..." 메시지를 Toast로 보여줌
+                        Toast.makeText(CreateGroupActivity.this, errorMessage, Toast.LENGTH_LONG).show();
                     } else {
-                        Toast.makeText(CreateGroupActivity.this, "그룹 생성 실패 (코드: " + response.code() + ")", Toast.LENGTH_SHORT).show();
+                        // 그 외 다른 에러 (500 등)
+                        Toast.makeText(CreateGroupActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
                     }
+                    // --- [수정] 끝 ---
                 }
             }
 
