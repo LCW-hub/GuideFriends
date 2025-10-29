@@ -560,7 +560,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             updateMemberMarkers(locationsToDisplay);
 
         } else {
-            Log.w(TAG, "reapplyRulesAndRefreshMarkers: 캐시된 위치 데이터가 없어 강제 갱신을 건너뜜.");
+            Log.w(TAG, "reapplyRulesAndRefreshMarkers: 캐시된 위치 데이터가 없어 강제 갱신을 건너뜐.");
         }
     }
 
@@ -837,7 +837,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     //==============================================================================================
-    // 5. UI Features (Menus, Search, Weather - 수정 없음)
+    // 5. UI Features (Menus, Search, Weather)
     //==============================================================================================
 
     private void toggleSubMenu() {
@@ -922,6 +922,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         searchPlacesWithNaverAPI(query);
     }
 
+    // ⭐️ [1. 수정] searchPlacesWithNaverAPI 메서드를 아래 코드로 덮어쓰기
+    // (이미지 검색 API 호출 로직 추가됨)
     private void searchPlacesWithNaverAPI(String query) {
         executor.execute(() -> {
             try {
@@ -937,8 +939,26 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     StringBuilder response = new StringBuilder();
                     String line;
                     while ((line = reader.readLine()) != null) response.append(line);
+                    reader.close(); // 리소스 닫기
 
+                    // 1. 지역 검색 결과를 파싱합니다. (이때 imageUrl 필드는 비어있음)
+                    //    (description은 parseNaverSearchResults에서 파싱됨)
                     List<SearchResult> results = parseNaverSearchResults(new JSONObject(response.toString()));
+
+                    // ✨✨✨ [핵심 수정] ✨✨✨
+                    // 지역 검색 결과(results)를 순회하며 각각의 이미지 URL을 가져옵니다.
+                    for (SearchResult result : results) {
+
+                        // 2. 장소 이름(title)으로 이미지 검색 API(헬퍼 메서드)를 호출합니다.
+                        String imageUrl = fetchFirstImageUrl(result.getTitle());
+
+                        // 3. SearchResult 객체에 이미지 URL을 설정합니다. (Setter가 있으므로 OK)
+                        result.setImageUrl(imageUrl);
+                    }
+                    // ✨✨✨ [수정 완료] ✨✨✨
+
+
+                    // 4. 이미지 URL까지 모두 채워진 results를 UI 스레드로 전달합니다.
                     handler.post(() -> {
                         if (results.isEmpty()) Toast.makeText(this, "검색 결과가 없습니다.", Toast.LENGTH_SHORT).show();
                         else showSearchResults(results);
@@ -953,6 +973,45 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
     }
 
+    // ⭐️ [2. 새로 추가] 장소 이름으로 첫 번째 이미지 썸네일 URL을 가져오는 헬퍼 메서드
+    // (이 메서드는 반드시 백그라운드 스레드에서 호출되어야 합니다)
+    private String fetchFirstImageUrl(String query) {
+        try {
+            // 이미지 검색 API는 검색어가 너무 길면(주소 포함 등) 검색이 안될 수 있으므로,
+            // 간단한 이름만 사용하도록 앞의 일부만 잘라낼 수 있습니다. (선택 사항)
+            String simpleQuery = query.split(" ")[0].replaceAll("<[^>]*>", ""); // HTML 태그도 제거
+
+            String encodedQuery = java.net.URLEncoder.encode(simpleQuery, "UTF-8");
+
+            // ⭐️ 이미지 검색 API (image.json) 호출, display=1 (1개만)
+            URL url = new URL("https://openapi.naver.com/v1/search/image?query=" + encodedQuery + "&display=1&sort=sim");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("X-Naver-Client-Id", NAVER_CLIENT_ID);
+            conn.setRequestProperty("X-Naver-Client-Secret", NAVER_CLIENT_SECRET);
+
+            if (conn.getResponseCode() == 200) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                StringBuilder response = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) response.append(line);
+                reader.close(); // 리소스 닫기
+
+                JSONObject json = new JSONObject(response.toString());
+                JSONArray items = json.getJSONArray("items");
+                if (items.length() > 0) {
+                    // ⭐️ 썸네일(thumbnail) URL 반환
+                    return items.getJSONObject(0).optString("thumbnail", "");
+                }
+            }
+            return ""; // API 오류 또는 검색 결과 없음
+        } catch (Exception e) {
+            Log.e("ImageSearchAPI", "Failed to fetch image for: " + query, e);
+            return ""; // 예외 발생 시 빈 문자열 반환
+        }
+    }
+
+    // ⭐️ [3. 수정] parseNaverSearchResults 메서드를 생성자에 맞게 수정
     private List<SearchResult> parseNaverSearchResults(JSONObject json) throws Exception {
         List<SearchResult> results = new ArrayList<>();
         JSONArray items = json.getJSONArray("items");
@@ -962,11 +1021,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             String address = item.optString("roadAddress", item.optString("address", ""));
             String category = item.optString("category", "정보 없음");
 
+            // ✨ [수정] description을 파싱합니다.
+            String description = item.optString("description", "");
+            // (link는 SearchResult 모델에 없으므로 파싱하지 않습니다.)
+
             // Correct coordinate parsing from Code 1
             double longitude = item.getDouble("mapx") / 1e7;
             double latitude = item.getDouble("mapy") / 1e7;
 
-            results.add(new SearchResult(title, address, category, latitude, longitude, "", ""));
+            // ✨ [수정] 생성자에 (description, "")을 전달합니다. (imageUrl은 나중에 채워짐)
+            results.add(new SearchResult(title, address, category, latitude, longitude, description, ""));
         }
         return results;
     }
