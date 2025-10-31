@@ -13,7 +13,9 @@ public class ApiClient {
     private static final String BASE_URL = "http://10.0.2.2:8080/";
     private static Retrofit retrofit = null;
     private static GroupApiService groupApiService;
-
+    public static String getBaseUrl() {
+        return BASE_URL;
+    }
     public static synchronized Retrofit getClient(Context context) {
         if (retrofit == null) {
             // TokenManager 인스턴스 생성

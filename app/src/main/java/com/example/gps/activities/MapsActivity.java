@@ -1,5 +1,6 @@
 package com.example.gps.activities;
 
+// --- 기존 import ---
 import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
@@ -78,9 +79,28 @@ import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
+// --- ⭐️ 프로필 사진용으로 추가된 import ---
+import android.app.AlertDialog;
+import android.content.DialogInterface;
+import android.net.Uri;
+import android.provider.MediaStore;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import com.bumptech.glide.Glide;
+import com.example.gps.api.ApiClient;
+import com.example.gps.api.UserApiService;
+import de.hdodenhof.circleimageview.CircleImageView;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.RequestBody;
+// --- ⭐️ Import 추가 끝 ---
+
+
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, SearchResultDetailFragment.OnDestinationSelectedListener {
 
-    // --- UI & Map Variables ---
     // --- UI & Map Variables ---
     private MapView mapView;
     private NaverMap naverMap;
@@ -162,6 +182,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private ValueEventListener destinationListener; // 목적지 리스너
     // 🚀 --- [2.1 끝] ---
 
+    // --- ⭐️ 프로필 사진용 멤버 변수 ---
+    private CircleImageView ivProfile; // 👈 [추가] 프로필 이미지뷰 참조
+    private ActivityResultLauncher<Intent> galleryLauncher; // 👈 [추가] 갤러리 런처
+
+
     //==============================================================================================
     // 1. Activity Lifecycle & Setup
     //==============================================================================================
@@ -191,11 +216,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         initializeButtons();
         initializeSearch();
         initializeSubMenu();
-        bindMyPageHeader();
+
+        // --- ⭐️ [수정] 갤러리 런처 및 마이페이지 헤더 초기화 ---
+        initializeGalleryLauncher(); // 👈 [추가]
+        bindMyPageHeader(); // 👈 [수정됨]
+        // --- ⭐️ [수정 끝] ---
 
         if (loggedInUsername != null) {
             fetchLoggedInUserId();
         }
+
     }
 
     private void startMyLocationMarkerListener() {
@@ -393,6 +423,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private void initializeButtons() {
 
+        // ⭐️ [수정] btnMapType 추가 (사용자가 보낸 파일에 누락되어 복원)
 
         FloatingActionButton btnMyLocation = findViewById(R.id.btnMyLocation);
         FloatingActionButton btnTestMovement = findViewById(R.id.btnTestMovement);
@@ -405,6 +436,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         FloatingActionButton btnMyPage = findViewById(R.id.btnMyPage);
         FloatingActionButton btnSettings = findViewById(R.id.btnSettings);
 
+        // ⭐️ [수정] btnMapType 리스너 추가 (사용자가 보낸 파일에 누락되어 복원)
         btnMyLocation.setOnClickListener(v -> moveToCurrentLocation());
         if (btnTestMovement != null) {
             btnTestMovement.setOnClickListener(v -> startMockMovement());
@@ -846,7 +878,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     //==============================================================================================
-    // 5. UI Features (Menus, Search, Weather)
+    // 5. UI Features (Menus, Search, Weather, Profile)  <- [⭐️ 프로필 섹션 추가됨]
     //==============================================================================================
 
     private void toggleSubMenu() {
@@ -906,12 +938,56 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
+
+    // --- ⭐️ [수정] 프로필 사진 로직 시작 ---
+
+    /**
+     * 갤러리 결과 처리를 위한 런처 초기화
+     * onCreate에서 호출되어야 합니다.
+     */
+    private void initializeGalleryLauncher() {
+        galleryLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                        Uri selectedImageUri = result.getData().getData();
+                        if (selectedImageUri != null) {
+                            // 1. 이미지뷰에 즉시 반영 (Glide 사용)
+                            Glide.with(this)
+                                    .load(selectedImageUri)
+                                    .placeholder(R.drawable.ic_person)
+                                    .error(R.drawable.ic_person)
+                                    .into(ivProfile);
+
+                            // 2. 선택한 이미지를 서버에 업로드
+                            uploadImageToServer(selectedImageUri);
+                        }
+                    }
+                }
+        );
+    }
+
+    /**
+     * 사이드바 헤더(마이페이지)의 UI를 바인딩하고 프로필 클릭 리스너를 설정합니다.
+     * [수정됨]
+     */
     private void bindMyPageHeader() {
         TextView tvUsername = findViewById(R.id.tv_username);
         TextView tvEmail = findViewById(R.id.tv_email);
+        ivProfile = findViewById(R.id.iv_profile); // 👈 멤버 변수로 할당
+
         if (tvUsername != null) tvUsername.setText(loggedInUsername != null ? loggedInUsername : "Guest");
         if (tvEmail != null) tvEmail.setText(getSharedPreferences("user_info", MODE_PRIVATE).getString("email", ""));
 
+        // ⭐️ [추가] 저장된 프로필 이미지 로드
+        loadProfileImage();
+
+        // ⭐️ [추가] 프로필 이미지 클릭 리스너
+        ivProfile.setOnClickListener(v -> {
+            showProfileImageOptions();
+        });
+
+        // 로그아웃 버튼 리스너
         findViewById(R.id.btn_logout).setOnClickListener(v -> {
             new TokenManager(this).deleteToken();
             Intent intent = new Intent(this, LoginActivity.class);
@@ -920,6 +996,195 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             finish();
         });
     }
+
+    /**
+     * 프로필 이미지 옵션 다이얼로그 (기본값 설정 / 사진 선택)
+     * [새로 추가]
+     */
+    private void showProfileImageOptions() {
+        // (권한 확인 로직은 여기에 추가하는 것이 좋습니다)
+        // checkGalleryPermission();
+
+        final CharSequence[] options = {"기본 프로필로 설정", "사진 선택", "취소"};
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(MapsActivity.this);
+        builder.setTitle("프로필 사진 변경");
+
+        builder.setItems(options, (dialog, item) -> {
+            if (options[item].equals("기본 프로필로 설정")) {
+                // 1. 기본값 설정 API 호출
+                setProfileToDefault();
+            } else if (options[item].equals("사진 선택")) {
+                // 2. 갤러리 열기
+                // (권한이 이미 확인되었다고 가정)
+                Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+                galleryLauncher.launch(intent);
+            } else if (options[item].equals("취소")) {
+                // 3. 취소
+                dialog.dismiss();
+            }
+        });
+        builder.show();
+    }
+
+    /**
+     * SharedPreferences에서 프로필 이미지 URL을 로드하여 Glide로 표시
+     * [새로 추가]
+     */
+    private void loadProfileImage() {
+        SharedPreferences prefs = getSharedPreferences("user_info", MODE_PRIVATE);
+        String imageUrl = prefs.getString("profileImageUrl", null);
+
+        if (imageUrl != null && !imageUrl.isEmpty()) {
+
+            Object loadTarget; // Glide가 불러올 대상 (String 또는 Uri)
+
+            // 1. 이미지 경로가 로컬 콘텐츠(갤러리) Uri인지 확인
+            if (imageUrl.startsWith("content://")) {
+                loadTarget = Uri.parse(imageUrl); // Uri 객체로 변환
+            }
+            // 2. 이미지 경로가 이미 전체 웹 URL인지 확인
+            else if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+                loadTarget = imageUrl; // String 그대로 사용
+            }
+            // 3. 그 외 (예: "/static/...")는 서버의 상대 경로로 간주
+            else {
+                loadTarget = ApiClient.getBaseUrl() + imageUrl; // 서버 기본 주소와 결합
+            }
+
+            // ⭐️ 수정된 load(): 올바른 loadTarget을 사용
+            Glide.with(this)
+                    .load(loadTarget)
+                    .placeholder(R.drawable.ic_person) // 로딩 중
+                    .error(R.drawable.ic_person) // 오류 시
+                    .into(ivProfile);
+
+        } else {
+            // 4. 저장된 이미지가 없으면 기본 아이콘 표시
+            ivProfile.setImageResource(R.drawable.ic_person);
+        }
+    }
+
+    /**
+     * (API 호출) 기본 프로필로 설정을 서버에 요청
+     * [새로 추가]
+     */
+// MapsActivity.java (약 1056라인)
+// 🔽 기존 setProfileToDefault 메소드를 이 코드로 교체해주세요.
+
+    /**
+     * (API 호출) 기본 프로필로 설정을 서버에 요청
+     * [⭐️ 디버깅 토스트 추가 버전]
+     */
+    private void setProfileToDefault() {
+        UserApiService apiService = ApiClient.getUserApiService(this);
+
+        apiService.setDefaultProfileImage().enqueue(new Callback<Map<String, Object>>() {
+            @Override
+            public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
+                // 🔽 [수정] 성공/실패 로직 강화
+                if (response.isSuccessful() && response.body() != null) {
+                    Toast.makeText(MapsActivity.this, "기본 프로필로 변경되었습니다.", Toast.LENGTH_SHORT).show();
+
+                    // SharedPreferences에서 URL 제거
+                    getSharedPreferences("user_info", MODE_PRIVATE).edit()
+                            .remove("profileImageUrl").apply();
+
+                    // 이미지뷰를 기본값으로 즉시 변경
+                    ivProfile.setImageResource(R.drawable.ic_person);
+
+                } else {
+                    // ⭐️ [추가] 실패 시 서버 응답 코드 표시
+                    String errorMsg = "변경 실패. 응답 코드: " + response.code();
+                    if (response.errorBody() != null) {
+                        try {
+                            errorMsg += ", 메시지: " + response.errorBody().string();
+                        } catch (Exception e) {}
+                    }
+                    Toast.makeText(MapsActivity.this, errorMsg, Toast.LENGTH_LONG).show();
+                }
+                // 🔼 [수정 완료]
+            }
+
+            @Override
+            public void onFailure(Call<Map<String, Object>> call, Throwable t) {
+                // ⭐️ [추가] 네트워크 실패 시 자세한 오류 메시지 표시
+                Toast.makeText(MapsActivity.this, "네트워크 오류: " + t.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    /**
+     * (API 호출) 선택한 이미지를 서버로 업로드
+     * [새로 추가]
+     */
+    private void uploadImageToServer(Uri imageUri) {
+        File file = createCacheFileFromUri(imageUri);
+        if (file == null) {
+            Toast.makeText(this, "파일을 변환하는 데 실패했습니다.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // 1. RequestBody 생성 (이미지의 MIME 타입 사용)
+        RequestBody requestFile = RequestBody.create(MediaType.parse(getContentResolver().getType(imageUri)), file);
+        // 2. MultipartBody.Part 생성 (백엔드 @RequestParam("image")와 "image" 키 일치)
+        MultipartBody.Part body = MultipartBody.Part.createFormData("image", file.getName(), requestFile);
+
+        UserApiService apiService = ApiClient.getUserApiService(this);
+
+        apiService.uploadProfileImage(body).enqueue(new Callback<Map<String, Object>>() {
+            @Override
+            public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    // 서버로부터 새 이미지 URL을 받음
+                    String newImageUrl = (String) response.body().get("profileImageUrl");
+
+                    if(newImageUrl != null) {
+                        Toast.makeText(MapsActivity.this, "프로필이 변경되었습니다.", Toast.LENGTH_SHORT).show();
+                        // SharedPreferences에 새 URL 저장
+                        getSharedPreferences("user_info", MODE_PRIVATE).edit()
+                                .putString("profileImageUrl", newImageUrl).apply();
+                    } else {
+                        Toast.makeText(MapsActivity.this, "업로드 응답 오류", Toast.LENGTH_SHORT).show();
+                        loadProfileImage(); // 실패 시 원래 이미지로 복원
+                    }
+                } else {
+                    Toast.makeText(MapsActivity.this, "업로드에 실패했습니다.", Toast.LENGTH_SHORT).show();
+                    loadProfileImage(); // 실패 시 원래 이미지로 복원
+                }
+            }
+            @Override
+            public void onFailure(Call<Map<String, Object>> call, Throwable t) {
+                Toast.makeText(MapsActivity.this, "네트워크 오류: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                loadProfileImage(); // 실패 시 원래 이미지로 복원
+            }
+        });
+    }
+
+    /**
+     * Uri를 임시 캐시 파일(File) 객체로 변환 (업로드용)
+     * [새로 추가]
+     */
+    private File createCacheFileFromUri(Uri uri) {
+        try (InputStream inputStream = getContentResolver().openInputStream(uri)) {
+            // (파일 이름은 고유하게 만드는 것이 좋습니다. 예: "profile_cache.jpg")
+            File tempFile = new File(getCacheDir(), "temp_profile_image.jpg");
+            try (FileOutputStream outputStream = new FileOutputStream(tempFile)) {
+                byte[] buffer = new byte[1024];
+                int bytesRead;
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, bytesRead);
+                }
+            }
+            return tempFile;
+        } catch (Exception e) {
+            Log.e("FileUtil", "Failed to create cache file from Uri", e);
+            return null;
+        }
+    }
+
+    // --- ⭐️ [수정] 프로필 사진 로직 끝 ---
+
 
     private void performSearch() {
         String query = etSearch.getText().toString().trim();
@@ -1115,13 +1380,18 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
 
     //==============================================================================================
-    // 6. Permissions & Utilities (수정 없음)
+    // 6. Permissions & Utilities
     //==============================================================================================
 
     private void checkLocationPermission() {
+        // (권한 요청 시 갤러리 권한도 함께 요청하는 것을 고려할 수 있습니다)
+        // 예: String[] permissions = { Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.READ_MEDIA_IMAGES };
+
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
         }
+
+        // (TODO: 갤러리 권한 확인 및 요청 로직 추가)
     }
 
     @Override
@@ -1130,6 +1400,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (locationSource.onRequestPermissionsResult(requestCode, permissions, grantResults)) {
             if (naverMap != null) naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
         }
+        // (TODO: 갤러리 권한 요청 결과 처리)
     }
 
     private void moveToCurrentLocation() {
@@ -1139,6 +1410,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     .animate(CameraAnimation.Easing));
         }
     }
+
+
 
     private float dpToPx(float dp) {
         return dp * getResources().getDisplayMetrics().density;
@@ -1150,14 +1423,32 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (view != null) imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
     }
 
+    /**
+     * SharedPreferences에 저장된 맵 타입 설정을 NaverMap에 적용합니다.
+     * [수정됨]
+     */
+// 🔽 기존 applyMapTypeSetting 메소드를 이 코드로 교체하세요.
     private void applyMapTypeSetting() {
+        // 1. "app_settings" 파일 열기
         SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
-        // boolean 대신 int 값(ordinal) 로드, 기본값은 Basic
-        int mapTypeOrdinal = prefs.getInt("map_type", NaverMap.MapType.Basic.ordinal());
-        NaverMap.MapType mapType = NaverMap.MapType.values()[mapTypeOrdinal]; // ordinal 값으로 MapType enum 가져오기
 
+        // 2. SettingsActivity가 저장한 "map_type" (Int) 값을 읽어옵니다.
+        //    (기본값은 일반 지도)
+        int mapTypeOrdinal = prefs.getInt("map_type", NaverMap.MapType.Basic.ordinal());
+
+        // 3. 읽어온 숫자(ordinal)를 실제 NaverMap.MapType 객체로 변환합니다.
+        NaverMap.MapType mapType;
+        try {
+            // NaverMap.MapType.values()는 [Basic, Nav, Satellite, Hybrid, Terrain] 배열을 반환
+            mapType = NaverMap.MapType.values()[mapTypeOrdinal];
+        } catch (Exception e) {
+            // 혹시 저장된 숫자가 배열 범위를 벗어날 경우 기본값으로
+            mapType = NaverMap.MapType.Basic;
+        }
+
+        // 4. 지도에 적용
         if (naverMap != null) {
-            naverMap.setMapType(mapType); // 가져온 MapType 적용
+            naverMap.setMapType(mapType);
         }
     }
 
@@ -1172,19 +1463,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     protected void onResume() {
         super.onResume();
         mapView.onResume();
-        applyMapTypeSetting();
+        applyMapTypeSetting(); // 👈 맵 설정 적용
 
         if (currentGroupId != -1L) {
             Log.d(TAG, "onResume: 유효한 그룹 ID(" + currentGroupId + ")가 있어 위치 공유 재시작.");
 
-            // ❌ [제거] 규칙 강제 재로드 및 rulesNeedReload 로직 제거 (Firebase 실시간 리스너 사용)
-            // if (rulesNeedReload) { ... }
-
             // ⭐️ [수정] startLocationSharing에 모든 초기화 로직이 포함됨
             startLocationSharing();
-
-            // ❌ [제거] 규칙 버전 리스너 제거
-            // startRulesVersionListener();
 
             startMapRefreshTimer();
 
