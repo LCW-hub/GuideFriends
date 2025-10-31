@@ -393,7 +393,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private void initializeButtons() {
 
-        FloatingActionButton btnMapType = findViewById(R.id.btnMapType);
+
         FloatingActionButton btnMyLocation = findViewById(R.id.btnMyLocation);
         FloatingActionButton btnTestMovement = findViewById(R.id.btnTestMovement);
         findViewById(R.id.weather_widget).setOnClickListener(v -> showWeatherBottomSheet());
@@ -405,7 +405,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         FloatingActionButton btnMyPage = findViewById(R.id.btnMyPage);
         FloatingActionButton btnSettings = findViewById(R.id.btnSettings);
 
-        btnMapType.setOnClickListener(this::showMapTypeMenu);
         btnMyLocation.setOnClickListener(v -> moveToCurrentLocation());
         if (btnTestMovement != null) {
             btnTestMovement.setOnClickListener(v -> startMockMovement());
@@ -1141,19 +1140,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
-    private void showMapTypeMenu(View anchor) {
-        PopupMenu popup = new PopupMenu(this, anchor);
-        popup.getMenuInflater().inflate(R.menu.map_type_menu, popup.getMenu());
-        popup.setOnMenuItemClickListener(item -> {
-            int id = item.getItemId();
-            if (id == R.id.map_type_normal) naverMap.setMapType(NaverMap.MapType.Basic);
-            else if (id == R.id.map_type_satellite) naverMap.setMapType(NaverMap.MapType.Satellite);
-            else if (id == R.id.map_type_terrain) naverMap.setMapType(NaverMap.MapType.Terrain);
-            return true;
-        });
-        popup.show();
-    }
-
     private float dpToPx(float dp) {
         return dp * getResources().getDisplayMetrics().density;
     }
@@ -1166,8 +1152,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private void applyMapTypeSetting() {
         SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
-        boolean isSatellite = prefs.getBoolean("satellite_mode", false);
-        if (naverMap != null) naverMap.setMapType(isSatellite ? NaverMap.MapType.Satellite : NaverMap.MapType.Basic);
+        // boolean 대신 int 값(ordinal) 로드, 기본값은 Basic
+        int mapTypeOrdinal = prefs.getInt("map_type", NaverMap.MapType.Basic.ordinal());
+        NaverMap.MapType mapType = NaverMap.MapType.values()[mapTypeOrdinal]; // ordinal 값으로 MapType enum 가져오기
+
+        if (naverMap != null) {
+            naverMap.setMapType(mapType); // 가져온 MapType 적용
+        }
     }
 
     //==============================================================================================

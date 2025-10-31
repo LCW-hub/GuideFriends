@@ -55,8 +55,8 @@ public class LoginActivity extends AppCompatActivity {
         textViewFindPassword = findViewById(R.id.tvFindPw);
 
         // 기본값 자동 입력
-        editTextUsername.setText("ock123");
-        editTextPassword.setText("ock123123");
+        editTextUsername.setText("lcw123");
+        editTextPassword.setText("123456");
 
         // 로그인 버튼 클릭 리스너
         buttonLogin.setOnClickListener(new View.OnClickListener() {
@@ -65,8 +65,6 @@ public class LoginActivity extends AppCompatActivity {
                 login();
             }
         });
-
-
 
         // 회원가입 텍스트 클릭 리스너
         textViewSignup.setOnClickListener(new View.OnClickListener() {
