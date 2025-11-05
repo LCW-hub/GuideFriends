@@ -27,6 +27,14 @@ public interface UserApi {
     @POST("login")
     Call<LoginResponse> login(@Body Map<String, String> loginData);
 
+    // [추가] 실제 로그아웃 API
+    @POST("/api/users/logout")
+    Call<Map<String, Object>> logout();
+
+    // [추가] 토큰 재발급 API
+    @POST("/api/auth/refresh")
+    Call<LoginResponse> refreshToken(@Body Map<String, String> request);
+
     @POST("/api/users/find-id")
     Call<Map<String, Object>> findIdByEmail(@Body Map<String, String> emailMap);
 
@@ -73,5 +81,7 @@ public interface UserApi {
 
     @HTTP(method = "DELETE", path = "api/friends/delete", hasBody = true)
     Call<Map<String, Object>> deleteFriend(@Body Map<String, String> body);
+
+
 
 }

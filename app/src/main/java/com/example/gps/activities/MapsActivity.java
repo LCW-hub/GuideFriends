@@ -22,6 +22,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 import java.util.Iterator;
 
+import com.example.gps.activities.Register_Login.LoginActivity;
+import com.example.gps.api.UserApi;
+
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -162,6 +165,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private ValueEventListener destinationListener; // 목적지 리스너
     // 🚀 --- [2.1 끝] ---
 
+    private TokenManager tokenManager; // (이 변수는 이미 있습니다)
+    private UserApi userApi; // [추가] 로그아웃 API 호출을 위해 추가
+
     //==============================================================================================
     // 1. Activity Lifecycle & Setup
     //==============================================================================================
@@ -170,6 +176,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
+
+        // [추가] TokenManager 및 UserApi 초기화
+        tokenManager = new TokenManager(); // 1단계에서 수정한 새 생성자
+        userApi = ApiClient.getClient(this).create(UserApi.class); // LoginActivity와 동일하게
 
         checkLocationPermission();
         handleIntent(getIntent());
@@ -913,12 +923,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (tvUsername != null) tvUsername.setText(loggedInUsername != null ? loggedInUsername : "Guest");
         if (tvEmail != null) tvEmail.setText(getSharedPreferences("user_info", MODE_PRIVATE).getString("email", ""));
 
+        // --- [수정] 이 부분을 통째로 교체합니다 ---
         findViewById(R.id.btn_logout).setOnClickListener(v -> {
-            new TokenManager(this).deleteToken();
-            Intent intent = new Intent(this, LoginActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-            startActivity(intent);
-            finish();
+            // [수정] 단순 토큰 삭제가 아닌, 서버 API 호출
+            logout();
         });
     }
 
@@ -1375,5 +1383,52 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     // 🚀 --- [2.5 끝] ---
+
+    /**
+     * [추가] 서버에 실제 로그아웃을 요청하는 메소드
+     */
+    private void logout() {
+        // 1. 서버에 로그아웃 요청 (1단계에서 UserApi에 추가한 logout() 호출)
+        Call<Map<String, Object>> call = userApi.logout();
+
+        call.enqueue(new Callback<Map<String, Object>>() {
+            @Override
+            public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
+                if (response.isSuccessful()) {
+                    Log.d("MapsActivity", "서버 로그아웃 성공");
+                } else {
+                    // (예: 토큰이 이미 만료되어 401이 온 경우 등)
+                    // 실패해도 클라이언트에서는 로그아웃을 진행합니다.
+                    Log.w("MapsActivity", "서버 로그아웃 응답 실패: " + response.code());
+                }
+                // 2. [수정] 서버 응답과 관계없이 (성공/실패 모두) 클라이언트 토큰 삭제
+                performClientLogout();
+            }
+
+            @Override
+            public void onFailure(Call<Map<String, Object>> call, Throwable t) {
+                // (네트워크 오류 등)
+                // 실패해도 클라이언트에서는 로그아웃을 진행합니다.
+                Log.e("MapsActivity", "서버 로그아웃 요청 실패", t);
+                performClientLogout();
+            }
+        });
+    }
+    /**
+     * [추가] 클라이언트 측 토큰 삭제 및 화면 이동
+     * (기존 bindMyPageHeader에 있던 로직)
+     */
+    private void performClientLogout() {
+        // 1단계에서 수정한 deleteTokens() 호출
+        tokenManager.deleteTokens();
+
+        Toast.makeText(MapsActivity.this, "로그아웃 되었습니다.", Toast.LENGTH_SHORT).show();
+
+        // 로그인 화면으로 이동
+        Intent intent = new Intent(MapsActivity.this, LoginActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
+        finish();
+    }
 
 }

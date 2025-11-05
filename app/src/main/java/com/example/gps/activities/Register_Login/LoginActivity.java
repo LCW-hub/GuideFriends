@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox; // [추가]
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -16,7 +17,7 @@ import com.example.gps.R;
 import com.example.gps.activities.MapsActivity;
 import com.example.gps.api.ApiClient;
 import com.example.gps.api.UserApi;
-import com.example.gps.model.User;
+// import com.example.gps.model.User;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -24,8 +25,8 @@ import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
-import com.example.gps.dto.LoginResponse; // LoginResponse import
-import com.example.gps.utils.TokenManager; // TokenManager import
+import com.example.gps.dto.LoginResponse; // (1단계)
+import com.example.gps.utils.TokenManager; // (1단계)
 
 
 public class LoginActivity extends AppCompatActivity {
@@ -33,6 +34,9 @@ public class LoginActivity extends AppCompatActivity {
     private EditText editTextUsername, editTextPassword;
     private Button buttonLogin, buttonGuestMode;
     private TextView textViewSignup, textViewFindId, textViewFindPassword;
+
+    private CheckBox checkBoxRememberMe; // [추가]
+    private TokenManager tokenManager; // [추가]
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,6 +49,9 @@ public class LoginActivity extends AppCompatActivity {
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         getSupportActionBar().setTitle("로그인");
 
+        // [추가] 1단계에서 수정한 TokenManager 초기화
+        tokenManager = new TokenManager();
+
         // 뷰 초기화
         editTextUsername = findViewById(R.id.etId);
         editTextPassword = findViewById(R.id.etPw);
@@ -53,6 +60,10 @@ public class LoginActivity extends AppCompatActivity {
         textViewSignup = findViewById(R.id.tvSignup);
         textViewFindId = findViewById(R.id.tvFindId);
         textViewFindPassword = findViewById(R.id.tvFindPw);
+
+        // [추가] 2단계-1에서 추가한 "자동 로그인" 체크박스 ID 연결
+        // (ID가 cb_remember_me가 맞는지 activity_login.xml에서 확인 필요)
+        checkBoxRememberMe = findViewById(R.id.cb_remember_me);
 
         // 기본값 자동 입력
         editTextUsername.setText("ock123");
@@ -97,16 +108,24 @@ public class LoginActivity extends AppCompatActivity {
         String username = editTextUsername.getText().toString().trim();
         String password = editTextPassword.getText().toString().trim();
 
+        // [추가] 자동 로그인 체크박스 상태 가져오기
+        boolean rememberMe = checkBoxRememberMe.isChecked();
+
         if (username.isEmpty() || password.isEmpty()) {
             Toast.makeText(this, "아이디와 비밀번호를 입력하세요", Toast.LENGTH_SHORT).show();
             return;
         }
 
+        // --- [오류 수정] ---
+        // 'getRetrofitInstance(this)' -> 'getClient(this)'로 원복
         UserApi userApi = ApiClient.getClient(this).create(UserApi.class);
 
         Map<String, String> loginData = new HashMap<>();
         loginData.put("username", username);
         loginData.put("password", password);
+
+        // [추가] "rememberMe" 상태를 서버에 전송
+        loginData.put("rememberMe", String.valueOf(rememberMe));
 
         // 서버에 로그인 요청 (응답 타입은 LoginResponse)
         Call<LoginResponse> call = userApi.login(loginData);
@@ -115,12 +134,16 @@ public class LoginActivity extends AppCompatActivity {
             @Override
             public void onResponse(Call<LoginResponse> call, Response<LoginResponse> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    // --- ✨ 로그인 성공 및 토큰 처리 로직 ✨ ---
-                    String token = response.body().getToken();
-                    TokenManager tokenManager = new TokenManager(LoginActivity.this);
-                    tokenManager.saveToken(token);
+                    // --- ✨ [수정] 로그인 성공 및 토큰 처리 로직 ✨ ---
 
-                    // 사용자 정보를 SharedPreferences에 저장
+                    // 1. [수정] 1단계에서 수정한 LoginResponse에서 토큰 2개 가져오기
+                    String accessToken = response.body().getAccessToken();
+                    String refreshToken = response.body().getRefreshToken();
+
+                    // 2. [수정] 1단계에서 수정한 TokenManager를 사용해 토큰 2개 저장
+                    tokenManager.saveTokens(accessToken, refreshToken);
+
+                    // 3. 사용자 정보를 SharedPreferences에 저장 (기존 코드)
                     SharedPreferences prefs = getSharedPreferences("user_info", MODE_PRIVATE);
                     prefs.edit()
                             .putString("username", username)

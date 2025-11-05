@@ -293,8 +293,12 @@ public class CreateGroupActivity extends AppCompatActivity {
      */
     private void handleAuthErrorAndRedirect() {
         Toast.makeText(this, "세션이 만료되었습니다. 다시 로그인해주세요.", Toast.LENGTH_LONG).show();
-        TokenManager tokenManager = new TokenManager(getApplicationContext());
-        tokenManager.deleteToken();
+
+        // [수정] TokenManager 생성자는 인자가 없습니다.
+        TokenManager tokenManager = new TokenManager();
+
+        // [수정] deleteToken -> deleteTokens (s 붙임)
+        tokenManager.deleteTokens();
 
         Intent intent = new Intent(this, LoginActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
