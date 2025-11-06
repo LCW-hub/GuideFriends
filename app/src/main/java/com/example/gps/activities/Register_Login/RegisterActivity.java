@@ -1,4 +1,3 @@
-//회원가입 화면
 package com.example.gps.activities.Register_Login;
 
 import android.content.Intent;
@@ -57,9 +56,10 @@ public class RegisterActivity extends AppCompatActivity {
 
     private void registerUser() {
 
-        String username = etUsername.getText().toString().trim();
-        String password = etPassword.getText().toString().trim();
-        String email = etEmail.getText().toString().trim();
+        // ⭐ [수정] SharedPreferences 저장을 위해 변수들을 final로 선언합니다.
+        final String username = etUsername.getText().toString().trim();
+        final String password = etPassword.getText().toString().trim();
+        final String email = etEmail.getText().toString().trim();
         String confirmPassword = etConfirmPassword.getText().toString().trim();
         String phoneNum = etPhone.getText().toString().trim();
 
@@ -91,7 +91,9 @@ public class RegisterActivity extends AppCompatActivity {
         }
 
         User user = new User(username, password, email, phoneNum);
-        UserApi userApi = ApiClient.getClient(this).create(UserApi.class);
+
+        // ApiClient.getClient(this) -> ApiClient.getRetrofit(this)
+        UserApi userApi = ApiClient.getRetrofit(this).create(UserApi.class);
         Call<Map<String, Object>> call = userApi.signup(user);
 
         call.enqueue(new Callback<Map<String, Object>>() {
@@ -104,7 +106,7 @@ public class RegisterActivity extends AppCompatActivity {
 
                     if (message != null && message.contains("성공")) {
 
-                        // ⭐ [기능 추가] 첫 번째 코드의 SharedPreferences 저장 기능 추가
+                        // ⭐ [수정] final로 선언된 username과 email 사용
                         SharedPreferences prefs = getSharedPreferences("user_info", MODE_PRIVATE);
                         prefs.edit()
                                 .putString("username", username)
@@ -147,7 +149,7 @@ public class RegisterActivity extends AppCompatActivity {
                 Toast.makeText(RegisterActivity.this, "네트워크 에러: 서버에 접속할 수 없습니다.", Toast.LENGTH_LONG).show();
             }
         });
-    }
+    } // ⭐ [수정] registerUser 메소드의 닫는 중괄호가 여기에 추가되어 문법 오류 해결
 
     @Override
     public boolean onSupportNavigateUp() {

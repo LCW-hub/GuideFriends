@@ -100,7 +100,8 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
 
-        UserApi userApi = ApiClient.getClient(this).create(UserApi.class);
+        // ⭐ [수정] ApiClient.getClient(this) -> ApiClient.getRetrofit(this)
+        UserApi userApi = ApiClient.getRetrofit(this).create(UserApi.class);
 
         Map<String, String> loginData = new HashMap<>();
         loginData.put("username", username);
@@ -115,6 +116,7 @@ public class LoginActivity extends AppCompatActivity {
                 if (response.isSuccessful() && response.body() != null) {
                     // --- ✨ 로그인 성공 및 토큰 처리 로직 ✨ ---
                     String token = response.body().getToken();
+                    Log.d("LOGIN_SUCCESS", "Server returned token: " + token);
                     TokenManager tokenManager = new TokenManager(LoginActivity.this);
                     tokenManager.saveToken(token);
 
