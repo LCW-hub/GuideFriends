@@ -1,5 +1,6 @@
 package com.example.gps.activities;
 
+// --- 기존 import ---
 import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
@@ -21,7 +22,9 @@ import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.util.Iterator;
-
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -71,12 +74,32 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import com.example.gps.api.GroupApiService; // ⭐️ 추가: 그룹 API
-import com.example.gps.api.UserApiService;
+import com.example.gps.api.GroupApiService;
+import com.example.gps.api.UserApi;
 
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
+// --- ⭐️ 프로필 사진용으로 추가된 import ---
+import android.app.AlertDialog;
+import android.content.DialogInterface;
+import android.net.Uri;
+import android.provider.MediaStore;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import com.bumptech.glide.Glide;
+import com.example.gps.api.ApiClient;
+import de.hdodenhof.circleimageview.CircleImageView;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.RequestBody;
+
+// ⭐ [추가]: 마커에 이미지 적용을 위한 Import
+import com.naver.maps.map.overlay.OverlayImage;
+import android.graphics.Bitmap;
+import com.bumptech.glide.load.engine.DiskCacheStrategy; // ⭐ [추가] Glide 캐시 제어를 위한 import
+// --- ⭐️ Import 추가 끝 ---
+
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, SearchResultDetailFragment.OnDestinationSelectedListener {
 
@@ -125,8 +148,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private Runnable locationUpdateRunnable;
     private final HashMap<String, Marker> memberMarkers = new HashMap<>();
 
+    private final Handler mapRefreshHandler = new Handler(Looper.getMainLooper());
+    private Runnable mapRefreshRunnable;
+    private static final int MAP_REFRESH_INTERVAL = 2000; // 2초마다 강제 갱신 (원하는 간격으로 설정 가능)
+
+    // ⭐️ [Firebase 규칙] 내가 상대방 위치를 볼 수 있는지 (Sharer -> Me)
     private final Map<Long, Boolean> incomingSharingRules = new HashMap<>();
+    // ⭐️ [Firebase 규칙] 상대방이 내 위치를 볼 수 있는지 (Me -> Target)
+    private final Map<Long, Boolean> outgoingSharingStatus = new HashMap<>();
     private Marker myLocationMarker = null;
+
+    // ⭐️ [Firebase 규칙 리스너]
+    private DatabaseReference rulesRef;
+    private ValueEventListener rulesListener;
 
     // --- Mock Movement (for testing) ---
     private Handler animationHandler;
@@ -138,18 +172,26 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private long startTime;
 
     private Long loggedInUserId = -1L;
+    private final Map<String, LocationResponse> memberLocationsCache = new HashMap<>(); // ⭐️ 위치 데이터 캐시
 
-    private boolean rulesNeedReload = false;
+    // ⭐️ [추가] 내 마커 상태 리스너를 위한 필드
+    private DatabaseReference myMarkerStatusRef;
+    private ValueEventListener myMarkerStatusListener;
 
-    private DatabaseReference rulesVersionRef;
-    private ValueEventListener rulesVersionListener;
+    // 🚀 --- [2.1: 목적지용 변수 3개 추가] ---
+    private Marker destinationMarker = null; // 목적지 마커 객체
+    private DatabaseReference destinationRef; // 목적지 데이터베이스 참조
+    private ValueEventListener destinationListener; // 목적지 리스너
+    // 🚀 --- [2.1 끝] ---
 
-    private List<LocationResponse> currentMemberLocations = new ArrayList<>();
+    // --- ⭐️ 프로필 사진용 멤버 변수 ---
+    private CircleImageView ivProfile; // 👈 [추가] 프로필 이미지뷰 참조
+    private ActivityResultLauncher<Intent> galleryLauncher; // 👈 [추가] 갤러리 런처
+
 
     //==============================================================================================
     // 1. Activity Lifecycle & Setup
     //==============================================================================================
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -167,7 +209,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         loggedInUsername = getIntent().getStringExtra("username");
 
-        // 🎯 로그 추가: 앱 시작 시 Firebase 초기화 및 사용자명 확인
         Log.d(TAG, "onCreate: FirebaseDatabase 인스턴스 획득 시도");
         firebaseDatabase = FirebaseDatabase.getInstance().getReference("group_locations");
         Log.d(TAG, "onCreate: 사용자명 확인 (loggedInUsername)=" + loggedInUsername);
@@ -176,16 +217,151 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         initializeButtons();
         initializeSearch();
         initializeSubMenu();
+
+        // ⭐️ [추가] 토큰 상태 진단 로직 (403 오류의 핵심 원인 진단)
+        TokenManager tokenManager = new TokenManager(this);
+        String token = tokenManager.getToken();
+
+        if (token == null || token.isEmpty()) {
+            // 🚨 토큰 없음: 재로그인 필요
+            Log.e(TAG, "🚨 Token Check: 토큰이 NULL이거나 비어있습니다! 인증에 실패할 것입니다 (403 원인).");
+        } else {
+            // ✅ 토큰 존재: 인증 시도 가능
+            Log.d(TAG, "✅ Token Check: 유효한 토큰이 발견되었습니다. 길이: " + token.length());
+        }
+        // ⭐️ [추가 끝]
+
+        // --- ⭐️ [수정] 갤러리 런처 및 마이페이지 헤더 초기화 ---
+        initializeGalleryLauncher();
         bindMyPageHeader();
+        // --- ⭐️ [수정 끝] ---
 
         if (loggedInUsername != null) {
             fetchLoggedInUserId();
         }
     }
 
+    private void startMyLocationMarkerListener() {
+        if (loggedInUserId == -1L || naverMap == null) return;
+
+        // 경로: user_status/{userId}/is_marker_visible
+        myMarkerStatusRef = FirebaseDatabase.getInstance()
+                .getReference("user_status")
+                .child(String.valueOf(loggedInUserId))
+                .child("is_marker_visible");
+
+        // 기존 리스너 제거 (중복 방지)
+        if (myMarkerStatusListener != null) {
+            myMarkerStatusRef.removeEventListener(myMarkerStatusListener);
+        }
+
+        myMarkerStatusListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                // 값이 없을 경우 기본값(true)을 사용하여 마커가 보이도록 합니다.
+                Boolean isVisible = snapshot.getValue(Boolean.class);
+                boolean showMarker = (isVisible != null) ? isVisible : true;
+
+                if (myLocationMarker != null) {
+                    if (showMarker) {
+                        myLocationMarker.setMap(naverMap); // 지도에 표시
+                        Log.d(TAG, "My Marker Status: 켜짐 (Visible)");
+                    } else {
+                        myLocationMarker.setMap(null); // 지도에서 제거
+                        Log.d(TAG, "My Marker Status: 꺼짐 (Hidden)");
+                    }
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Log.e(TAG, "My Marker Status Listener Cancelled", error.toException());
+            }
+        };
+
+        myMarkerStatusRef.addValueEventListener(myMarkerStatusListener);
+        Log.d(TAG, "startMyLocationMarkerListener: 내 마커 상태 리스너 등록 완료.");
+    }
+
+    // ⭐️ [새로 추가] Firebase 규칙 리스너 (상호 허용 상태를 실시간으로 가져옴)
+    private void startFirebaseRulesListener() {
+        if (loggedInUserId == -1L) {
+            Log.e(TAG, "startFirebaseRulesListener: 로드 중단. UserID가 유효하지 않습니다.");
+            return;
+        }
+
+        // 2. 규칙 경로 설정: 'sharing_permissions' 노드 전체를 감시합니다.
+        // 구조: sharing_permissions/{sharerId}/{targetId} : boolean
+        rulesRef = FirebaseDatabase.getInstance()
+                .getReference("sharing_permissions");
+
+        // 3. 기존 리스너 제거 (중복 방지)
+        if (rulesListener != null) {
+            rulesRef.removeEventListener(rulesListener);
+            Log.d(TAG, "startFirebaseRulesListener: 기존 규칙 리스너 제거 완료.");
+        }
+
+        // 4. 새로운 리스너 정의 및 등록
+        rulesListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                // 규칙 맵 초기화
+                incomingSharingRules.clear();
+                outgoingSharingStatus.clear();
+
+                // Firebase의 모든 공유 규칙을 순회하며 Incoming/Outgoing으로 분리
+                for (DataSnapshot sharerSnapshot : snapshot.getChildren()) {
+
+                    // Outer Key: Sharer ID (위치를 공유하는 사람)
+                    String sharerIdStr = sharerSnapshot.getKey();
+                    if (sharerIdStr == null) continue;
+                    // String 대신 Long을 사용해야 하므로 형변환
+                    Long sharerId = Long.parseLong(sharerIdStr);
+
+                    // Inner Key: Target ID
+                    for (DataSnapshot targetSnapshot : sharerSnapshot.getChildren()) {
+                        String targetIdStr = targetSnapshot.getKey();
+                        Boolean isAllowed = targetSnapshot.getValue(Boolean.class);
+
+                        if (targetIdStr == null || isAllowed == null) continue;
+                        Long targetId = Long.parseLong(targetIdStr);
+
+                        // ----------------------------------------------------
+                        // A. Incoming Rules (수신 규칙): 상대방이 나에게 허용했는지? (Sharer -> Me)
+                        if (targetId.equals(loggedInUserId)) {
+                            incomingSharingRules.put(sharerId, isAllowed);
+                        }
+
+                        // B. Outgoing Status (송신 상태): 내가 상대방에게 허용했는지? (Me -> Target)
+                        if (sharerId.equals(loggedInUserId)) {
+                            outgoingSharingStatus.put(targetId, isAllowed);
+                        }
+                        // ----------------------------------------------------
+                    }
+                }
+
+                Log.d(TAG, "✅ Firebase Rules Loaded. Incoming Count: " + incomingSharingRules.size() +
+                        ", Outgoing Count: " + outgoingSharingStatus.size());
+
+                // 5. 규칙이 갱신되었으므로 마커를 재적용하여 상호 허용 상태를 반영합니다.
+                reapplyRulesAndRefreshMarkers();
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Log.e(TAG, "Firebase Rules Listener Cancelled", error.toException());
+                Toast.makeText(MapsActivity.this, "위치 공유 규칙 로드에 실패했습니다.", Toast.LENGTH_SHORT).show();
+            }
+        };
+        // ⭐ [수정] addEventListener -> addValueEventListener
+        rulesRef.addValueEventListener(rulesListener);
+        Log.d(TAG, "startFirebaseRulesListener: Firebase 규칙 리스너 등록 완료.");
+    }
+
     @Override
     public void onMapReady(@NonNull NaverMap map) {
         this.naverMap = map;
+        // ... (나머지 onMapReady 로직은 동일) ...
         naverMap.setLocationSource(locationSource);
         naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
 
@@ -214,6 +390,42 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         applyMapTypeSetting();
         loadWeatherData();
+
+        // ⭐ [추가]: 맵이 준비되면 저장된 프로필 사진을 마커에 로드합니다.
+        loadProfileImage();
+    }
+
+    private void startMapRefreshTimer() {
+        if (naverMap == null) return;
+
+        // 기존 리스너가 있다면 제거
+        if (mapRefreshRunnable != null) {
+            mapRefreshHandler.removeCallbacks(mapRefreshRunnable);
+        }
+
+        mapRefreshRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (naverMap != null && naverMap.getCameraPosition() != null) {
+                    // 현재 카메라 위치로 다시 이동하여 뷰 갱신을 강제로 유도합니다.
+                    CameraUpdate cameraUpdate = CameraUpdate.scrollTo(naverMap.getCameraPosition().target);
+                    naverMap.moveCamera(cameraUpdate);
+                    Log.d(TAG, "Map Refresh Timer: 지도 뷰 강제 갱신 실행.");
+                }
+                // 설정된 간격마다 반복 실행
+                mapRefreshHandler.postDelayed(this, MAP_REFRESH_INTERVAL);
+            }
+        };
+
+        mapRefreshHandler.post(mapRefreshRunnable);
+        Log.d(TAG, "startMapRefreshTimer: 지도 강제 갱신 타이머 시작. 간격: " + MAP_REFRESH_INTERVAL + "ms");
+    }
+
+    private void stopMapRefreshTimer() {
+        if (mapRefreshRunnable != null) {
+            mapRefreshHandler.removeCallbacks(mapRefreshRunnable);
+            Log.d(TAG, "stopMapRefreshTimer: 지도 강제 갱신 타이머 중단.");
+        }
     }
 
     //==============================================================================================
@@ -227,7 +439,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private void initializeButtons() {
 
-        FloatingActionButton btnMapType = findViewById(R.id.btnMapType);
+        // ⭐️ [수정] btnMapType 추가 (사용자가 보낸 파일에 누락되어 복원)
+
         FloatingActionButton btnMyLocation = findViewById(R.id.btnMyLocation);
         FloatingActionButton btnTestMovement = findViewById(R.id.btnTestMovement);
         findViewById(R.id.weather_widget).setOnClickListener(v -> showWeatherBottomSheet());
@@ -239,7 +452,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         FloatingActionButton btnMyPage = findViewById(R.id.btnMyPage);
         FloatingActionButton btnSettings = findViewById(R.id.btnSettings);
 
-        btnMapType.setOnClickListener(this::showMapTypeMenu);
+        // ⭐️ [수정] btnMapType 리스너 추가 (사용자가 보낸 파일에 누락되어 복원)
         btnMyLocation.setOnClickListener(v -> moveToCurrentLocation());
         if (btnTestMovement != null) {
             btnTestMovement.setOnClickListener(v -> startMockMovement());
@@ -325,13 +538,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        // ⭐ [추가] onNewIntent에서 handleIntent를 호출하기 전에 setIntent(intent)를 추가하여,
-        //      액티비티가 현재 Intent를 새 Intent로 갱신하도록 강제합니다.
-
-        if (intent != null && intent.getBooleanExtra("RULES_UPDATED", false)) {
-            rulesNeedReload = true;
-            Log.d(TAG, "onNewIntent: 공유 설정 변경 감지. 규칙 재로드 플래그 설정.");
-        }
 
         setIntent(intent);
         handleIntent(intent);
@@ -340,7 +546,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void handleIntent(Intent intent) {
         if (intent == null) return;
 
-        // 💡 [추가] CreateGroupActivity에서 돌아올 때 username이 갱신되어야 합니다.
         if (intent.hasExtra("username")) {
             loggedInUsername = intent.getStringExtra("username");
         }
@@ -353,7 +558,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (intent.hasExtra("groupId")) {
             currentGroupId = intent.getLongExtra("groupId", -1L);
 
-            // 🎯 로그 추가: 인텐트 수신 및 GroupId 확인
             Log.d(TAG, "handleIntent: 인텐트 수신됨. GroupId=" + currentGroupId + ", Username=" + loggedInUsername);
 
             if (currentGroupId != -1L) {
@@ -361,8 +565,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 if (loggedInUserId != -1L) {
                     startLocationSharing();
                 } else {
-                    // ID 조회는 onCreate에서 이미 시작했거나, 여기서 다시 시작하여
-                    // 성공 시 startLocationSharing()을 호출하도록 만듭니다.
                     fetchLoggedInUserId();
                 }
             } else {
@@ -371,122 +573,181 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
+    // MapsActivity.java (가정)
     private void reapplyRulesAndRefreshMarkers() {
-        // 로그를 통해 규칙 변경으로 인한 마커 갱신이 시작됨을 확인합니다.
-        Log.d(TAG, "reapplyRulesAndRefreshMarkers: 규칙 변경으로 마커 즉시 갱신 시작.");
+        Log.d(TAG, "reapplyRulesAndRefreshMarkers: 상호 규칙 기반 마커 재적용 시작.");
 
-        // currentMemberLocations에 저장된 최신 위치 데이터를 사용하여
-        // updateMemberMarkers를 호출합니다. updateMemberMarkers 내부에서
-        // 새로 로드된 incomingSharingRules에 따라 마커 필터링 및 제거가 일어납니다.
-        updateMemberMarkers(currentMemberLocations);
+        // 1. 캐시된 위치 데이터가 있는지 확인합니다.
+        if (memberLocationsCache != null) {
+            List<LocationResponse> locationsToDisplay = new ArrayList<>();
+
+            // 2. 캐시된 모든 멤버의 위치 데이터를 순회합니다.
+            for (LocationResponse location : memberLocationsCache.values()) {
+                Long sharerId = location.getUserId(); // 위치를 공유한 상대방 (예: xxx)의 ID
+
+                // 본인의 위치는 마커 업데이트 목록에서 제외합니다.
+                if (location.getUserName().equals(loggedInUsername)) continue;
+
+                if (sharerId != null && sharerId != -1L) {
+
+                    // 3. 조건 1 확인 (Incoming Rule): 상대방이 나에게 위치를 공유했는가?
+                    boolean isAllowedBySharer = incomingSharingRules.getOrDefault(sharerId, false);
+
+                    // 4. 조건 2 확인 (Outgoing Status): 내가 상대방에게 위치를 공유했는가?
+                    boolean isAllowedByMe = outgoingSharingStatus.getOrDefault(sharerId, false);
+
+                    // 5. 최종 필터링: 상호 허용 조건을 만족하는지 확인 (AND 조건)
+                    if (isAllowedBySharer && isAllowedByMe) {
+                        locationsToDisplay.add(location);
+                        Log.d(TAG, "reapplyRulesAndRefreshMarkers: ✅ 상호 허용으로 마커 표시 -> " + location.getUserName());
+                    } else {
+                        Log.d(TAG, "reapplyRulesAndRefreshMarkers: ❌ 상호 미허용으로 마커 미표시 -> " + location.getUserName() +
+                                " (상대방 허용: " + isAllowedBySharer + ", 나의 허용: " + isAllowedByMe + ")");
+                    }
+                } else {
+                    Log.w(TAG, "reapplyRulesAndRefreshMarkers: Sharer ID가 없어 필터링 건너뜐 -> " + location.getUserName());
+                }
+            }
+
+            // 6. 필터링된 목록으로 마커 업데이트 요청
+            updateMemberMarkers(locationsToDisplay);
+
+        } else {
+            Log.w(TAG, "reapplyRulesAndRefreshMarkers: 캐시된 위치 데이터가 없어 강제 갱신을 건너뜐.");
+        }
     }
 
     private void fetchLoggedInUserId() {
-        UserApiService apiService = ApiClient.getUserApiService(this);
-
-        // ⭐️ [수정]: UserApiService의 정의인 Call<Map<String, Long>>와 일치시킴
+        // ⭐ [수정] UserApiService -> UserApi
+        UserApi apiService = ApiClient.getRetrofit(this).create(UserApi.class); // ⭐ [수정] ApiClient.getUserApi(this) 대신 명시적으로 createService 호출
         Call<Map<String, Long>> call = apiService.getUserIdByUsername(loggedInUsername);
 
-        // ⭐️ [수정]: Callback 타입도 Map<String, Long>으로 일치시킴
         call.enqueue(new Callback<Map<String, Long>>() {
             @Override
             public void onResponse(@NonNull Call<Map<String, Long>> call, @NonNull Response<Map<String, Long>> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    // 키는 "userId"로, 값은 Long 타입으로 가져옴
                     Long userId = response.body().get("userId");
 
                     if (userId != null && userId != -1L) {
                         loggedInUserId = userId;
                         Log.d(TAG, "사용자 ID 획득 성공: " + loggedInUserId);
+
+                        // ID 획득 후 위치 공유 시작
+                        if (currentGroupId != -1L) {
+                            startLocationSharing();
+                        }
                         return;
                     }
                     reapplyRulesAndRefreshMarkers();
                 }
                 Log.e(TAG, "❌ 사용자 ID 획득 실패. 응답 코드: " + response.code());
-                finish();
+                // finish(); // ID 획득 실패 시 앱 종료 대신 오류 처리만
             }
 
             @Override
             public void onFailure(@NonNull Call<Map<String, Long>> call, @NonNull Throwable t) {
                 Log.e(TAG, "사용자 ID 네트워크 오류", t);
-                finish();
+                // finish();
             }
         });
     }
+    // MapsActivity.java
+
 
     private void startLocationSharing() {
+        // ⭐️ [수정]: 중복 호출 문제 해결을 위해 Handler 제거
         locationUpdateHandler.removeCallbacksAndMessages(null);
 
-        if (loggedInUserId != -1L) {
-            fetchIncomingSharingRules();
-        } else {
-            Log.w(TAG, "startLocationSharing: UserID 로드 대기 중. 규칙 로딩 생략.");
+        if (loggedInUserId == -1L) {
+            Log.w(TAG, "startLocationSharing: UserID 로드 대기 중. 위치 공유 시작 중단.");
+            return;
         }
 
+        // 1. Firebase 규칙 리스너 시작 (상호 허용 상태 모니터링)
+        startFirebaseRulesListener();
+
+        startMyLocationMarkerListener();
+
+        // 🚀 --- [2.2: 목적지 리스너 시작 호출 추가] ---
+        startDestinationListener();
+        // 🚀 --- [2.2 끝] ---
+
+        // 2. 주기적 위치 업데이트 시작
         Log.d(TAG, "startLocationSharing: 위치 공유 프로세스 시작. 업데이트 주기=" + LOCATION_UPDATE_INTERVAL + "ms");
 
-        // ... (locationUpdateRunnable 로직은 동일)
-        locationUpdateHandler.post(locationUpdateRunnable);
-        startFirebaseLocationListener();
-
-        // 🎯 로그 추가: 위치 공유 시작
-        Log.d(TAG, "startLocationSharing: 위치 공유 프로세스 시작. 업데이트 주기=" + LOCATION_UPDATE_INTERVAL + "ms");
-
+        // Runnable 정의 (중복 정의 제거)
         locationUpdateRunnable = () -> {
             if (locationSource != null && animationHandler == null) {
                 Location lastKnownLocation = locationSource.getLastLocation();
                 if (lastKnownLocation != null) {
-                    // 🎯 로그 추가: 위치 정보 획득 및 업데이트 요청
                     Log.d(TAG, "Location Update: 위치 획득 성공. Latitude=" + lastKnownLocation.getLatitude());
                     updateMyLocation(lastKnownLocation);
                 } else {
                     Log.w(TAG, "Location Update: LocationSource에서 마지막 위치 정보를 가져올 수 없습니다. GPS 신호 대기 중.");
                 }
             } else if (animationHandler != null) {
-                Log.d(TAG, "Location Update: 모의(Mock) 이동 중이므로 실제 위치 업데이트는 건너뜁니다.");
+                Log.d(TAG, "Location Update: 모의(Mock) 이동 중이므로 실제 위치 업데이트는 건너킵니다.");
             }
             locationUpdateHandler.postDelayed(locationUpdateRunnable, LOCATION_UPDATE_INTERVAL);
         };
         locationUpdateHandler.post(locationUpdateRunnable);
+
+        // 3. Firebase 위치 데이터 리스너 시작
         startFirebaseLocationListener();
     }
 
-    private void fetchIncomingSharingRules() {
-        if (currentGroupId == -1L || loggedInUserId == -1L) {
-            Log.e(TAG, "fetchIncomingSharingRules: 로드 중단. GroupID 또는 UserID가 유효하지 않습니다.");
+    private void startFirebaseLocationListener() {
+        if (currentGroupId == -1L || naverMap == null) {
+            Log.e(TAG, "startFirebaseLocationListener: 리스너 시작 중단. GroupID가 유효하지 않거나 Map이 준비되지 않았습니다.");
             return;
         }
 
-        GroupApiService apiService = ApiClient.getGroupApiService(this);
-        // 💡 API 호출: 내가 Target일 때, 누가 나에게 공유를 허용했는지 규칙을 가져옵니다.
-        Call<Map<Long, Boolean>> call = apiService.getSharingRulesForTarget(currentGroupId, loggedInUserId);
+        DatabaseReference groupPathRef = firebaseDatabase.child(String.valueOf(currentGroupId));
+        if (memberLocationListener != null) {
+            groupPathRef.removeEventListener(memberLocationListener);
+            Log.d(TAG, "startFirebaseLocationListener: 기존 위치 리스너 제거 완료.");
+        }
 
-        call.enqueue(new Callback<Map<Long, Boolean>>() {
+        Log.d(TAG, "startFirebaseLocationListener: Firebase 그룹 위치 리스너 등록 시작. GroupPath=" + groupPathRef.toString());
+
+        memberLocationListener = new ValueEventListener() {
             @Override
-            public void onResponse(@NonNull Call<Map<Long, Boolean>> call, @NonNull Response<Map<Long, Boolean>> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    incomingSharingRules.clear();
-                    incomingSharingRules.putAll(response.body());
-                    Log.d(TAG, "✅ Incoming 규칙 로드 성공. 로드된 규칙 수: " + incomingSharingRules.size());
-                    Log.d(TAG, "Debugging Rules: Incoming rule for ID 17 (xxx) is " + incomingSharingRules.get(17L));
-                } else {
-                    Log.e(TAG, "❌ Incoming 규칙 로드 실패. 응답 코드: " + response.code());
-                    Toast.makeText(MapsActivity.this, "위치 공유 규칙 로드 실패. 모든 멤버 위치 표시 시도.", Toast.LENGTH_SHORT).show();
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                Log.d(TAG, "onDataChange: 위치 데이터 변경 감지. 총 멤버 위치 개수: " + snapshot.getChildrenCount());
+
+                // ⭐️ [수정]: 여기서 필터링은 Incoming Rule만 확인합니다. 최종 필터링은 reapplyRulesAndRefreshMarkers에서 처리합니다.
+                //        캐시 저장 후 reapplyRulesAndRefreshMarkers를 호출하여 상호 허용을 확인합니다.
+                Map<String, LocationResponse> tempCache = new HashMap<>();
+
+                for (DataSnapshot memberSnapshot : snapshot.getChildren()) {
+                    String username = memberSnapshot.getKey();
+                    if (username != null && username.equals(loggedInUsername)) continue;
+
+                    LocationResponse locationData = memberSnapshot.getValue(LocationResponse.class);
+
+                    if (locationData != null && locationData.getLatitude() != null && locationData.getLongitude() != null) {
+                        locationData.setUserName(username);
+                        tempCache.put(username, locationData);
+                    }
                 }
+
+                memberLocationsCache.clear();
+                memberLocationsCache.putAll(tempCache);
+
+                // ⭐️ 위치 데이터 갱신 시, 규칙 필터링을 다시 적용
+                reapplyRulesAndRefreshMarkers();
             }
 
             @Override
-            public void onFailure(@NonNull Call<Map<Long, Boolean>> call, @NonNull Throwable t) {
-                Log.e(TAG, "❌ Incoming 규칙 로드 네트워크 오류", t);
-                Toast.makeText(MapsActivity.this, "위치 공유 규칙 로드 네트워크 오류.", Toast.LENGTH_SHORT).show();
+            public void onCancelled(@NonNull DatabaseError error) {
+                Log.e(TAG, "onCancelled: Firebase 리스너 취소 오류 (🚨보안 규칙 확인 요망)", error.toException());
             }
-        });
+        };
+        groupPathRef.addValueEventListener(memberLocationListener);
     }
-
 
     private void updateMyLocation(Location location) {
         if (currentGroupId == -1L || location == null || loggedInUsername == null || loggedInUserId == -1L) {
-            // 🎯 로그 추가: 위치 업데이트 중단 사유
             Log.e(TAG, "updateMyLocation: 위치 업데이트 중단. GroupID=" + currentGroupId + ", Username=" + loggedInUsername + " (유효하지 않음)");
             return;
         }
@@ -502,142 +763,39 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             locationData.put("timestamp", System.currentTimeMillis());
             locationData.put("userId", loggedInUserId);
 
-            // 🎯 로그 추가: Firebase에 쓰기 시작
-            Log.d(TAG, "updateMyLocation: Firebase 쓰기 시도. Path=" + firebasePath + ", Lat=" + latitude);
+            // 🎯 [수정]: Firebase에 위치 데이터 쓰기
+            firebaseDatabase.child(firebasePath).setValue(locationData);
 
+            Log.d(TAG, "updateMyLocation: Firebase 쓰기 완료. Path=" + firebasePath + ", Lat=" + latitude);
         }
     }
 
-    private void startFirebaseLocationListener() {
-        if (currentGroupId == -1L || naverMap == null) {
-            Log.e(TAG, "startFirebaseLocationListener: 리스너 시작 중단. GroupID가 유효하지 않거나 Map이 준비되지 않았습니다.");
-            return;
-        }
-
-        DatabaseReference groupPathRef = firebaseDatabase.child(String.valueOf(currentGroupId));
-        if (memberLocationListener != null) {
-            groupPathRef.removeEventListener(memberLocationListener);
-            Log.d(TAG, "startFirebaseLocationListener: 기존 리스너 제거 완료.");
-        }
-
-        // 🎯 로그 추가: 리스너 등록
-        Log.d(TAG, "startFirebaseLocationListener: Firebase 그룹 위치 리스너 등록 시작. GroupPath=" + groupPathRef.toString());
-
-        memberLocationListener = new ValueEventListener() {
-            @Override
-            public void onDataChange(@NonNull DataSnapshot snapshot) {
-                // 🎯 로그 추가: 데이터 변경 수신
-                Log.d(TAG, "onDataChange: 데이터 변경 감지. 총 멤버 위치 개수: " + snapshot.getChildrenCount());
-
-                // ⭐️ [수정] 모든 수신 위치를 저장할 임시 목록 (필터링되지 않음)
-                List<LocationResponse> rawLocations = new ArrayList<>();
-                // ⭐️ [변경] 규칙을 통과한 데이터만 담는 목록
-                List<LocationResponse> filteredLocations = new ArrayList<>();
-
-                for (DataSnapshot memberSnapshot : snapshot.getChildren()) {
-                    String username = memberSnapshot.getKey();
-
-                    // 1. 자기 자신의 위치는 마커 업데이트 목록에서 제외
-                    if (username != null && username.equals(loggedInUsername)) continue;
-
-                    LocationResponse locationData = memberSnapshot.getValue(LocationResponse.class);
-
-                    if (locationData != null) {
-                        // Firebase Realtime DB는 username을 Key로 사용하므로, DTO에 수동 설정
-                        locationData.setUserName(username);
-
-                        // 유효성 검사 (latitude와 longitude는 필수)
-                        if (locationData.getLatitude() != null && locationData.getLongitude() != null) {
-
-                            // ⭐️ [추가]: 필터링 여부와 관계없이 일단 모든 유효한 위치 데이터를 rawLocations에 추가합니다.
-                            rawLocations.add(locationData);
-
-                            Long sharerId = locationData.getUserId();
-                            boolean isAllowed = false;
-
-                            // ⭐ [디버그 및 필터링 로직 시작]
-                            if (sharerId != null && sharerId != -1L) {
-                                isAllowed = incomingSharingRules.getOrDefault(sharerId, false);
-
-                                // 💡 핵심 디버깅 로그: 필터링 결정 이유를 확인합니다.
-                                Log.d(TAG, "DEBUG_FILTER_RULE: Sharer ID " + sharerId + " (" + username + ")" +
-                                        " | isAllowed=" + isAllowed +
-                                        " | Rule in Map: " + (incomingSharingRules.containsKey(sharerId) ? incomingSharingRules.get(sharerId) : "NOT_IN_MAP(false)") );
-
-                                if (!isAllowed) {
-                                    Log.d(TAG, "Filtering: Sharer ID " + sharerId + " (" + username + ")의 위치는 수신 규칙에 따라 표시되지 않습니다. (차단)");
-                                    continue; // 마커 업데이트 건너뛰기
-                                }
-                            } else {
-                                Log.w(TAG, "Filtering Skip: Sharer ID가 없어 필터링을 건너뜀 (" + username + ")");
-                                // ID가 없는 경우에도 마커를 표시하지 않으려면 여기에도 continue; 를 추가해야 합니다.
-                            }
-                            // ⭐ [디버그 및 필터링 로직 끝]
-
-                            // ⭐️ [수정]: 필터링 통과 시 filteredLocations에 추가합니다.
-                            filteredLocations.add(locationData);
-
-                            // ⭐ 로그 수정: userId 정보가 포함되었는지 확인
-                            Log.d(TAG, "onDataChange: 수신된 멤버 위치 -> " + username +
-                                    " at (" + locationData.getLatitude() + ", " + locationData.getLongitude() + ")" +
-                                    " / ID: " + locationData.getUserId());
-                        }
-                    }
-                }
-
-                // ⭐️ [필수 추가]: rawLocations를 클래스 필드에 저장합니다. (reapplyRulesAndRefreshMarkers에서 사용)
-                currentMemberLocations = rawLocations;
-
-                // ⭐️ [수정]: 필터링된 목록을 updateMemberMarkers에 전달합니다.
-                updateMemberMarkers(filteredLocations);
-            }
-
-            @Override
-            public void onCancelled(@NonNull DatabaseError error) {
-                // 🎯 로그 추가: 리스너 취소 오류 (보안 규칙 문제일 가능성 높음)
-                Log.e(TAG, "onCancelled: Firebase 리스너 취소 오류 (🚨보안 규칙 확인 요망)", error.toException());
-            }
-        };
-        groupPathRef.addValueEventListener(memberLocationListener);
-    }
-
+    /**
+     * 서버에서 프로필 URL을 가져와 지도에 팀원 마커를 업데이트하고, 상호 허용 조건을 반영합니다.
+     */
     private void updateMemberMarkers(List<LocationResponse> locations) {
         if (naverMap == null) return;
 
-        // 🎯 로그 추가: 마커 업데이트 시작
         Log.d(TAG, "updateMemberMarkers: 지도 마커 업데이트 시작. 새 위치 개수: " + locations.size());
 
         List<String> updatedUsernames = new ArrayList<>();
+
+        // 1. 표시할 마커 목록을 순회합니다.
         for (LocationResponse location : locations) {
             if (!Double.isFinite(location.getLatitude()) || !Double.isFinite(location.getLongitude())) continue;
 
             String username = location.getUserName();
-            Long sharerId = location.getUserId();
+            Long userId = location.getUserId(); // 위치 정보에서 userId 획득
 
-            // -----------------------------------------------------------------------------------
-            // ⭐️ [핵심 필터링 로직]
-            // -----------------------------------------------------------------------------------
-            boolean isAllowed = false;
-            if (sharerId != null && sharerId != -1L) {
-                // isAllowed의 기본값을 'false'(차단)로 설정합니다.
-                isAllowed = incomingSharingRules.getOrDefault(sharerId, false);
-
-                if (!isAllowed) {
-                    // ❌ [수정]: 마커 제거 로직을 이 위치에서 제거합니다.
-                    // 최종 정리 단계에서 모든 제거를 일괄 처리합니다.
-                    Log.d(TAG, "Filtering: Sharer ID " + sharerId + " (" + username + ")의 위치는 수신 규칙에 따라 표시되지 않습니다. (차단)");
-                    continue; // 마커 업데이트 건너뛰기
-                }
-            } else {
-                // sharerId가 없으면 필터링 불가 (서버 수정이 필요합니다). 임시로 계속 표시합니다.
-                Log.w(TAG, "Filtering Skip: Sharer ID가 없으므로 (" + username + ")의 위치는 규칙 확인 없이 표시됩니다. (서버 수정이 완료되면 해결됨)");
+            if (userId == null || userId == -1L) {
+                Log.w(TAG, "updateMemberMarkers: UserID가 없어 이미지 로드 건너뜀 -> " + username);
+                continue;
             }
 
-            // 필터링 통과 (또는 필터링 생략)
             updatedUsernames.add(username);
             LatLng memberPosition = new LatLng(location.getLatitude(), location.getLongitude());
 
-            // 마커 추가/업데이트 로직 (기존과 동일)
+            // 2. 마커 추가/업데이트 로직
             Marker marker = memberMarkers.get(username);
             if (marker == null) {
                 marker = new Marker();
@@ -645,14 +803,18 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 memberMarkers.put(username, marker);
                 Log.d(TAG, "updateMemberMarkers: 새 멤버 마커 추가 -> " + username);
             }
+
+            // 3. 위치 업데이트 및 지도에 표시
             marker.setPosition(memberPosition);
             marker.setMap(naverMap);
+
+            // 4. ⭐ [최종 수정] 람다 내에서 사용되는 marker는 final 또는 effectively final 이어야 하므로,
+            //    fetchAndApplyMemberProfile 호출 시 final을 명시한 marker를 전달하여 문제를 해결합니다.
+            fetchAndApplyMemberProfile(userId, marker);
         }
 
-        // -----------------------------------------------------------------------------------
-        // ⭐️ [최종 정리 로직 수정]: 지도에 남아있는 마커를 확실하게 제거
-        // -----------------------------------------------------------------------------------
-        // updatedUsernames에 없는 모든 마커(차단된 멤버, 위치가 끊긴 멤버)는 지도에서 제거해야 합니다.
+        // 5. 지도에서 마커 제거 (상호 허용 조건에 미달하여 목록에 없는 마커)
+        boolean markerRemoved = false;
         Iterator<Map.Entry<String, Marker>> iterator = memberMarkers.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, Marker> entry = iterator.next();
@@ -660,10 +822,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             // updatedUsernames에 포함되지 않은 마커는 제거 대상입니다.
             if (!updatedUsernames.contains(username)) {
-                entry.getValue().setMap(null); // 지도에서 마커 제거
-                iterator.remove();             // 맵에서 해당 엔트리 제거
-                Log.d(TAG, "updateMemberMarkers: 최종 정리 마커 제거 -> Name: " + username);
+                entry.getValue().setMap(null); // 지도에서 마커 즉시 제거
+                Log.d(TAG, "updateMemberMarkers: 마커 UI 제거 완료 -> Name: " + username);
+                iterator.remove();             // 내부 맵(memberMarkers)에서 해당 엔트리 제거
+                Log.d(TAG, "updateMemberMarkers: 최종 정리 맵에서 제거 -> Name: " + username);
+                markerRemoved = true;
             }
+        }
+
+        // 6. 강제 갱신
+        if (naverMap != null && markerRemoved) {
+            CameraUpdate cameraUpdate = CameraUpdate.scrollTo(naverMap.getCameraPosition().target);
+            naverMap.moveCamera(cameraUpdate);
+            Log.d(TAG, "updateMemberMarkers: 마커 제거 완료 후 지도 뷰 강제 갱신 시도 완료.");
         }
     }
 
@@ -730,7 +901,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     //==============================================================================================
-    // 5. UI Features (Menus, Search, Weather - 수정 없음)
+    // 5. UI Features (Menus, Search, Weather, Profile)
     //==============================================================================================
 
     private void toggleSubMenu() {
@@ -790,12 +961,60 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
+
+    // --- ⭐️ [수정] 프로필 사진 로직 시작 ---
+
+    /**
+     * 갤러리 결과 처리를 위한 런처 초기화
+     * onCreate에서 호출되어야 합니다.
+     */
+    private void initializeGalleryLauncher() {
+        galleryLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                        Uri selectedImageUri = result.getData().getData();
+                        if (selectedImageUri != null) {
+
+                            // 1. 이미지뷰에 즉시 반영 (선택된 URI를 직접 로드하며, 업로드 성공 후 캐시를 무시하고 다시 로드할 것임)
+                            Glide.with(this)
+                                    .load(selectedImageUri) // ⭐ 수정: selectedImageUri를 직접 로드
+                                    .placeholder(R.drawable.ic_person)
+                                    .error(R.drawable.ic_person)
+                                    .into(ivProfile);
+
+                            // 2. 선택한 이미지를 서버에 업로드
+                            uploadImageToServer(selectedImageUri);
+                        }
+                    }
+                }
+        );
+    }
+
+    /**
+     * 사이드바 헤더(마이페이지)의 UI를 바인딩하고 프로필 클릭 리스너를 설정합니다.
+     * [수정됨]
+     */
     private void bindMyPageHeader() {
         TextView tvUsername = findViewById(R.id.tv_username);
         TextView tvEmail = findViewById(R.id.tv_email);
-        if (tvUsername != null) tvUsername.setText(loggedInUsername != null ? loggedInUsername : "Guest");
-        if (tvEmail != null) tvEmail.setText(getSharedPreferences("user_info", MODE_PRIVATE).getString("email", ""));
+        ivProfile = findViewById(R.id.iv_profile); // 👈 멤버 변수로 할당
 
+        if (tvUsername != null) tvUsername.setText(loggedInUsername != null ? loggedInUsername : "Guest");
+        // ⭐ [로그 추가] 이메일 로드 상태 확인
+        String email = getSharedPreferences("user_info", MODE_PRIVATE).getString("email", "");
+        Log.d(TAG, "bindMyPageHeader: Loaded Email: " + email);
+        if (tvEmail != null) tvEmail.setText(email);
+
+        // ⭐️ [추가] 저장된 프로필 이미지 로드
+        loadProfileImage();
+
+        // ⭐️ [추가] 프로필 이미지 클릭 리스너
+        ivProfile.setOnClickListener(v -> {
+            showProfileImageOptions();
+        });
+
+        // 로그아웃 버튼 리스너
         findViewById(R.id.btn_logout).setOnClickListener(v -> {
             new TokenManager(this).deleteToken();
             Intent intent = new Intent(this, LoginActivity.class);
@@ -804,6 +1023,263 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             finish();
         });
     }
+
+    /**
+     * 프로필 이미지 옵션 다이얼로그 (기본값 설정 / 사진 선택)
+     * [새로 추가]
+     */
+    private void showProfileImageOptions() {
+        // (권한 확인 로직은 여기에 추가하는 것이 좋습니다)
+        // checkGalleryPermission();
+
+        final CharSequence[] options = {"기본 프로필로 설정", "사진 선택", "취소"};
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(MapsActivity.this);
+        builder.setTitle("프로필 사진 변경");
+
+        builder.setItems(options, (dialog, item) -> {
+            if (options[item].equals("기본 프로필로 설정")) {
+                // 1. 기본값 설정 API 호출
+                setProfileToDefault();
+            } else if (options[item].equals("사진 선택")) {
+                // 2. 갤러리 열기
+                // (권한이 이미 확인되었다고 가정)
+                Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+                galleryLauncher.launch(intent);
+            } else if (options[item].equals("취소")) {
+                // 3. 취소
+                dialog.dismiss();
+            }
+        });
+        builder.show();
+    }
+
+    /**
+     * SharedPreferences에서 프로필 이미지 URL을 로드하여 Glide로 표시
+     * [수정됨 - loadTarget 선언 위치 수정]
+     */
+    private void loadProfileImage() {
+        SharedPreferences prefs = getSharedPreferences("user_info", MODE_PRIVATE);
+        String imageUrl = prefs.getString("profileImageUrl", null);
+
+        // ⭐ [로그 추가] 로드된 URL 확인
+        Log.d(TAG, "loadProfileImage: Loaded URL from Prefs: " + (imageUrl != null ? imageUrl : "null"));
+
+        // ❌ [삭제] 여기에서 Object loadTarget = null; 을 제거하세요!
+        // Object loadTarget = null; // <-- 이 줄을 제거하세요!
+
+        // ivProfile 변수 참조가 이미 되어 있다고 가정하고, 여기서 설정
+        if (ivProfile == null) {
+            ivProfile = findViewById(R.id.iv_profile);
+        }
+
+        if (imageUrl != null && !imageUrl.isEmpty()) {
+
+            // ✅ [추가] loadTarget 선언을 이 블록 안으로 옮깁니다.
+            Object loadTarget = null;
+
+            // 1. 이미지 경로가 로컬 콘텐츠(갤러리) Uri인지 확인
+            if (imageUrl.startsWith("content://")) {
+                loadTarget = Uri.parse(imageUrl);
+            }
+            // 2. 이미지 경로가 이미 전체 웹 URL인지 확인
+            else if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+                loadTarget = imageUrl;
+            }
+            // 3. 그 외 (예: "/static/...")는 서버의 상대 경로로 간주
+            else {
+                // ⭐ [잠재적 오류 수정] 안전한 URL 조합을 위해 ApiClient.getBaseUrl()이 슬래시로 끝나지 않도록 처리
+                String baseUrl = ApiClient.getBaseUrl();
+                if (baseUrl.endsWith("/")) {
+                    baseUrl = baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+                }
+                loadTarget = baseUrl + imageUrl;
+            }
+
+            // ⭐ [로그 추가] 최종 로드 대상 확인 (수정된 위치에서 확인)
+            if (loadTarget != null) {
+                Log.d(TAG, "loadProfileImage: Final Load Target: " + loadTarget.toString());
+            } else {
+                Log.d(TAG, "loadProfileImage: Final Load Target: Load target is null.");
+            }
+
+            // ⭐️ 수정된 load(): 올바른 loadTarget을 사용
+            Glide.with(this)
+                    .load(loadTarget)
+                    .diskCacheStrategy(DiskCacheStrategy.NONE)
+                    .skipMemoryCache(true)
+                    .placeholder(R.drawable.ic_person) // 로딩 중
+                    .error(R.drawable.ic_person) // 오류 시
+                    .into(ivProfile);
+
+        } else {
+            // 4. 저장된 이미지가 없으면 기본 아이콘 표시
+            ivProfile.setImageResource(R.drawable.ic_person); // <-- 이 부분이 기본 이미지를 설정합니다.
+        }
+
+        // ⭐ [추가] 마커 아이콘 업데이트 호출 (URL이 null일 경우 기본 아이콘 적용됨)
+        updateMyLocationMarkerIcon(imageUrl);
+    }
+
+    /**
+     * (API 호출) 기본 프로필로 설정을 서버에 요청
+     * [⭐️ 디버깅 토스트 추가 버전]
+     */
+    private void setProfileToDefault() {
+        // ⭐ [수정] UserApiService -> UserApi
+        UserApi apiService = ApiClient.getRetrofit(this).create(UserApi.class); // ⭐ [수정] 명시적 createService 호출
+
+        apiService.setDefaultProfileImage().enqueue(new Callback<Map<String, Object>>() {
+            // MapsActivity.java (setProfileToDefault 내의 onResponse)
+
+            @Override
+            public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
+                // 🔽 [수정] 성공/실패 로직 강화
+                Log.d(TAG, "Default Profile Response Code: " + response.code());
+                if (response.isSuccessful() && response.body() != null) {
+
+                    // ⭐ [추가] 성공 로그
+                    Log.d(TAG, "Default Profile Set SUCCESS. Code: " + response.code());
+
+                    Toast.makeText(MapsActivity.this, "기본 프로필로 변경되었습니다.", Toast.LENGTH_SHORT).show();
+
+                    // SharedPreferences에서 URL 제거
+                    getSharedPreferences("user_info", MODE_PRIVATE).edit()
+                            .remove("profileImageUrl").apply();
+
+                    // 이미지뷰를 기본값으로 즉시 변경
+                    ivProfile.setImageResource(R.drawable.ic_person);
+
+                    // ⭐ [추가] 마커 아이콘 업데이트 호출 (null을 전달하여 기본 아이콘 적용)
+                    updateMyLocationMarkerIcon(null);
+
+                } else {
+                    // ⭐ [수정] 실패 로그
+                    String errorMsg = "변경 실패. 응답 코드: " + response.code();
+                    if (response.errorBody() != null) {
+                        try {
+                            errorMsg += ", 메시지: " + response.errorBody().string();
+                        } catch (Exception e) {}
+                    }
+
+                    Log.e(TAG, "Default Profile Set FAILED: " + errorMsg);
+                    Toast.makeText(MapsActivity.this, errorMsg, Toast.LENGTH_LONG).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Map<String, Object>> call, Throwable t) {
+                // ⭐️ [추가] 네트워크 실패 시 자세한 오류 메시지 표시
+                Toast.makeText(MapsActivity.this, "네트워크 오류: " + t.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    /**
+     * (API 호출) 선택한 이미지를 서버로 업로드
+     * [수정됨]
+     */
+    // MapsActivity.java (uploadImageToServer 메서드)
+
+    private void uploadImageToServer(Uri imageUri) {
+        File file = createCacheFileFromUri(imageUri);
+        if (file == null) {
+            Toast.makeText(this, "파일을 변환하는 데 실패했습니다.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // 1. RequestBody 생성 (이미지의 MIME 타입 사용)
+        RequestBody requestFile = RequestBody.create(MediaType.parse(getContentResolver().getType(imageUri)), file);
+        // 2. MultipartBody.Part 생성 (백엔드 @RequestParam("image")와 "image" 키 일치)
+        MultipartBody.Part body = MultipartBody.Part.createFormData("image", file.getName(), requestFile);
+
+        // ⭐ [수정] UserApiService -> UserApi
+        UserApi apiService = ApiClient.getRetrofit(this).create(UserApi.class);
+
+        apiService.uploadProfileImage(body).enqueue(new Callback<Map<String, Object>>() {
+            @Override
+            public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
+
+                // ⭐ [추가/수정]: 서버 응답 코드와 메시지 로그
+                Log.d(TAG, "Upload Response Code: " + response.code());
+
+                if (response.isSuccessful() && response.body() != null) {
+
+                    // ⭐ [가장 중요한 로그 추가]: 서버 응답 전체를 로그로 출력 (JSON 키 확인용)
+                    Log.d(TAG, "Upload SUCCESS Response Body: " + response.body().toString());
+
+                    // 서버 응답에서 'profileImageUrl' 키의 값을 가져옴
+                    Object imageUrlObj = response.body().get("profileImageUrl");
+                    String newImageUrl = null;
+
+                    if (imageUrlObj instanceof String) {
+                        newImageUrl = (String) imageUrlObj;
+                    } else if (imageUrlObj != null) {
+                        newImageUrl = String.valueOf(imageUrlObj); // 다른 타입일 경우 문자열로 변환 시도
+                    }
+
+                    // ⭐ [수정]: URL 유효성 검사를 강화
+                    if (newImageUrl != null && !newImageUrl.trim().isEmpty()) {
+                        Toast.makeText(MapsActivity.this, "프로필이 변경되었습니다.", Toast.LENGTH_SHORT).show();
+
+                        // ⭐️ [핵심 수정 시작]: SharedPreferences에 저장된 다른 값(이름, 이메일)을 유지합니다.
+                        SharedPreferences prefs = getSharedPreferences("user_info", MODE_PRIVATE);
+                        SharedPreferences.Editor editor = prefs.edit();
+
+                        // 기존 값 백업 및 새 URL 저장 (혹시 모를 덮어쓰기 방지)
+                        editor.putString("profileImageUrl", newImageUrl);
+                        editor.apply();
+                        // ⭐️ [핵심 수정 끝]
+
+                        // ⭐ [수정]: loadProfileImage()를 호출하여 ImageView와 마커 모두 업데이트
+                        loadProfileImage();
+
+                    } else {
+                        // ⭐ [수정]: URL이 누락된 경우 명확한 오류 로그 출력
+                        Log.e(TAG, "업로드 성공 (HTTP 200) 했으나 'profileImageUrl' 필드 누락 또는 비어있음. 서버 응답 JSON 확인 요망.");
+                        Toast.makeText(MapsActivity.this, "프로필 변경 성공, URL 처리 오류 (서버 응답 확인).", Toast.LENGTH_LONG).show();
+                        loadProfileImage(); // 원래 이미지로 복원 (또는 기본 이미지)
+                    }
+                } else {
+                    // ⭐ [수정]: HTTP 오류 발생 시 로그 출력
+                    Log.e(TAG, "업로드 실패. HTTP 오류 코드: " + response.code() + ", 메시지: " + response.message());
+                    Toast.makeText(MapsActivity.this, "업로드에 실패했습니다. (HTTP " + response.code() + ")", Toast.LENGTH_LONG).show();
+                    loadProfileImage();
+                }
+            }
+            @Override
+            public void onFailure(Call<Map<String, Object>> call, Throwable t) {
+                Log.e(TAG, "네트워크 오류", t);
+                Toast.makeText(MapsActivity.this, "네트워크 오류: " + t.getMessage(), Toast.LENGTH_LONG).show();
+                loadProfileImage(); // 실패 시 원래 이미지로 복원
+            }
+        });
+    }
+
+    /**
+     * Uri를 임시 캐시 파일(File) 객체로 변환 (업로드용)
+     * [새로 추가]
+     */
+    private File createCacheFileFromUri(Uri uri) {
+        try (InputStream inputStream = getContentResolver().openInputStream(uri)) {
+            // (파일 이름은 고유하게 만드는 것이 좋습니다. 예: "profile_cache.jpg")
+            File tempFile = new File(getCacheDir(), "temp_profile_image.jpg");
+            try (FileOutputStream outputStream = new FileOutputStream(tempFile)) {
+                byte[] buffer = new byte[1024];
+                int bytesRead;
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, bytesRead);
+                }
+            }
+            return tempFile;
+        } catch (Exception e) {
+            Log.e("FileUtil", "Failed to create cache file from Uri", e);
+            return null;
+        }
+    }
+
+    // --- ⭐️ [수정] 프로필 사진 로직 끝 ---
+
 
     private void performSearch() {
         String query = etSearch.getText().toString().trim();
@@ -815,6 +1291,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         searchPlacesWithNaverAPI(query);
     }
 
+    // ⭐️ [1. 수정] searchPlacesWithNaverAPI 메서드를 아래 코드로 덮어쓰기
+    // (이미지 검색 API 호출 로직 추가됨)
     private void searchPlacesWithNaverAPI(String query) {
         executor.execute(() -> {
             try {
@@ -830,8 +1308,26 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     StringBuilder response = new StringBuilder();
                     String line;
                     while ((line = reader.readLine()) != null) response.append(line);
+                    reader.close(); // 리소스 닫기
 
+                    // 1. 지역 검색 결과를 파싱합니다. (이때 imageUrl 필드는 비어있음)
+                    //    (description은 parseNaverSearchResults에서 파싱됨)
                     List<SearchResult> results = parseNaverSearchResults(new JSONObject(response.toString()));
+
+                    // ✨✨✨ [핵심 수정] ✨✨✨
+                    // 지역 검색 결과(results)를 순회하며 각각의 이미지 URL을 가져옵니다.
+                    for (SearchResult result : results) {
+
+                        // 2. 장소 이름(title)으로 이미지 검색 API(헬퍼 메서드)를 호출합니다.
+                        String imageUrl = fetchFirstImageUrl(result.getTitle());
+
+                        // 3. SearchResult 객체에 이미지 URL을 설정합니다. (Setter가 있으므로 OK)
+                        result.setImageUrl(imageUrl);
+                    }
+                    // ✨✨✨ [수정 완료] ✨✨✨
+
+
+                    // 4. 이미지 URL까지 모두 채워진 results를 UI 스레드로 전달합니다.
                     handler.post(() -> {
                         if (results.isEmpty()) Toast.makeText(this, "검색 결과가 없습니다.", Toast.LENGTH_SHORT).show();
                         else showSearchResults(results);
@@ -846,6 +1342,45 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
     }
 
+    // ⭐️ [2. 새로 추가] 장소 이름으로 첫 번째 이미지 썸네일 URL을 가져오는 헬퍼 메서드
+    // (이 메서드는 반드시 백그라운드 스레드에서 호출되어야 합니다)
+    private String fetchFirstImageUrl(String query) {
+        try {
+            // 이미지 검색 API는 검색어가 너무 길면(주소 포함 등) 검색이 안될 수 있으므로,
+            // 간단한 이름만 사용하도록 앞의 일부만 잘라낼 수 있습니다. (선택 사항)
+            String simpleQuery = query.split(" ")[0].replaceAll("<[^>]*>", ""); // HTML 태그도 제거
+
+            String encodedQuery = java.net.URLEncoder.encode(simpleQuery, "UTF-8");
+
+            // ⭐️ 이미지 검색 API (image.json) 호출, display=1 (1개만)
+            URL url = new URL("https://openapi.naver.com/v1/search/image?query=" + encodedQuery + "&display=1&sort=sim");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("X-Naver-Client-Id", NAVER_CLIENT_ID);
+            conn.setRequestProperty("X-Naver-Client-Secret", NAVER_CLIENT_SECRET);
+
+            if (conn.getResponseCode() == 200) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                StringBuilder response = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) response.append(line);
+                reader.close(); // 리소스 닫기
+
+                JSONObject json = new JSONObject(response.toString());
+                JSONArray items = json.getJSONArray("items");
+                if (items.length() > 0) {
+                    // ⭐️ 썸네일(thumbnail) URL 반환
+                    return items.getJSONObject(0).optString("thumbnail", "");
+                }
+            }
+            return ""; // API 오류 또는 검색 결과 없음
+        } catch (Exception e) {
+            Log.e("ImageSearchAPI", "Failed to fetch image for: " + query, e);
+            return ""; // 예외 발생 시 빈 문자열 반환
+        }
+    }
+
+    // ⭐️ [3. 수정] parseNaverSearchResults 메서드를 생성자에 맞게 수정
     private List<SearchResult> parseNaverSearchResults(JSONObject json) throws Exception {
         List<SearchResult> results = new ArrayList<>();
         JSONArray items = json.getJSONArray("items");
@@ -855,11 +1390,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             String address = item.optString("roadAddress", item.optString("address", ""));
             String category = item.optString("category", "정보 없음");
 
+            // ✨ [수정] description을 파싱합니다.
+            String description = item.optString("description", "");
+            // (link는 SearchResult 모델에 없으므로 파싱하지 않습니다.)
+
             // Correct coordinate parsing from Code 1
             double longitude = item.getDouble("mapx") / 1e7;
             double latitude = item.getDouble("mapy") / 1e7;
 
-            results.add(new SearchResult(title, address, category, latitude, longitude, "", ""));
+            // ✨ [수정] 생성자에 (description, "")을 전달합니다. (imageUrl은 나중에 채워짐)
+            results.add(new SearchResult(title, address, category, latitude, longitude, description, ""));
         }
         return results;
     }
@@ -935,13 +1475,18 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
 
     //==============================================================================================
-    // 6. Permissions & Utilities (수정 없음)
+    // 6. Permissions & Utilities
     //==============================================================================================
 
     private void checkLocationPermission() {
+        // (권한 요청 시 갤러리 권한도 함께 요청하는 것을 고려할 수 있습니다)
+        // 예: String[] permissions = { Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.READ_MEDIA_IMAGES };
+
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
         }
+
+        // (TODO: 갤러리 권한 확인 및 요청 로직 추가)
     }
 
     @Override
@@ -950,6 +1495,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (locationSource.onRequestPermissionsResult(requestCode, permissions, grantResults)) {
             if (naverMap != null) naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
         }
+        // (TODO: 갤러리 권한 요청 결과 처리)
     }
 
     private void moveToCurrentLocation() {
@@ -960,50 +1506,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
-    private void showMapTypeMenu(View anchor) {
-        PopupMenu popup = new PopupMenu(this, anchor);
-        popup.getMenuInflater().inflate(R.menu.map_type_menu, popup.getMenu());
-        popup.setOnMenuItemClickListener(item -> {
-            int id = item.getItemId();
-            if (id == R.id.map_type_normal) naverMap.setMapType(NaverMap.MapType.Basic);
-            else if (id == R.id.map_type_satellite) naverMap.setMapType(NaverMap.MapType.Satellite);
-            else if (id == R.id.map_type_terrain) naverMap.setMapType(NaverMap.MapType.Terrain);
-            return true;
-        });
-        popup.show();
-    }
 
-    private void startRulesVersionListener() {
-        if (currentGroupId == -1L) return;
-
-        // 규칙 버전 참조 설정: group_rules_version/{groupId}
-        rulesVersionRef = FirebaseDatabase.getInstance()
-                .getReference("group_rules_version")
-                .child(String.valueOf(currentGroupId));
-
-        // 기존 리스너 제거 (중복 방지)
-        if (rulesVersionListener != null) {
-            rulesVersionRef.removeEventListener(rulesVersionListener);
-        }
-
-        rulesVersionListener = new ValueEventListener() {
-            @Override
-            public void onDataChange(@NonNull DataSnapshot snapshot) {
-                // 규칙 버전이 변경되었을 때 (다른 멤버가 설정을 저장 시)
-                Log.d(TAG, "Rules Version Change Detected for Group " + currentGroupId + ". Reloading incoming sharing rules.");
-                // 모든 디바이스에서 이 코드가 실행되며 규칙을 서버에서 다시 가져옵니다.
-                fetchIncomingSharingRules();
-            }
-
-            @Override
-            public void onCancelled(@NonNull DatabaseError error) {
-                Log.e(TAG, "Rules Version Listener Cancelled", error.toException());
-            }
-        };
-        // 리스너 등록
-        rulesVersionRef.addValueEventListener(rulesVersionListener);
-        Log.d(TAG, "startRulesVersionListener: 규칙 버전 리스너 등록 완료. Group ID: " + currentGroupId);
-    }
 
     private float dpToPx(float dp) {
         return dp * getResources().getDisplayMetrics().density;
@@ -1015,10 +1518,32 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (view != null) imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
     }
 
+    /**
+     * SharedPreferences에 저장된 맵 타입 설정을 NaverMap에 적용합니다.
+     * [수정됨]
+     */
     private void applyMapTypeSetting() {
+        // 1. "app_settings" 파일 열기
         SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
-        boolean isSatellite = prefs.getBoolean("satellite_mode", false);
-        if (naverMap != null) naverMap.setMapType(isSatellite ? NaverMap.MapType.Satellite : NaverMap.MapType.Basic);
+
+        // 2. SettingsActivity가 저장한 "map_type" (Int) 값을 읽어옵니다.
+        //    (기본값은 일반 지도)
+        int mapTypeOrdinal = prefs.getInt("map_type", NaverMap.MapType.Basic.ordinal());
+
+        // 3. 읽어온 숫자(ordinal)를 실제 NaverMap.MapType 객체로 변환합니다.
+        NaverMap.MapType mapType;
+        try {
+            // NaverMap.MapType.values()는 [Basic, Nav, Satellite, Hybrid, Terrain] 배열을 반환
+            mapType = NaverMap.MapType.values()[mapTypeOrdinal];
+        } catch (Exception e) {
+            // 혹시 저장된 숫자가 배열 범위를 벗어날 경우 기본값으로
+            mapType = NaverMap.MapType.Basic;
+        }
+
+        // 4. 지도에 적용
+        if (naverMap != null) {
+            naverMap.setMapType(mapType);
+        }
     }
 
     //==============================================================================================
@@ -1032,20 +1557,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     protected void onResume() {
         super.onResume();
         mapView.onResume();
-        applyMapTypeSetting();
+        applyMapTypeSetting(); // 👈 맵 설정 적용
 
         if (currentGroupId != -1L) {
             Log.d(TAG, "onResume: 유효한 그룹 ID(" + currentGroupId + ")가 있어 위치 공유 재시작.");
 
-            if (rulesNeedReload) {
-                Log.d(TAG, "onResume: 공유 설정 변경 감지. Incoming 규칙 강제 재로드 시작.");
-                fetchIncomingSharingRules();
-                rulesNeedReload = false;
-            }
-
+            // ⭐️ [수정] startLocationSharing에 모든 초기화 로직이 포함됨
             startLocationSharing();
-            // ⭐ [변경] onResume 시 규칙 버전 리스너 시작 (실시간 동기화)
-            startRulesVersionListener();
+
+            startMapRefreshTimer();
 
         } else {
             Log.d(TAG, "onResume: 그룹 ID가 없어 위치 공유를 시작하지 않음.");
@@ -1065,16 +1585,25 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             animationHandler = null;
         }
 
+        stopMapRefreshTimer();
         if (currentGroupId != -1L) {
             if (memberLocationListener != null) {
                 firebaseDatabase.child(String.valueOf(currentGroupId)).removeEventListener(memberLocationListener);
                 Log.d(TAG, "onPause: Firebase 위치 리스너 제거 완료.");
             }
-            // ⭐ [변경] 규칙 버전 리스너 제거
-            if (rulesVersionRef != null && rulesVersionListener != null) {
-                rulesVersionRef.removeEventListener(rulesVersionListener);
-                Log.d(TAG, "onPause: Firebase 규칙 버전 리스너 제거 완료.");
+            // ⭐️ [수정] Firebase 규칙 리스너 제거
+            if (rulesRef != null && rulesListener != null) {
+                rulesRef.removeEventListener(rulesListener);
+                Log.d(TAG, "onPause: Firebase 규칙 리스너 제거 완료.");
             }
+            if (myMarkerStatusRef != null && myMarkerStatusListener != null) {
+                myMarkerStatusRef.removeEventListener(myMarkerStatusListener);
+                Log.d(TAG, "onPause: 내 마커 상태 리스너 제거 완료.");
+            }
+
+            // 🚀 --- [이 부분이 추가되었습니다] ---
+            stopDestinationListener();
+            // 🚀 --- [추가 완료] ---
         }
     }
 
@@ -1086,14 +1615,321 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         super.onDestroy();
         mapView.onDestroy();
 
-        // ⭐ [추가] 규칙 버전 리스너 해제 (중복 호출 방지)
-        if (rulesVersionRef != null && rulesVersionListener != null) {
-            rulesVersionRef.removeEventListener(rulesVersionListener);
-            Log.d(TAG, "onDestroy: Firebase 규칙 버전 리스너 제거 완료.");
+        if (myMarkerStatusRef != null && myMarkerStatusListener != null) {
+            myMarkerStatusRef.removeEventListener(myMarkerStatusListener);
+            Log.d(TAG, "onDestroy: 내 마커 상태 리스너 제거 완료.");
         }
     }
 
     @Override
     public void onLowMemory() { super.onLowMemory(); mapView.onLowMemory(); }
 
+
+    // 🚀 --- [2.5: 목적지 마커용 새 메서드 4개 추가] ---
+
+    /**
+     * Firebase에서 목적지 정보를 구독하는 리스너를 시작합니다.
+     */
+    private void startDestinationListener() {
+        // 맵이 준비되지 않았거나 그룹 ID가 없으면 실행 중단
+        if (naverMap == null || currentGroupId == -1L) {
+            Log.w(TAG, "startDestinationListener: NaverMap이 null이거나 Group ID가 유효하지 않아 중단.");
+            return;
+        }
+
+        // 중복 실행 방지를 위해 기존 리스너가 있다면 먼저 중지
+        stopDestinationListener();
+
+        // 🚩 경로 설정: 'group_destinations/{그룹ID}/destination'
+        // CreateGroupActivity에서 저장한 경로와 반드시 동일해야 합니다.
+        destinationRef = FirebaseDatabase.getInstance()
+                .getReference("group_destinations")
+                .child(String.valueOf(currentGroupId))
+                .child("destination");
+
+        Log.d(TAG, "Firebase 목적지 리스너 등록 시도. Path: " + destinationRef.toString());
+
+        destinationListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                if (snapshot.exists()) {
+                    // Firebase에서 위도, 경도, 이름 데이터 추출
+                    Double latitude = snapshot.child("latitude").getValue(Double.class);
+                    Double longitude = snapshot.child("longitude").getValue(Double.class);
+                    String name = snapshot.child("name").getValue(String.class);
+
+                    // 모든 데이터가 유효한지 확인
+                    if (latitude != null && longitude != null && name != null &&
+                            Double.isFinite(latitude) && Double.isFinite(longitude)) {
+
+                        LatLng destinationLatLng = new LatLng(latitude, longitude);
+                        // 마커 업데이트
+                        updateDestinationMarker(destinationLatLng, name);
+                        Log.d(TAG, "목적지 정보 수신: " + name);
+                    } else {
+                        // 데이터가 일부 누락되었거나 유효하지 않으면 마커 제거
+                        removeDestinationMarker();
+                        Log.w(TAG, "수신된 목적지 데이터가 유효하지 않습니다.");
+                    }
+                } else {
+                    // 'destination' 노드가 Firebase에 존재하지 않으면 마커 제거
+                    removeDestinationMarker();
+                    Log.d(TAG, "Firebase에 해당 그룹의 목적지 정보가 없습니다.");
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Log.e(TAG, "Firebase 목적지 리스너 취소됨", error.toException());
+                removeDestinationMarker(); // 오류 발생 시에도 마커 제거
+            }
+        };
+
+        // 리스너 등록
+        destinationRef.addValueEventListener(destinationListener);
+    }
+
+    /**
+     * 지도에서 목적지 마커를 제거합니다.
+     */
+    private void removeDestinationMarker() {
+        if (destinationMarker != null) {
+            destinationMarker.setMap(null); // 지도에서 제거
+            destinationMarker = null; // 참조 해제
+            Log.d(TAG, "목적지 마커 제거 완료.");
+        }
+    }
+
+    /**
+     * 목적지 마커를 지도에 생성하거나 위치를 업데이트합니다.
+     */
+    private void updateDestinationMarker(LatLng position, String caption) {
+        if (naverMap == null) {
+            Log.w(TAG, "updateDestinationMarker: NaverMap이 null이라 마커를 업데이트할 수 없습니다.");
+            return;
+        }
+
+        if (destinationMarker == null) {
+            // 마커가 없으면 새로 생성
+            destinationMarker = new Marker();
+            destinationMarker.setWidth(Marker.SIZE_AUTO);
+            destinationMarker.setHeight(Marker.SIZE_AUTO);
+
+            // 🚩 (선택 사항) 목적지 마커 아이콘을 다르게 설정할 수 있습니다.
+            // 예: drawable에 'ic_flag_pin.png' 같은 아이콘 추가 후
+            // destinationMarker.setIcon(OverlayImage.fromResource(R.drawable.ic_flag_pin));
+
+            // 멤버 마커(Z-index 기본값 100)보다 낮은 Z-index를 주어 멤버 마커가 위로 오게 함
+            destinationMarker.setZIndex(50);
+            Log.d(TAG, "새 목적지 마커 생성.");
+        }
+
+        // 위치 및 캡션 설정
+        destinationMarker.setPosition(position);
+        // 🚀 --- [ "도착지: " 문구 추가 ] ---
+        destinationMarker.setCaptionText("🚩 도착지: " + caption);
+        // 🚀 --- [ 수정 완료 ] ---
+        destinationMarker.setMap(naverMap); // 지도에 표시
+    }
+
+    /**
+     * 목적지 정보 구독 리스너를 중지하고 참조를 해제합니다.
+     */
+    private void stopDestinationListener() {
+        if (destinationRef != null && destinationListener != null) {
+            destinationRef.removeEventListener(destinationListener);
+            Log.d(TAG, "Firebase 목적지 리스너 제거 완료.");
+        }
+        destinationRef = null;
+        destinationListener = null;
+    }
+
+    // 🚀 --- [2.5 끝] ---
+
+    // 🚀 --- [3.0: 프로필 사진 마커 업데이트 메소드 추가] ---
+
+    /**
+     * 사용자 프로필 이미지 URL을 사용하여 내 위치 마커 아이콘을 업데이트합니다.
+     * @param imageUrl SharedPreferences에 저장된 이미지 URL (로컬 content:// 또는 서버 URL)
+     */
+    private void updateMyLocationMarkerIcon(String imageUrl) {
+        if (naverMap == null || myLocationMarker == null) return;
+
+        // 이미지 로드 및 마커 아이콘 설정 작업을 백그라운드 스레드로 보냅니다.
+        executor.execute(() -> {
+            try {
+                // 1. 사용할 URL을 결정합니다.
+                Object loadTarget = null;
+
+                if (imageUrl == null || imageUrl.isEmpty()) {
+                    // URL이 없으면 기본 아이콘 사용을 위해 null 유지
+                }
+                // 로컬 Uri (content://) 처리
+                else if (imageUrl.startsWith("content://")) {
+                    loadTarget = Uri.parse(imageUrl);
+                }
+                // 서버 URL 처리 (ApiClient.getBaseUrl()을 사용하여 완성)
+                else {
+                    // 👇👇👇 URL 결합 안전장치 적용 👇👇👇
+                    String baseUrl = ApiClient.getBaseUrl();
+                    // 기본 주소가 슬래시로 끝나는 경우 제거
+                    if (baseUrl.endsWith("/")) {
+                        baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+                    }
+                    loadTarget = baseUrl + imageUrl; // 안전하게 URL 결합
+                    // 👆👆👆 수정된 부분 👆👆👆
+                }
+
+                // ⭐ [로그 추가] 마커 로드 대상 확인
+                Log.d(TAG, "updateMyLocationMarkerIcon - Load Target: " + (loadTarget != null ? loadTarget.toString() : "BASIC_ICON"));
+
+                final Object finalLoadTarget = loadTarget; // 람다에서 사용하기 위해 final 변수 선언
+
+                // 2. Glide를 사용하여 비트맵을 동기적으로 로드 (백그라운드 스레드에서만 가능)
+                Bitmap bitmap = null;
+                if (finalLoadTarget != null) {
+                    bitmap = Glide.with(MapsActivity.this)
+                            .asBitmap()
+                            .load(finalLoadTarget)
+                            // ⭐ [핵심]: 마커 로드시에도 캐시 무시를 강제합니다.
+                            .diskCacheStrategy(DiskCacheStrategy.NONE)
+                            .skipMemoryCache(true)
+                            .override(100, 100) // 마커 크기 최적화 (예: 100x100 픽셀)
+                            .submit()
+                            .get(); // 동기적으로 로드 완료를 기다립니다.
+                }
+
+                final Bitmap finalBitmap = bitmap; // 람다에서 사용하기 위해 final 변수 선언
+
+                // 3. UI 스레드에서 마커 업데이트
+                handler.post(() -> {
+                    if (naverMap != null && myLocationMarker != null) {
+                        if (finalBitmap != null) {
+                            myLocationMarker.setIcon(OverlayImage.fromBitmap(finalBitmap));
+                            Log.d(TAG, "✅ 내 마커 아이콘이 프로필 사진으로 업데이트됨.");
+                        } else {
+                            // URL이 없거나 로드 실패 시 기본 아이콘으로 재설정
+                            myLocationMarker.setIcon(OverlayImage.fromResource(R.drawable.ic_person));
+                            Log.d(TAG, "✅ 내 마커 아이콘이 기본 아이콘으로 재설정됨.");
+                        }
+                        myLocationMarker.setMap(naverMap); // 혹시 지도에 없는 경우 다시 추가
+                    }
+                });
+
+            } catch (Exception e) {
+                Log.e(TAG, "마커 아이콘 업데이트 실패", e);
+                handler.post(() -> {
+                    if (myLocationMarker != null) {
+                        myLocationMarker.setIcon(OverlayImage.fromResource(R.drawable.ic_person));
+                    }
+                });
+            }
+        });
+    }
+    // 🚀 --- [4.0: 팀원 프로필 마커 업데이트 메소드 추가] ---
+
+    /**
+     * (API 호출) 특정 사용자 ID의 프로필 URL을 가져와 마커에 적용합니다.
+     * @param userId 프로필을 가져올 팀원의 ID
+     * @param marker 업데이트할 NaverMap 마커 객체 (final로 선언)
+     */
+    private void fetchAndApplyMemberProfile(Long userId, final Marker marker) {
+        // ⭐ [수정] UserApiService -> UserApi
+        UserApi apiService = ApiClient.getRetrofit(this).create(UserApi.class);
+
+        apiService.getProfileImageUrl(userId).enqueue(new Callback<Map<String, String>>() {
+            @Override
+            public void onResponse(Call<Map<String, String>> call, Response<Map<String, String>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    String imageUrl = response.body().get("profileImageUrl");
+
+                    // 2. ⭐ [핵심] URL을 기반으로 비트맵을 로드하고 마커에 적용하는 헬퍼 메소드 호출
+                    loadBitmapForMarker(imageUrl, marker);
+
+                } else {
+                    Log.e(TAG, "팀원 프로필 URL 획득 실패: ID=" + userId + ", Code=" + response.code());
+                    // 실패 시 기본 아이콘 적용
+                    loadBitmapForMarker(null, marker);
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Map<String, String>> call, Throwable t) {
+                Log.e(TAG, "팀원 프로필 URL 네트워크 오류: ID=" + userId, t);
+                // 네트워크 오류 시 기본 아이콘 적용
+                loadBitmapForMarker(null, marker);
+            }
+        });
+    }
+
+    /**
+     * 프로필 URL을 기반으로 비트맵을 로드하고 해당 마커에 적용합니다.
+     * 이 작업은 비동기적으로 실행됩니다.
+     * @param imageUrl 프로필 이미지 URL (null이면 기본 아이콘 사용)
+     * @param marker 업데이트할 마커 (final로 선언)
+     */
+    private void loadBitmapForMarker(String imageUrl, final Marker marker) {
+        executor.execute(() -> {
+            try {
+                // 1. 로드 대상 결정: 서버 URL 완성 또는 기본 아이콘 결정
+                Object loadTarget = null;
+                if (imageUrl == null || imageUrl.isEmpty()) {
+                    // URL이 없으면 기본 아이콘 사용을 위해 null 유지
+                }
+                // 로컬 Uri (content://) 처리
+                else if (imageUrl.startsWith("content://")) {
+                    loadTarget = Uri.parse(imageUrl);
+                }
+                // 서버 URL 처리 (ApiClient.getBaseUrl()을 사용하여 완성)
+                else {
+                    loadTarget = ApiClient.getBaseUrl() + imageUrl;
+                }
+
+                // ⭐ [수정] 람다 내부에서 사용될 loadTarget을 final로 선언
+                final Object finalLoadTarget = loadTarget;
+
+                // 2. Glide를 사용하여 비트맵 동기 로드
+                Bitmap bitmap = null;
+                if (finalLoadTarget != null) {
+                    bitmap = Glide.with(MapsActivity.this)
+                            .asBitmap()
+                            .load(finalLoadTarget)
+                            .diskCacheStrategy(DiskCacheStrategy.NONE) // ⭐ 캐시 무시
+                            .skipMemoryCache(true) // ⭐ 메모리 캐시 무시
+                            .override(100, 100) // 마커 크기 최적화
+                            .submit()
+                            .get();
+                }
+
+                // ⭐ [수정] 람다 내부에서 사용될 bitmap을 final로 선언
+                final Bitmap finalBitmap = bitmap;
+
+                // 3. UI 스레드에서 마커 업데이트
+                handler.post(() -> {
+                    // 마커가 아직 지도에 표시 중인지 확인
+                    if (naverMap != null && marker.getMap() == naverMap) {
+                        if (finalBitmap != null) {
+                            marker.setIcon(OverlayImage.fromBitmap(finalBitmap));
+                            Log.d(TAG, "✅ 팀원 마커 아이콘 업데이트됨: " + marker.getCaptionText());
+                        } else {
+                            // URL이 없거나 로드 실패 시 기본 아이콘으로 재설정
+                            marker.setIcon(OverlayImage.fromResource(R.drawable.ic_person));
+                            Log.d(TAG, "✅ 팀원 마커 아이콘 기본값으로 재설정됨: " + marker.getCaptionText());
+                        }
+                    }
+                });
+
+            } catch (Exception e) {
+                Log.e(TAG, "팀원 마커 아이콘 로드 실패", e);
+                handler.post(() -> {
+                    // 예외 발생 시 기본 아이콘으로 설정
+                    if (marker.getMap() == naverMap) {
+                        marker.setIcon(OverlayImage.fromResource(R.drawable.ic_person));
+                    }
+                });
+            }
+        });
+    }
+
+    // 🚀 --- [4.0 끝] ---
 }

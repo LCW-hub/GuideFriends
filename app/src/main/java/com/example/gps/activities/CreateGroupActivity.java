@@ -37,6 +37,10 @@ import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import java.util.HashMap;
+
 public class CreateGroupActivity extends AppCompatActivity {
 
     // --- UI/Data Variables ---
@@ -154,7 +158,9 @@ public class CreateGroupActivity extends AppCompatActivity {
      * 서버에서 그룹에 초대할 수 있는 멤버 목록을 가져옴
      */
     private void fetchGroupSelectableMembers() {
-        FriendApiService apiService = ApiClient.getClient(this).create(FriendApiService.class);
+        // ⭐ [수정] ApiClient.getClient(this) -> ApiClient.getRetrofit(this)
+        FriendApiService apiService = ApiClient.getRetrofit(this).create(FriendApiService.class);
+
         Call<List<User>> call = apiService.getGroupSelectableMembers();
 
         call.enqueue(new Callback<List<User>>() {
@@ -178,7 +184,6 @@ public class CreateGroupActivity extends AppCompatActivity {
             }
         });
     }
-
     /**
      * 입력된 정보로 그룹 생성을 서버에 요청하고, 성공 시 MapsActivity로 이동하여 위치 공유를 시작합니다.
      */
@@ -217,6 +222,27 @@ public class CreateGroupActivity extends AppCompatActivity {
                     if (groupIdStr != null) {
                         try {
                             long newGroupId = Long.parseLong(groupIdStr);
+
+                            // 🚀 --- [1.2: Firebase에 목적지 정보 저장 코드 추가] ---
+                            // 목적지 정보가 유효할 때만 Firebase에 저장
+                            if (destinationName != null && destinationLat != 0.0 && destinationLng != 0.0) {
+                                // 'group_destinations' 라는 새 경로 사용
+                                DatabaseReference destinationRef = FirebaseDatabase.getInstance()
+                                        .getReference("group_destinations")
+                                        .child(String.valueOf(newGroupId))
+                                        .child("destination");
+
+                                HashMap<String, Object> destinationData = new HashMap<>();
+                                destinationData.put("name", destinationName);
+                                destinationData.put("latitude", destinationLat);
+                                destinationData.put("longitude", destinationLng);
+
+                                // Firebase에 데이터 쓰기
+                                destinationRef.setValue(destinationData)
+                                        .addOnSuccessListener(aVoid -> Log.d("CreateGroupActivity", "Firebase 목적지 저장 성공"))
+                                        .addOnFailureListener(e -> Log.e("CreateGroupActivity", "Firebase 목적지 저장 실패", e));
+                            }
+                            // 🚀 --- [1.2 끝] ---
 
                             Toast.makeText(CreateGroupActivity.this, "그룹이 생성되었습니다! 위치 공유를 시작합니다.", Toast.LENGTH_LONG).show();
 

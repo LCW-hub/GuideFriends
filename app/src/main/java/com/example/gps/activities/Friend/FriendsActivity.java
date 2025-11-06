@@ -66,7 +66,8 @@ public class FriendsActivity extends AppCompatActivity
             return;
         }
 
-        userApi = ApiClient.getClient(this).create(UserApi.class);
+        // ⭐ [수정] ApiClient.getClient(this) -> ApiClient.getRetrofit(this)
+        userApi = ApiClient.getRetrofit(this).create(UserApi.class);
 
         // UI 요소 초기화
         etFriendUsername = findViewById(R.id.etFriendUsername);

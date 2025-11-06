@@ -6,17 +6,18 @@ import com.example.gps.model.User;
 import java.util.List;
 import java.util.Map;
 
+import okhttp3.MultipartBody;
 import retrofit2.Call;
 import retrofit2.http.Body;
+import retrofit2.http.DELETE;
 import retrofit2.http.GET;
 import retrofit2.http.HTTP;
+import retrofit2.http.Multipart; // ⭐ [핵심 추가]
+import retrofit2.http.Part;      // ⭐ [핵심 추가]
 import retrofit2.http.POST;
 import retrofit2.http.PUT;
 import retrofit2.http.Path;
-
-import com.example.gps.dto.LoginResponse; // LoginResponse import
-import java.util.Map; // Map import
-
+import retrofit2.http.Query;
 
 public interface UserApi {
 
@@ -46,6 +47,22 @@ public interface UserApi {
     @POST("/api/users/reset-password")
     Call<Map<String, Object>> resetPassword(@Body Map<String, String> data);
 
+    // --- 프로필 이미지 관리 API (MapsActivity에서 사용) ---
+
+    // ⭐ 1. 프로필 이미지 URL 조회 (팀원 마커 이미지 로딩용)
+    @GET("/api/users/profile-image")
+    Call<Map<String, String>> getProfileImageUrl(@Query("userId") Long userId);
+
+    // ⭐ 2. 프로필 이미지 업로드 (MapsActivity.uploadImageToServer에서 사용)
+    @Multipart // 👈 ⭐ 파일 업로드를 위해 추가된 핵심 어노테이션
+    @POST("/api/users/profile-image")
+    Call<Map<String, Object>> uploadProfileImage(@Part MultipartBody.Part image); // 👈 ⭐ @Body에서 @Part로 변경
+
+    // ⭐ 3. 프로필 이미지를 기본값으로 설정 (MapsActivity.setProfileToDefault에서 사용)
+    @DELETE("/api/users/profile-image/default")
+    Call<Map<String, Object>> setDefaultProfileImage();
+
+
     // --- 친구 관리 API (FriendController) ---
     @POST("api/friends/request")
     Call<Map<String, Object>> requestFriend(@Body Map<String, String> body);
@@ -74,4 +91,6 @@ public interface UserApi {
     @HTTP(method = "DELETE", path = "api/friends/delete", hasBody = true)
     Call<Map<String, Object>> deleteFriend(@Body Map<String, String> body);
 
+    @GET("/api/users/username/{username}") // 사용자 이름으로 ID를 가져오는 API
+    Call<Map<String, Long>> getUserIdByUsername(@Path("username") String username);
 }

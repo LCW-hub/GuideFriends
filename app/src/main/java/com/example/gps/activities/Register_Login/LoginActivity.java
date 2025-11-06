@@ -55,8 +55,8 @@ public class LoginActivity extends AppCompatActivity {
         textViewFindPassword = findViewById(R.id.tvFindPw);
 
         // 기본값 자동 입력
-        editTextUsername.setText("ock123");
-        editTextPassword.setText("ock123123");
+        editTextUsername.setText("lcw123");
+        editTextPassword.setText("123456");
 
         // 로그인 버튼 클릭 리스너
         buttonLogin.setOnClickListener(new View.OnClickListener() {
@@ -65,8 +65,6 @@ public class LoginActivity extends AppCompatActivity {
                 login();
             }
         });
-
-
 
         // 회원가입 텍스트 클릭 리스너
         textViewSignup.setOnClickListener(new View.OnClickListener() {
@@ -102,7 +100,8 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
 
-        UserApi userApi = ApiClient.getClient(this).create(UserApi.class);
+        // ⭐ [수정] ApiClient.getClient(this) -> ApiClient.getRetrofit(this)
+        UserApi userApi = ApiClient.getRetrofit(this).create(UserApi.class);
 
         Map<String, String> loginData = new HashMap<>();
         loginData.put("username", username);
@@ -117,6 +116,7 @@ public class LoginActivity extends AppCompatActivity {
                 if (response.isSuccessful() && response.body() != null) {
                     // --- ✨ 로그인 성공 및 토큰 처리 로직 ✨ ---
                     String token = response.body().getToken();
+                    Log.d("LOGIN_SUCCESS", "Server returned token: " + token);
                     TokenManager tokenManager = new TokenManager(LoginActivity.this);
                     tokenManager.saveToken(token);
 

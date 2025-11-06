@@ -65,4 +65,6 @@ public interface GroupApiService {
             @Path("groupId") Long groupId,
             @Query("targetId") Long targetId // 내가 Target
     );
+    @GET("/api/group/{groupId}/sharing/rules/source/{sourceId}")
+    Call<Map<Long, Boolean>> getSharingRulesForSource(@Path("groupId") Long groupId, @Path("sourceId") Long sourceId);
 }
