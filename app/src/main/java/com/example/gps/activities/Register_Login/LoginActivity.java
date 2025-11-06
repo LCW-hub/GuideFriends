@@ -41,6 +41,26 @@ public class LoginActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // [추가] 1단계에서 수정한 TokenManager 초기화
+        tokenManager = new TokenManager();
+
+        // --- 🔽 [자동 로그인 시도 로직 추가] ---
+        // setContentView를 호출하기 *전에* 토큰을 확인합니다.
+        String refreshToken = tokenManager.getRefreshToken(); //
+        if (refreshToken != null && !refreshToken.isEmpty()) {
+            // 유효한 리프레시 토큰이 존재하면, 자동 갱신 시도
+            // 갱신 시도 중에는 로그인 폼이 보이지 않도록 합니다.
+            tryAutoLogin(refreshToken);
+        } else {
+            // 리프레시 토큰이 없으면, 평소처럼 로그인 폼을 보여줍니다.
+            setupLoginView();
+        }
+
+    }
+
+    private void setupLoginView() {
+        // 이 코드가 원래 onCreate에 있던 것입니다.
         setContentView(R.layout.activity_login);
 
         // 툴바 설정
@@ -49,8 +69,7 @@ public class LoginActivity extends AppCompatActivity {
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         getSupportActionBar().setTitle("로그인");
 
-        // [추가] 1단계에서 수정한 TokenManager 초기화
-        tokenManager = new TokenManager();
+        // (tokenManager 초기화는 onCreate에서 이미 수행됨)
 
         // 뷰 초기화
         editTextUsername = findViewById(R.id.etId);
@@ -62,7 +81,6 @@ public class LoginActivity extends AppCompatActivity {
         textViewFindPassword = findViewById(R.id.tvFindPw);
 
         // [추가] 2단계-1에서 추가한 "자동 로그인" 체크박스 ID 연결
-        // (ID가 cb_remember_me가 맞는지 activity_login.xml에서 확인 필요)
         checkBoxRememberMe = findViewById(R.id.cb_remember_me);
 
         // 기본값 자동 입력
@@ -104,6 +122,68 @@ public class LoginActivity extends AppCompatActivity {
         });
     }
 
+    private void tryAutoLogin(String refreshToken) {
+        Log.d("LoginActivity", "저장된 리프레시 토큰 발견. 자동 로그인 시도...");
+
+        // (중요) 갱신 API는 AuthInterceptor가 없는 '갱신 전용' Retrofit을 사용해야 합니다.
+        UserApi userApi = ApiClient.getRefreshRetrofitInstance().create(UserApi.class);
+
+        Map<String, String> refreshRequest = new HashMap<>();
+        refreshRequest.put("refreshToken", refreshToken);
+
+        // 서버의 /api/auth/refresh API 호출
+        Call<LoginResponse> call = userApi.refreshToken(refreshRequest);
+
+        call.enqueue(new Callback<LoginResponse>() {
+            @Override
+            public void onResponse(Call<LoginResponse> call, Response<LoginResponse> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    // 1. 자동 갱신 성공!
+                    Log.i("LoginActivity", "자동 로그인(토큰 갱신) 성공!");
+                    LoginResponse loginResponse = response.body();
+
+                    // 2. 새로 발급받은 AccessToken과 기존 RefreshToken을 다시 저장합니다.
+                    tokenManager.saveTokens(loginResponse.getAccessToken(), loginResponse.getRefreshToken());
+
+                    // 3. (중요) 수동 로그인 시 저장했던 사용자 이름을 SharedPreferences에서 다시 가져옵니다.
+                    SharedPreferences prefs = getSharedPreferences("user_info", MODE_PRIVATE);
+                    String username = prefs.getString("username", null);
+
+                    if (username == null) {
+                        // 비정상적인 경우 (토큰은 있는데 이름이 없는 경우)
+                        Log.e("LoginActivity", "자동 로그인 성공했으나 저장된 username이 없어 실패 처리.");
+                        tokenManager.deleteTokens(); // 토큰 삭제
+                        setupLoginView(); // 로그인 폼 보여주기
+                        return;
+                    }
+
+                    // 4. 모든 것이 정상이면 MapsActivity로 이동
+                    Toast.makeText(LoginActivity.this, username + "님, 환영합니다!", Toast.LENGTH_SHORT).show();
+                    Intent intent = new Intent(LoginActivity.this, MapsActivity.class);
+                    intent.putExtra("username", username);
+                    startActivity(intent);
+                    finish(); // 로그인 액티비티 종료
+
+                } else {
+                    // 2. 갱신 실패 (예: 토큰 30일 만료, 서버에서 강제 로그아웃 시킴)
+                    Log.w("LoginActivity", "자동 로그인(토큰 갱신) 실패. 코드: " + response.code());
+                    // 기존의 유효하지 않은 토큰들을 모두 삭제
+                    tokenManager.deleteTokens();
+                    // 실패했으므로, 사용자에게 수동 로그인을 요청 (로그인 폼 보여주기)
+                    setupLoginView();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<LoginResponse> call, Throwable t) {
+                // 네트워크 오류 등 예외 발생
+                Log.e("LoginActivity", "자동 로그인 네트워크 오류", t);
+                // 실패 시, 로그인 폼을 보여줌
+                setupLoginView();
+            }
+        });
+    }
+
     private void login() {
         String username = editTextUsername.getText().toString().trim();
         String password = editTextPassword.getText().toString().trim();
@@ -118,7 +198,7 @@ public class LoginActivity extends AppCompatActivity {
 
         // --- [오류 수정] ---
         // 'getRetrofitInstance(this)' -> 'getClient(this)'로 원복
-        UserApi userApi = ApiClient.getClient(this).create(UserApi.class);
+        UserApi userApi = ApiClient.getRetrofitInstance(this).create(UserApi.class);
 
         Map<String, String> loginData = new HashMap<>();
         loginData.put("username", username);
