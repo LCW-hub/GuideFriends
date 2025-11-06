@@ -14,6 +14,8 @@ public class ApiClient {
     private static final String BASE_URL = "http://10.0.2.2:8080/";
     private static Retrofit retrofit = null;
     private static GroupApiService groupApiService;
+    // UserApiService도 싱글톤으로 관리하기 위해 추가 (선택 사항이지만 권장)
+    private static UserApiService userApiService = null;
 
     public static String getBaseUrl() {
         return BASE_URL;
@@ -37,7 +39,7 @@ public class ApiClient {
     // ⭐ [수정] Retrofit 인스턴스를 생성할 때 위 헬퍼 메서드를 사용
     public static synchronized Retrofit getRetrofit(Context context) {
         if (retrofit == null) {
-            OkHttpClient okHttpClient = createAuthOkHttpClient(context); // 👈 수정: 헬퍼 메서드 사용
+            OkHttpClient okHttpClient = createAuthOkHttpClient(context); // 👈 헬퍼 메서드 사용
 
             retrofit = new Retrofit.Builder()
                     .baseUrl(BASE_URL)
@@ -49,12 +51,11 @@ public class ApiClient {
     }
 
     // ⭐ [핵심 추가]: Glide 모듈이 사용할, 인증 헤더가 포함된 OkHttpClient를 반환하는 정적 메서드
-    //               Glide가 이미지 로드시 이 클라이언트를 사용하게 됩니다.
     public static OkHttpClient getAuthOkHttpClient(Context context) {
         return createAuthOkHttpClient(context);
     }
 
-    // GroupApiService를 싱글톤으로 제공 (기존 코드 유지)
+    // GroupApiService를 싱글톤으로 제공
     public static GroupApiService getGroupApiService(Context context) {
         if (groupApiService == null) {
             groupApiService = getRetrofit(context).create(GroupApiService.class);
@@ -62,8 +63,11 @@ public class ApiClient {
         return groupApiService;
     }
 
+    // 🚀 [수정된 부분]: getClient 대신 getRetrofit을 사용
     public static UserApiService getUserApiService(Context context) {
-        // 토큰 관리 등을 위한 getClient(context)를 사용하여 UserApiService를 생성합니다.
-        return getClient(context).create(UserApiService.class);
+        if (userApiService == null) { // 싱글톤 패턴 적용 (선택 사항)
+            userApiService = getRetrofit(context).create(UserApiService.class); // 👈 getClient -> getRetrofit으로 수정!
+        }
+        return userApiService;
     }
 }
