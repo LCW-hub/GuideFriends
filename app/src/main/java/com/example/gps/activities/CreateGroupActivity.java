@@ -159,8 +159,7 @@ public class CreateGroupActivity extends AppCompatActivity {
      */
     private void fetchGroupSelectableMembers() {
         // ⭐ [수정] ApiClient.getClient(this) -> ApiClient.getRetrofit(this)
-        FriendApiService apiService = ApiClient.getRetrofit(this).create(FriendApiService.class);
-
+        FriendApiService apiService = ApiClient.getFriendApiService(this);
         Call<List<User>> call = apiService.getGroupSelectableMembers();
 
         call.enqueue(new Callback<List<User>>() {

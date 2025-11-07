@@ -93,7 +93,7 @@ public class RegisterActivity extends AppCompatActivity {
         User user = new User(username, password, email, phoneNum);
 
         // ApiClient.getClient(this) -> ApiClient.getRetrofit(this)
-        UserApi userApi = ApiClient.getRetrofit(this).create(UserApi.class);
+        UserApi userApi = ApiClient.getClient(this).create(UserApi.class);
         Call<Map<String, Object>> call = userApi.signup(user);
 
         call.enqueue(new Callback<Map<String, Object>>() {

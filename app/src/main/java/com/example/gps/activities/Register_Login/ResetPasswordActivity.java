@@ -87,7 +87,7 @@ public class ResetPasswordActivity extends AppCompatActivity {
     // ✅ 서버에 비밀번호 변경을 요청하는 메서드
     private void performPasswordReset(String token, String password) {
         // ⭐ [수정] ApiClient.getClient(this) -> ApiClient.getRetrofit(this)
-        UserApi userApi = ApiClient.getRetrofit(this).create(UserApi.class);
+        UserApi userApi = ApiClient.getClient(this).create(UserApi.class);
 
         // 서버에 보낼 데이터 (토큰, 새 비밀번호)
         Map<String, String> data = new HashMap<>();

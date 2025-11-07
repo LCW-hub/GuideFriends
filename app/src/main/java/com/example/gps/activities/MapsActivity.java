@@ -420,7 +420,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private void initializeButtons() {
         // [MERGE] Code 1 기준 + Code 2의 누락된 btnMapType 추가
-        FloatingActionButton btnMapType = findViewById(R.id.btnMapType);
         FloatingActionButton btnMyLocation = findViewById(R.id.btnMyLocation);
         FloatingActionButton btnTestMovement = findViewById(R.id.btnTestMovement);
         findViewById(R.id.weather_widget).setOnClickListener(v -> showWeatherBottomSheet());
@@ -432,11 +431,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         FloatingActionButton btnMyPage = findViewById(R.id.btnMyPage);
         FloatingActionButton btnSettings = findViewById(R.id.btnSettings);
 
-        btnMapType.setOnClickListener(this::showMapTypeMenu); // [MERGE] 누락된 리스너 복원
-        btnMyLocation.setOnClickListener(v -> moveToCurrentLocation());
-        if (btnTestMovement != null) {
-            btnTestMovement.setOnClickListener(v -> startMockMovement());
-        }
 
         btnMainMenu.setOnClickListener(v -> toggleSubMenu());
 

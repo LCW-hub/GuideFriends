@@ -97,7 +97,7 @@ public class GroupSharingSettingsActivity extends AppCompatActivity {
      */
     private void fetchLoggedInUserId() {
         // ⭐ [수정] UserApiService -> UserApi로 변경하고, ApiClient를 통해 Retrofit 서비스 생성
-        UserApi apiService = ApiClient.getRetrofit(this).create(UserApi.class);
+        UserApi apiService = ApiClient.getClient(this).create(UserApi.class);
         Call<Map<String, Long>> call = apiService.getUserIdByUsername(loggedInUsername);
 
         call.enqueue(new Callback<Map<String, Long>>() {
