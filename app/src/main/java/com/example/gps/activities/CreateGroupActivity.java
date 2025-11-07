@@ -158,7 +158,9 @@ public class CreateGroupActivity extends AppCompatActivity {
      * 서버에서 그룹에 초대할 수 있는 멤버 목록을 가져옴
      */
     private void fetchGroupSelectableMembers() {
-        FriendApiService apiService = ApiClient.getClient(this).create(FriendApiService.class);
+        // ⭐ [수정] ApiClient.getClient(this) -> ApiClient.getRetrofit(this)
+        FriendApiService apiService = ApiClient.getRetrofit(this).create(FriendApiService.class);
+
         Call<List<User>> call = apiService.getGroupSelectableMembers();
 
         call.enqueue(new Callback<List<User>>() {
@@ -182,7 +184,6 @@ public class CreateGroupActivity extends AppCompatActivity {
             }
         });
     }
-
     /**
      * 입력된 정보로 그룹 생성을 서버에 요청하고, 성공 시 MapsActivity로 이동하여 위치 공유를 시작합니다.
      */

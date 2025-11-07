@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-    <!-- 필수 권한 -->
-    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -22,13 +20,17 @@
         android:usesCleartextTraffic="true"
         android:vmSafeMode="false"
         tools:targetApi="31">
+
+
+
         <activity
             android:name=".activities.MyGroupsActivity"
             android:exported="false" />
-        <!-- 네이버 지도 API 키 -->
+
         <meta-data
             android:name="com.naver.maps.map.NCP_KEY_ID"
-            android:value="iaxrf6bmtc" /> <!-- 앱 시작 액티비티 -->
+            android:value="iaxrf6bmtc" />
+
         <activity
             android:name=".activities.Register_Login.LoginActivity"
             android:exported="true">
@@ -37,10 +39,12 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity> <!-- 네이버 지도 관련 액티비티 -->
+        </activity>
+
         <activity
             android:name=".activities.MapsActivity"
-            android:exported="false" /> <!-- 기타 화면들 -->
+            android:exported="false" />
+
         <activity android:name=".activities.Register_Login.RegisterActivity" />
         <activity android:name=".activities.Register_Login.FindIdActivity" />
         <activity android:name=".activities.Register_Login.FindPwActivity" />

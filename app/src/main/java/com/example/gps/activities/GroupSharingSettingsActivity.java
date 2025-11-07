@@ -16,7 +16,7 @@ import com.example.gps.R;
 import com.example.gps.adapters.MemberSharingAdapter;
 import com.example.gps.api.ApiClient;
 import com.example.gps.api.GroupApiService;
-import com.example.gps.api.UserApiService;
+import com.example.gps.api.UserApi; // ⭐ [수정] UserApiService 대신 UserApi 임포트
 import com.example.gps.model.User;
 
 import java.util.ArrayList;
@@ -96,7 +96,8 @@ public class GroupSharingSettingsActivity extends AppCompatActivity {
      * 현재 로그인된 사용자의 Username을 이용해 UserId를 서버에서 조회합니다. (API 필수)
      */
     private void fetchLoggedInUserId() {
-        UserApiService apiService = ApiClient.getUserApiService(this);
+        // ⭐ [수정] UserApiService -> UserApi로 변경하고, ApiClient를 통해 Retrofit 서비스 생성
+        UserApi apiService = ApiClient.getRetrofit(this).create(UserApi.class);
         Call<Map<String, Long>> call = apiService.getUserIdByUsername(loggedInUsername);
 
         call.enqueue(new Callback<Map<String, Long>>() {
@@ -137,6 +138,7 @@ public class GroupSharingSettingsActivity extends AppCompatActivity {
             return;
         }
 
+        // ⭐ [수정] ApiClient.getGroupApiService(this) 그대로 사용
         GroupApiService apiService = ApiClient.getGroupApiService(this);
 
         // 1. 멤버 목록 로드 (API 사용)
@@ -261,17 +263,20 @@ public class GroupSharingSettingsActivity extends AppCompatActivity {
 
         // ⭐️ [Firebase 쓰기 시작]
         for (User member : membersToUpdate) {
+            // 람다 내부에서 사용되는 member는 final이거나 effectively final이어야 합니다.
+            final User finalMember = member;
             boolean allowSharing = adapter.isUserChecked(member.getId());
+            final boolean finalAllowSharing = allowSharing;
 
             // 1. Firebase 경로 설정: sharing_permissions/{sharerId}/{targetId}
             DatabaseReference ruleRef = FirebaseDatabase.getInstance()
                     .getReference("sharing_permissions")
                     .child(String.valueOf(loggedInUserId))
-                    .child(String.valueOf(member.getId()));
+                    .child(String.valueOf(finalMember.getId()));
 
-            ruleRef.setValue(allowSharing)
+            ruleRef.setValue(finalAllowSharing)
                     .addOnSuccessListener(aVoid -> {
-                        Log.d(TAG, "규칙 업데이트 성공 (Outgoing): 대상=" + member.getUsername() + ", 허용=" + allowSharing + " (Firebase)");
+                        Log.d(TAG, "규칙 업데이트 성공 (Outgoing): 대상=" + finalMember.getUsername() + ", 허용=" + finalAllowSharing + " (Firebase)");
                         // ⭐️ [로직 통합] 완료 체크
                         completedRequests[0]++;
                         if (completedRequests[0] == totalRequests) {
@@ -279,8 +284,8 @@ public class GroupSharingSettingsActivity extends AppCompatActivity {
                         }
                     })
                     .addOnFailureListener(e -> {
-                        Log.e(TAG, "❌ 규칙 업데이트 실패 (Outgoing): 대상=" + member.getUsername() + ", 오류=" + e.getMessage());
-                        failedMembers.add(member.getUsername());
+                        Log.e(TAG, "❌ 규칙 업데이트 실패 (Outgoing): 대상=" + finalMember.getUsername() + ", 오류=" + e.getMessage());
+                        failedMembers.add(finalMember.getUsername());
                         // ⭐️ [로직 통합] 완료 체크
                         completedRequests[0]++;
                         if (completedRequests[0] == totalRequests) {
