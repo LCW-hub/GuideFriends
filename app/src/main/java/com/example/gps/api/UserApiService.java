@@ -12,6 +12,9 @@ import retrofit2.http.POST;
 import retrofit2.http.Part;
 import java.util.Map;
 
+//
+import retrofit2.http.Path; //
+
 // 사용자 관련 API 호출을 정의하는 인터페이스입니다.
 public interface UserApiService {
 
@@ -29,4 +32,13 @@ public interface UserApiService {
     // ⭐ [추가] 프로필 이미지 기본값으로 설정
     @DELETE("/api/users/profile-image")
     Call<Map<String, Object>> setDefaultProfileImage();
+
+    //
+    //
+    // MapsActivity가 팀원의 프로필 사진 URL을 요청하기 위해 사용합니다.
+    // (서버 UserController의 @GetMapping("/api/users/{id}/profile-image")와 일치)
+    @GET("api/users/{id}/profile-image")
+    Call<Map<String, String>> getProfileImageUrl(@Path("id") Long userId);
+
+    @POST("/api/users/logout") Call<Map<String, Object>> logout();
 }

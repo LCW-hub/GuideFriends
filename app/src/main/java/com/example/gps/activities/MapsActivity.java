@@ -24,7 +24,7 @@ import android.widget.Toast;
 import java.util.Iterator;
 
 import com.example.gps.activities.Register_Login.LoginActivity;
-import com.example.gps.api.UserApi;
+// import com.example.gps.api.UserApi; //
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -103,24 +103,18 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy;
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, SearchResultDetailFragment.OnDestinationSelectedListener {
 
-    // --- UI & Map Variables ---
+    // --- (UI, Map, Search, Weather, Menu 변수들은 변경 없음) ---
     private MapView mapView;
     private NaverMap naverMap;
     private FusedLocationSource locationSource;
     private DrawerLayout drawerLayout;
-
-    // --- Search UI & Data ---
     private EditText etSearch;
     private ImageView ivSearchIcon;
     private RecyclerView rvSearchResults;
     private SearchResultAdapter searchResultAdapter;
     private Marker searchResultMarker = null;
-
-    // --- Weather UI ---
     private ImageView ivWeatherIcon;
     private TextView tvTemperature;
-
-    // --- Menu UI & State ---
     private boolean isSubMenuOpen = false;
     private static final float SUB_MENU_RADIUS_DP = 80f;
 
@@ -128,61 +122,43 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler handler = new Handler(Looper.getMainLooper());
 
-    // --- Constants ---
+    // --- (Constants, Firebase, Mock Movement, Destination 변수들은 변경 없음) ---
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1000;
     private static final String OPENWEATHERMAP_API_KEY = "7a4aa78797771aa887fe9b14a9be94e5";
     private static final String NAVER_CLIENT_ID = "OAQnuwhbAL34Of8mlxve";
     private static final String NAVER_CLIENT_SECRET = "4roXQDJBpc";
     private static final int LOCATION_UPDATE_INTERVAL = 10000; // 10 seconds
-    private static final String TAG = "MapsActivity_FIREBASE"; // 🎯 Firebase 로그 TAG 추가
-
-    // --- User & State ---
+    private static final String TAG = "MapsActivity_FIREBASE";
     private String loggedInUsername;
     private boolean isSelectionMode = false;
-
-    // --- Firebase & Real-time Location Sharing ---
     private Long currentGroupId = -1L;
     private DatabaseReference firebaseDatabase;
     private ValueEventListener memberLocationListener;
     private final Handler locationUpdateHandler = new Handler(Looper.getMainLooper());
     private Runnable locationUpdateRunnable;
     private final HashMap<String, Marker> memberMarkers = new HashMap<>();
-
     private final Handler mapRefreshHandler = new Handler(Looper.getMainLooper());
     private Runnable mapRefreshRunnable;
-    private static final int MAP_REFRESH_INTERVAL = 2000; // 2초마다 강제 갱신 (원하는 간격으로 설정 가능)
-
-    // ⭐️ [Firebase 규칙] 내가 상대방 위치를 볼 수 있는지 (Sharer -> Me)
+    private static final int MAP_REFRESH_INTERVAL = 2000;
     private final Map<Long, Boolean> incomingSharingRules = new HashMap<>();
-    // ⭐️ [Firebase 규칙] 상대방이 내 위치를 볼 수 있는지 (Me -> Target)
     private final Map<Long, Boolean> outgoingSharingStatus = new HashMap<>();
     private Marker myLocationMarker = null;
-
-    // ⭐️ [Firebase 규칙 리스너]
     private DatabaseReference rulesRef;
     private ValueEventListener rulesListener;
-
-    // --- Mock Movement (for testing) ---
     private Handler animationHandler;
     private Runnable animationRunnable;
-    private LatLng startLatLng = new LatLng(37.5665, 126.9780); // Seoul City Hall
-    private LatLng endLatLng = new LatLng(35.115, 129.04); // Busan Station
-    private final long totalDuration = 10000; // 10 seconds
-    private final int updateInterval = 50; // 50ms
+    private LatLng startLatLng = new LatLng(37.5665, 126.9780);
+    private LatLng endLatLng = new LatLng(35.115, 129.04);
+    private final long totalDuration = 10000;
+    private final int updateInterval = 50;
     private long startTime;
-
     private Long loggedInUserId = -1L;
-    private final Map<String, LocationResponse> memberLocationsCache = new HashMap<>(); // ⭐️ 위치 데이터 캐시
-
-    // ⭐️ [추가] 내 마커 상태 리스너를 위한 필드
+    private final Map<String, LocationResponse> memberLocationsCache = new HashMap<>();
     private DatabaseReference myMarkerStatusRef;
     private ValueEventListener myMarkerStatusListener;
-
-    // 🚀 --- [2.1: 목적지용 변수 3개 추가] ---
-    private Marker destinationMarker = null; // 목적지 마커 객체
-    private DatabaseReference destinationRef; // 목적지 데이터베이스 참조
-    private ValueEventListener destinationListener; // 목적지 리스너
-    // 🚀 --- [2.1 끝] ---
+    private Marker destinationMarker = null;
+    private DatabaseReference destinationRef;
+    private ValueEventListener destinationListener;
 
     // --- ⭐️ [MERGE] 프로필 사진용 멤버 변수 ---
     private CircleImageView ivProfile;
@@ -190,7 +166,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // --- ⭐️ [MERGE] 끝 ---
 
     private TokenManager tokenManager;
-    private UserApi userApi; // [수정] UserApi와 UserApiService를 구분하여 사용합니다.
+    // private UserApi userApi; //
+    private UserApiService userApiService; //
 
     // --- ⭐️ [MERGE] 동시접속 제어용 변수 ---
     private ValueEventListener activeSessionListener;
@@ -206,9 +183,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
 
-        // [수정] TokenManager 및 UserApi 초기화 (Code 1 기준)
+        // [수정] TokenManager 및 UserApiService 초기화 (ApiClient.getUserApiService 사용)
         tokenManager = new TokenManager();
-        userApi = ApiClient.getClient(this).create(UserApi.class);
+        // userApi = ApiClient.getClient(this).create(UserApi.class); //
+        userApiService = ApiClient.getUserApiService(this); //
 
         checkLocationPermission();
         handleIntent(getIntent());
@@ -241,85 +219,64 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
+    // --- (startMyLocationMarkerListener, startFirebaseRulesListener, onMapReady, startMapRefreshTimer, stopMapRefreshTimer는 변경 없음) ---
     private void startMyLocationMarkerListener() {
         if (loggedInUserId == -1L || naverMap == null) return;
-
-        // 경로: user_status/{userId}/is_marker_visible
         myMarkerStatusRef = FirebaseDatabase.getInstance()
                 .getReference("user_status")
                 .child(String.valueOf(loggedInUserId))
                 .child("is_marker_visible");
-
-        // 기존 리스너 제거 (중복 방지)
         if (myMarkerStatusListener != null) {
             myMarkerStatusRef.removeEventListener(myMarkerStatusListener);
         }
-
         myMarkerStatusListener = new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
-                // 값이 없을 경우 기본값(true)을 사용하여 마커가 보이도록 합니다.
                 Boolean isVisible = snapshot.getValue(Boolean.class);
                 boolean showMarker = (isVisible != null) ? isVisible : true;
-
                 if (myLocationMarker != null) {
                     if (showMarker) {
-                        myLocationMarker.setMap(naverMap); // 지도에 표시
+                        myLocationMarker.setMap(naverMap);
                         Log.d(TAG, "My Marker Status: 켜짐 (Visible)");
                     } else {
-                        myLocationMarker.setMap(null); // 지도에서 제거
+                        myLocationMarker.setMap(null);
                         Log.d(TAG, "My Marker Status: 꺼짐 (Hidden)");
                     }
                 }
             }
-
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
                 Log.e(TAG, "My Marker Status Listener Cancelled", error.toException());
             }
         };
-
         myMarkerStatusRef.addValueEventListener(myMarkerStatusListener);
         Log.d(TAG, "startMyLocationMarkerListener: 내 마커 상태 리스너 등록 완료.");
     }
-
-    // ⭐️ [Firebase 규칙 리스너] (Code 1 기준)
     private void startFirebaseRulesListener() {
         if (loggedInUserId == -1L) {
             Log.e(TAG, "startFirebaseRulesListener: 로드 중단. UserID가 유효하지 않습니다.");
             return;
         }
-
-        // 2. 규칙 경로 설정: 'sharing_permissions' 노드 전체를 감시합니다.
         rulesRef = FirebaseDatabase.getInstance()
                 .getReference("sharing_permissions");
-
-        // 3. 기존 리스너 제거 (중복 방지)
         if (rulesListener != null) {
             rulesRef.removeEventListener(rulesListener);
             Log.d(TAG, "startFirebaseRulesListener: 기존 규칙 리스너 제거 완료.");
         }
-
-        // 4. 새로운 리스너 정의 및 등록
         rulesListener = new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
-                // 규칙 맵 초기화
                 incomingSharingRules.clear();
                 outgoingSharingStatus.clear();
-
                 for (DataSnapshot sharerSnapshot : snapshot.getChildren()) {
                     String sharerIdStr = sharerSnapshot.getKey();
                     if (sharerIdStr == null) continue;
                     Long sharerId = Long.parseLong(sharerIdStr);
-
                     for (DataSnapshot targetSnapshot : sharerSnapshot.getChildren()) {
                         String targetIdStr = targetSnapshot.getKey();
                         Boolean isAllowed = targetSnapshot.getValue(Boolean.class);
-
                         if (targetIdStr == null || isAllowed == null) continue;
                         Long targetId = Long.parseLong(targetIdStr);
-
                         if (targetId.equals(loggedInUserId)) {
                             incomingSharingRules.put(sharerId, isAllowed);
                         }
@@ -330,10 +287,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 }
                 Log.d(TAG, "✅ Firebase Rules Loaded. Incoming Count: " + incomingSharingRules.size() +
                         ", Outgoing Count: " + outgoingSharingStatus.size());
-
                 reapplyRulesAndRefreshMarkers();
             }
-
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
                 Log.e(TAG, "Firebase Rules Listener Cancelled", error.toException());
@@ -343,25 +298,20 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         rulesRef.addValueEventListener(rulesListener);
         Log.d(TAG, "startFirebaseRulesListener: Firebase 규칙 리스너 등록 완료.");
     }
-
     @Override
     public void onMapReady(@NonNull NaverMap map) {
         this.naverMap = map;
         naverMap.setLocationSource(locationSource);
         naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
-
-        LatLng initialPosition = new LatLng(37.5665, 126.9780); // 서울 시청 좌표
+        LatLng initialPosition = new LatLng(37.5665, 126.9780);
         naverMap.moveCamera(CameraUpdate.scrollAndZoomTo(initialPosition, 11));
-
         if (myLocationMarker == null) {
             myLocationMarker = new Marker();
             myLocationMarker.setCaptionText("내 위치");
         }
         myLocationMarker.setPosition(initialPosition);
         myLocationMarker.setMap(naverMap);
-
         Log.d(TAG, "onMapReady: NaverMap 위치 변경 리스너 등록 완료");
-
         naverMap.addOnLocationChangeListener(location -> {
             if (location != null && Double.isFinite(location.getLatitude()) && Double.isFinite(location.getLongitude())) {
                 LatLng currentLocation = new LatLng(location.getLatitude(), location.getLongitude());
@@ -371,21 +321,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 updateWeatherWidget(currentLocation);
             }
         });
-
         applyMapTypeSetting();
         loadWeatherData();
-
-        // ⭐️ [MERGE] 맵이 준비되면 저장된 프로필 사진을 마커에 로드 (Code 2 기능)
         loadProfileImage();
     }
-
     private void startMapRefreshTimer() {
         if (naverMap == null) return;
-
         if (mapRefreshRunnable != null) {
             mapRefreshHandler.removeCallbacks(mapRefreshRunnable);
         }
-
         mapRefreshRunnable = new Runnable() {
             @Override
             public void run() {
@@ -397,11 +341,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 mapRefreshHandler.postDelayed(this, MAP_REFRESH_INTERVAL);
             }
         };
-
         mapRefreshHandler.post(mapRefreshRunnable);
         Log.d(TAG, "startMapRefreshTimer: 지도 강제 갱신 타이머 시작. 간격: " + MAP_REFRESH_INTERVAL + "ms");
     }
-
     private void stopMapRefreshTimer() {
         if (mapRefreshRunnable != null) {
             mapRefreshHandler.removeCallbacks(mapRefreshRunnable);
@@ -413,44 +355,36 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // 2. Initializers
     //==============================================================================================
 
+    // --- (initializeMap, initializeButtons, initializeSearch는 변경 없음) ---
     private void initializeMap() {
         locationSource = new FusedLocationSource(this, LOCATION_PERMISSION_REQUEST_CODE);
         mapView.getMapAsync(this);
     }
-
     private void initializeButtons() {
-        // [MERGE] Code 1 기준 + Code 2의 누락된 btnMapType 추가
         FloatingActionButton btnMyLocation = findViewById(R.id.btnMyLocation);
         FloatingActionButton btnTestMovement = findViewById(R.id.btnTestMovement);
         findViewById(R.id.weather_widget).setOnClickListener(v -> showWeatherBottomSheet());
-
         FloatingActionButton btnMainMenu = findViewById(R.id.btnMainMenu);
         FloatingActionButton btnFriends = findViewById(R.id.btnFriends);
         FloatingActionButton btnCreateGroup = findViewById(R.id.btnCreateGroup);
         FloatingActionButton btnMyGroups = findViewById(R.id.btnMyGroups);
         FloatingActionButton btnMyPage = findViewById(R.id.btnMyPage);
         FloatingActionButton btnSettings = findViewById(R.id.btnSettings);
-
-
         btnMainMenu.setOnClickListener(v -> toggleSubMenu());
-
         btnFriends.setOnClickListener(v -> {
             startActivity(new Intent(this, FriendsActivity.class).putExtra("username", loggedInUsername));
             hideSubMenu();
         });
-
         btnCreateGroup.setOnClickListener(v -> {
             startActivity(new Intent(this, CreateGroupActivity.class).putExtra("username", loggedInUsername));
             hideSubMenu();
         });
-
         btnMyGroups.setOnClickListener(v -> {
             Intent intent = new Intent(this, MyGroupsActivity.class);
             intent.putExtra("username", loggedInUsername);
             startActivity(intent);
             hideSubMenu();
         });
-
         btnMyPage.setOnClickListener(v -> {
             View sidebar = findViewById(R.id.sidebar);
             if (drawerLayout.isDrawerOpen(sidebar)) {
@@ -460,24 +394,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
             hideSubMenu();
         });
-
         btnSettings.setOnClickListener(v -> {
             startActivity(new Intent(this, SettingsActivity.class));
             hideSubMenu();
         });
     }
-
     private void initializeSearch() {
         etSearch = findViewById(R.id.et_search);
         ivSearchIcon = findViewById(R.id.iv_search_icon);
         rvSearchResults = findViewById(R.id.rv_search_results);
-
         searchResultAdapter = new SearchResultAdapter();
         rvSearchResults.setLayoutManager(new LinearLayoutManager(this));
         rvSearchResults.setAdapter(searchResultAdapter);
-
         ivSearchIcon.setOnClickListener(v -> performSearch());
-
         searchResultAdapter.setOnItemClickListener(searchResult -> {
             if (isSelectionMode) {
                 Intent resultIntent = new Intent();
@@ -491,7 +420,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 hideSearchResults();
             }
         });
-
         etSearch.setOnEditorActionListener((v, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
                 performSearch();
@@ -505,29 +433,25 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // 3. Real-time Location Sharing (Firebase - 로그 추가)
     //==============================================================================================
 
+    // --- (onNewIntent, handleIntent, reapplyRulesAndRefreshMarkers는 변경 없음) ---
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
         handleIntent(intent);
     }
-
     private void handleIntent(Intent intent) {
         if (intent == null) return;
-
         if (intent.hasExtra("username")) {
             loggedInUsername = intent.getStringExtra("username");
         }
-
         if ("SELECT_DESTINATION".equals(intent.getStringExtra("PURPOSE"))) {
             isSelectionMode = true;
             Toast.makeText(this, "목적지로 설정할 장소를 검색 후 선택해주세요.", Toast.LENGTH_LONG).show();
         }
-
         if (intent.hasExtra("groupId")) {
             currentGroupId = intent.getLongExtra("groupId", -1L);
             Log.d(TAG, "handleIntent: 인텐트 수신됨. GroupId=" + currentGroupId + ", Username=" + loggedInUsername);
-
             if (currentGroupId != -1L) {
                 Toast.makeText(this, "그룹 ID: " + currentGroupId + " 위치 공유를 시작합니다.", Toast.LENGTH_SHORT).show();
                 if (loggedInUserId != -1L) {
@@ -540,20 +464,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         }
     }
-
     private void reapplyRulesAndRefreshMarkers() {
         Log.d(TAG, "reapplyRulesAndRefreshMarkers: 상호 규칙 기반 마커 재적용 시작.");
-
         if (memberLocationsCache != null) {
             List<LocationResponse> locationsToDisplay = new ArrayList<>();
             for (LocationResponse location : memberLocationsCache.values()) {
                 Long sharerId = location.getUserId();
                 if (location.getUserName().equals(loggedInUsername)) continue;
-
                 if (sharerId != null && sharerId != -1L) {
                     boolean isAllowedBySharer = incomingSharingRules.getOrDefault(sharerId, false);
                     boolean isAllowedByMe = outgoingSharingStatus.getOrDefault(sharerId, false);
-
                     if (isAllowedBySharer && isAllowedByMe) {
                         locationsToDisplay.add(location);
                         Log.d(TAG, "reapplyRulesAndRefreshMarkers: ✅ 상호 허용으로 마커 표시 -> " + location.getUserName());
@@ -565,16 +485,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     Log.w(TAG, "reapplyRulesAndRefreshMarkers: Sharer ID가 없어 필터링 건너뜐 -> " + location.getUserName());
                 }
             }
-            updateMemberMarkers(locationsToDisplay); // [MERGE] Code 2의 프로필 사진 마커 로직이 실행됨
+            updateMemberMarkers(locationsToDisplay);
         } else {
             Log.w(TAG, "reapplyRulesAndRefreshMarkers: 캐시된 위치 데이터가 없어 강제 갱신을 건너뜐.");
         }
     }
 
     private void fetchLoggedInUserId() {
-        // [MERGE] Code 1 기준 (UserApiService 사용)
-        UserApiService apiService = ApiClient.getUserApiService(this);
-        Call<Map<String, Long>> call = apiService.getUserIdByUsername(loggedInUsername);
+        // [수정] 멤버 변수인 userApiService를 사용
+        // UserApiService apiService = ApiClient.getUserApiService(this); //
+        Call<Map<String, Long>> call = userApiService.getUserIdByUsername(loggedInUsername); //
 
         call.enqueue(new Callback<Map<String, Long>>() {
             @Override
@@ -593,9 +513,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         if (currentGroupId != -1L) {
                             startLocationSharing();
                         }
-                        return;
+                        return; //
                     }
-                    reapplyRulesAndRefreshMarkers();
+                    reapplyRulesAndRefreshMarkers(); //
                 }
                 Log.e(TAG, "❌ 사용자 ID 획득 실패. 응답 코드: " + response.code());
             }
@@ -608,20 +528,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
 
+    // --- (startLocationSharing, startFirebaseLocationListener, updateMyLocation, updateMemberMarkers는 변경 없음) ---
     private void startLocationSharing() {
         locationUpdateHandler.removeCallbacksAndMessages(null);
-
         if (loggedInUserId == -1L) {
             Log.w(TAG, "startLocationSharing: UserID 로드 대기 중. 위치 공유 시작 중단.");
             return;
         }
-
         startFirebaseRulesListener();
         startMyLocationMarkerListener();
-        startDestinationListener(); // (Code 1 기능)
-
+        startDestinationListener();
         Log.d(TAG, "startLocationSharing: 위치 공유 프로세스 시작. 업데이트 주기=" + LOCATION_UPDATE_INTERVAL + "ms");
-
         locationUpdateRunnable = () -> {
             if (locationSource != null && animationHandler == null) {
                 Location lastKnownLocation = locationSource.getLastLocation();
@@ -637,48 +554,37 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             locationUpdateHandler.postDelayed(locationUpdateRunnable, LOCATION_UPDATE_INTERVAL);
         };
         locationUpdateHandler.post(locationUpdateRunnable);
-
         startFirebaseLocationListener();
     }
-
     private void startFirebaseLocationListener() {
         if (currentGroupId == -1L || naverMap == null) {
             Log.e(TAG, "startFirebaseLocationListener: 리스너 시작 중단. GroupID가 유효하지 않거나 Map이 준비되지 않았습니다.");
             return;
         }
-
         DatabaseReference groupPathRef = firebaseDatabase.child(String.valueOf(currentGroupId));
         if (memberLocationListener != null) {
             groupPathRef.removeEventListener(memberLocationListener);
             Log.d(TAG, "startFirebaseLocationListener: 기존 위치 리스너 제거 완료.");
         }
-
         Log.d(TAG, "startFirebaseLocationListener: Firebase 그룹 위치 리스너 등록 시작. GroupPath=" + groupPathRef.toString());
-
         memberLocationListener = new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 Log.d(TAG, "onDataChange: 위치 데이터 변경 감지. 총 멤버 위치 개수: " + snapshot.getChildrenCount());
-
                 Map<String, LocationResponse> tempCache = new HashMap<>();
-
                 for (DataSnapshot memberSnapshot : snapshot.getChildren()) {
                     String username = memberSnapshot.getKey();
                     if (username != null && username.equals(loggedInUsername)) continue;
-
                     LocationResponse locationData = memberSnapshot.getValue(LocationResponse.class);
-
                     if (locationData != null && locationData.getLatitude() != null && locationData.getLongitude() != null) {
                         locationData.setUserName(username);
                         tempCache.put(username, locationData);
                     }
                 }
-
                 memberLocationsCache.clear();
                 memberLocationsCache.putAll(tempCache);
                 reapplyRulesAndRefreshMarkers();
             }
-
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
                 Log.e(TAG, "onCancelled: Firebase 리스너 취소 오류 (🚨보안 규칙 확인 요망)", error.toException());
@@ -686,53 +592,38 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         };
         groupPathRef.addValueEventListener(memberLocationListener);
     }
-
     private void updateMyLocation(Location location) {
         if (currentGroupId == -1L || location == null || loggedInUsername == null || loggedInUserId == -1L) {
             Log.e(TAG, "updateMyLocation: 위치 업데이트 중단. GroupID=" + currentGroupId + ", Username=" + loggedInUsername + " (유효하지 않음)");
             return;
         }
-
         double latitude = location.getLatitude();
         double longitude = location.getLongitude();
         String firebasePath = String.valueOf(currentGroupId) + "/" + loggedInUsername;
-
         if (Double.isFinite(latitude) && Double.isFinite(longitude)) {
             HashMap<String, Object> locationData = new HashMap<>();
             locationData.put("latitude", latitude);
             locationData.put("longitude", longitude);
             locationData.put("timestamp", System.currentTimeMillis());
             locationData.put("userId", loggedInUserId);
-
             firebaseDatabase.child(firebasePath).setValue(locationData);
             Log.d(TAG, "updateMyLocation: Firebase 쓰기 완료. Path=" + firebasePath + ", Lat=" + latitude);
         }
     }
-
-    // --- ⭐️ [MERGE] Code 2의 프로필 마커 기능이 포함된 `updateMemberMarkers` ---
     private void updateMemberMarkers(List<LocationResponse> locations) {
         if (naverMap == null) return;
-
         Log.d(TAG, "updateMemberMarkers: 지도 마커 업데이트 시작. 새 위치 개수: " + locations.size());
-
         List<String> updatedUsernames = new ArrayList<>();
-
-        // 1. 표시할 마커 목록을 순회
         for (LocationResponse location : locations) {
             if (!Double.isFinite(location.getLatitude()) || !Double.isFinite(location.getLongitude())) continue;
-
             String username = location.getUserName();
             Long userId = location.getUserId();
-
             if (userId == null || userId == -1L) {
                 Log.w(TAG, "updateMemberMarkers: UserID가 없어 이미지 로드 건너뜀 -> " + username);
                 continue;
             }
-
             updatedUsernames.add(username);
             LatLng memberPosition = new LatLng(location.getLatitude(), location.getLongitude());
-
-            // 2. 마커 추가/업데이트
             Marker marker = memberMarkers.get(username);
             if (marker == null) {
                 marker = new Marker();
@@ -740,22 +631,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 memberMarkers.put(username, marker);
                 Log.d(TAG, "updateMemberMarkers: 새 멤버 마커 추가 -> " + username);
             }
-
-            // 3. 위치 업데이트 및 지도에 표시
             marker.setPosition(memberPosition);
             marker.setMap(naverMap);
-
-            // 4. [MERGE] 프로필 사진 적용 API 호출 (Code 2 기능)
             fetchAndApplyMemberProfile(userId, marker);
         }
-
-        // 5. 지도에서 마커 제거 (목록에 없는 마커)
         boolean markerRemoved = false;
         Iterator<Map.Entry<String, Marker>> iterator = memberMarkers.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, Marker> entry = iterator.next();
             String username = entry.getKey();
-
             if (!updatedUsernames.contains(username)) {
                 entry.getValue().setMap(null);
                 Log.d(TAG, "updateMemberMarkers: 마커 UI 제거 완료 -> Name: " + username);
@@ -764,8 +648,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 markerRemoved = true;
             }
         }
-
-        // 6. 강제 갱신
         if (naverMap != null && markerRemoved) {
             CameraUpdate cameraUpdate = CameraUpdate.scrollTo(naverMap.getCameraPosition().target);
             naverMap.moveCamera(cameraUpdate);
@@ -774,14 +656,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     //==============================================================================================
-    // 4. Mock Movement & Destination Selection (로그 추가)
+    // 4. Mock Movement & Destination Selection
     //==============================================================================================
 
+    // --- (loadWeatherData, startMockMovement, onDestinationSelected는 변경 없음) ---
     private void loadWeatherData() {
         LatLng defaultLocation = new LatLng(37.5665, 126.9780);
         updateWeatherWidget(defaultLocation);
     }
-
     private void startMockMovement() {
         if (animationHandler != null) {
             animationHandler.removeCallbacks(animationRunnable);
@@ -789,28 +671,22 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         animationHandler = new Handler(Looper.getMainLooper());
         startTime = System.currentTimeMillis();
         startLatLng = myLocationMarker.getPosition();
-
         Toast.makeText(this, "Mock movement to Busan started.", Toast.LENGTH_LONG).show();
         Log.d(TAG, "startMockMovement: 가상 이동 시작. 시작 위치: " + startLatLng.latitude);
-
         animationRunnable = new Runnable() {
             @Override
             public void run() {
                 long elapsed = System.currentTimeMillis() - startTime;
                 float fraction = Math.min((float) elapsed / totalDuration, 1.0f);
-
                 double lat = startLatLng.latitude + (endLatLng.latitude - startLatLng.latitude) * fraction;
                 double lon = startLatLng.longitude + (endLatLng.longitude - startLatLng.longitude) * fraction;
                 LatLng currentLatLng = new LatLng(lat, lon);
-
                 myLocationMarker.setPosition(currentLatLng);
                 naverMap.moveCamera(CameraUpdate.scrollTo(currentLatLng));
-
                 Location mockLocation = new Location("MockProvider");
                 mockLocation.setLatitude(lat);
                 mockLocation.setLongitude(lon);
-                updateMyLocation(mockLocation); // 🎯 가상 위치도 Firebase에 업데이트
-
+                updateMyLocation(mockLocation);
                 if (fraction < 1.0) {
                     animationHandler.postDelayed(this, updateInterval);
                 } else {
@@ -822,13 +698,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         };
         animationHandler.post(animationRunnable);
     }
-
     @Override
     public void onDestinationSelected(SearchResult selectedResult) {
         Toast.makeText(this, selectedResult.getTitle() + " selected as destination.", Toast.LENGTH_LONG).show();
         hideSearchResults();
         if (searchResultMarker != null) searchResultMarker.setMap(null);
-
         Intent intent = new Intent(this, CreateGroupActivity.class);
         intent.putExtra("destination_result", selectedResult);
         intent.putExtra("username", loggedInUsername);
@@ -839,52 +713,46 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // 5. UI Features (Menus, Search, Weather, Profile)
     //==============================================================================================
 
+    // --- (toggleSubMenu, showSubMenu, hideSubMenu, initializeSubMenu는 변경 없음) ---
     private void toggleSubMenu() {
         if (isSubMenuOpen) hideSubMenu();
         else showSubMenu();
     }
-
     private void showSubMenu() {
         isSubMenuOpen = true;
         FloatingActionButton btnMainMenu = findViewById(R.id.btnMainMenu);
         btnMainMenu.setImageResource(R.drawable.ic_close);
         btnMainMenu.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.red)));
-
         FloatingActionButton[] targets = {
                 findViewById(R.id.btnFriends), findViewById(R.id.btnCreateGroup),
                 findViewById(R.id.btnMyGroups), findViewById(R.id.btnMyPage), findViewById(R.id.btnSettings)
         };
         float[] angles = {180f, 135f, 90f, 45f, 0f};
         float radiusPx = dpToPx(SUB_MENU_RADIUS_DP);
-
         for (int i = 0; i < targets.length; i++) {
             targets[i].setVisibility(View.VISIBLE);
             targets[i].setAlpha(0f);
             double rad = Math.toRadians(angles[i]);
-            float tx = (float) (Math.cos(rad) * radiusPx * 1.2); // Adjust distance
-            float ty = (float) (Math.sin(rad) * radiusPx * -1.2); // Adjust distance & invert Y
+            float tx = (float) (Math.cos(rad) * radiusPx * 1.2);
+            float ty = (float) (Math.sin(rad) * radiusPx * -1.2);
             targets[i].animate().translationX(tx).translationY(ty).alpha(1f).setDuration(300).setStartDelay(i * 40L).start();
         }
     }
-
     private void hideSubMenu() {
         isSubMenuOpen = false;
         FloatingActionButton btnMainMenu = findViewById(R.id.btnMainMenu);
         btnMainMenu.setImageResource(R.drawable.ic_menu);
         btnMainMenu.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.colorPrimary)));
-
         FloatingActionButton[] targets = {
                 findViewById(R.id.btnFriends), findViewById(R.id.btnCreateGroup),
                 findViewById(R.id.btnMyGroups), findViewById(R.id.btnMyPage), findViewById(R.id.btnSettings)
         };
-
         for (int i = 0; i < targets.length; i++) {
             int finalI = i;
             targets[i].animate().translationX(0f).translationY(0f).alpha(0f).setDuration(250).setStartDelay((targets.length - 1 - i) * 30L)
                     .withEndAction(() -> targets[finalI].setVisibility(View.GONE)).start();
         }
     }
-
     private void initializeSubMenu() {
         FloatingActionButton[] targets = {
                 findViewById(R.id.btnFriends), findViewById(R.id.btnCreateGroup),
@@ -896,11 +764,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
-    // --- ⭐️ [MERGE] 프로필 사진 로직 시작 (Code 2 기능) ---
+    // --- ⭐️ [MERGE] 프로필 사진 로직 시작 ---
 
-    /**
-     * 갤러리 결과 처리를 위한 런처 초기화
-     */
+    // --- (initializeGalleryLauncher, bindMyPageHeader, showProfileImageOptions, loadProfileImage는 변경 없음) ---
     private void initializeGalleryLauncher() {
         galleryLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
@@ -908,54 +774,35 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
                         Uri selectedImageUri = result.getData().getData();
                         if (selectedImageUri != null) {
-                            // 1. 이미지뷰에 즉시 반영
                             Glide.with(this)
                                     .load(selectedImageUri)
                                     .placeholder(R.drawable.ic_person)
                                     .error(R.drawable.ic_person)
                                     .into(ivProfile);
-                            // 2. 서버에 업로드
                             uploadImageToServer(selectedImageUri);
                         }
                     }
                 }
         );
     }
-
-    /**
-     * [MERGE] 사이드바 헤더 UI 바인딩 (Code 1의 로그아웃 + Code 2의 프로필)
-     */
     private void bindMyPageHeader() {
         TextView tvUsername = findViewById(R.id.tv_username);
         TextView tvEmail = findViewById(R.id.tv_email);
-        ivProfile = findViewById(R.id.iv_profile); // 프로필 이미지뷰 참조
-
+        ivProfile = findViewById(R.id.iv_profile);
         if (tvUsername != null) tvUsername.setText(loggedInUsername != null ? loggedInUsername : "Guest");
         if (tvEmail != null) tvEmail.setText(getSharedPreferences("user_info", MODE_PRIVATE).getString("email", ""));
-
-        // [MERGE] 프로필 이미지 로드 (Code 2 기능)
         loadProfileImage();
-
-        // [MERGE] 프로필 이미지 클릭 리스너 (Code 2 기능)
         ivProfile.setOnClickListener(v -> {
             showProfileImageOptions();
         });
-
-        // [MERGE] 로그아웃 버튼 리스너 (Code 1의 'logout()' 메소드 호출)
         findViewById(R.id.btn_logout).setOnClickListener(v -> {
-            logout(); // (Code 1의 견고한 로그아웃 메소드)
+            logout();
         });
     }
-
-    /**
-     * [MERGE] 프로필 이미지 옵션 다이얼로그 (Code 2 기능)
-     */
     private void showProfileImageOptions() {
-        // (TODO: 갤러리 접근 권한 확인 로직 추가)
         final CharSequence[] options = {"기본 프로필로 설정", "사진 선택", "취소"};
         AlertDialog.Builder builder = new AlertDialog.Builder(MapsActivity.this);
         builder.setTitle("프로필 사진 변경");
-
         builder.setItems(options, (dialog, item) -> {
             if (options[item].equals("기본 프로필로 설정")) {
                 setProfileToDefault();
@@ -968,19 +815,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
         builder.show();
     }
-
-    /**
-     * [MERGE] SharedPreferences에서 프로필 이미지 URL 로드 (Code 2 기능)
-     */
     private void loadProfileImage() {
         SharedPreferences prefs = getSharedPreferences("user_info", MODE_PRIVATE);
         String imageUrl = prefs.getString("profileImageUrl", null);
         Log.d(TAG, "loadProfileImage: Loaded URL from Prefs: " + (imageUrl != null ? imageUrl : "null"));
-
         if (ivProfile == null) {
             ivProfile = findViewById(R.id.iv_profile);
         }
-
         Object loadTarget = null;
         if (imageUrl != null && !imageUrl.isEmpty()) {
             if (imageUrl.startsWith("content://")) {
@@ -988,7 +829,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             } else if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
                 loadTarget = imageUrl;
             } else {
-                // [MERGE] URL 안전하게 조합 (Code 2 로직 + Code 1의 ApiClient 사용)
                 String baseUrl = ApiClient.getBaseUrl();
                 if (baseUrl.endsWith("/")) {
                     baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
@@ -996,29 +836,22 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 loadTarget = baseUrl + imageUrl;
             }
             Log.d(TAG, "loadProfileImage: Final Load Target: " + loadTarget.toString());
-
             Glide.with(this)
                     .load(loadTarget)
-                    .diskCacheStrategy(DiskCacheStrategy.NONE) // 캐시 무시
-                    .skipMemoryCache(true) // 메모리 캐시 무시
+                    .diskCacheStrategy(DiskCacheStrategy.NONE)
+                    .skipMemoryCache(true)
                     .placeholder(R.drawable.ic_person)
                     .error(R.drawable.ic_person)
                     .into(ivProfile);
         } else {
             ivProfile.setImageResource(R.drawable.ic_person);
         }
-
-        // [MERGE] 내 마커 아이콘 업데이트 (Code 2 기능)
         updateMyLocationMarkerIcon(imageUrl);
     }
 
-    /**
-     * [MERGE] (API 호출) 기본 프로필로 설정 (Code 2 기능)
-     * [수정] Code 1의 'userApi' 멤버 변수 사용
-     */
     private void setProfileToDefault() {
-        // [MERGE] Code 1에서 초기화된 userApi 사용
-        Call<Map<String, Object>> call = userApi.setDefaultProfileImage();
+        // [수정] userApi -> userApiService로 변경
+        Call<Map<String, Object>> call = userApiService.setDefaultProfileImage(); //
 
         call.enqueue(new Callback<Map<String, Object>>() {
             @Override
@@ -1027,11 +860,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 if (response.isSuccessful() && response.body() != null) {
                     Log.d(TAG, "Default Profile Set SUCCESS. Code: " + response.code());
                     Toast.makeText(MapsActivity.this, "기본 프로필로 변경되었습니다.", Toast.LENGTH_SHORT).show();
-
                     getSharedPreferences("user_info", MODE_PRIVATE).edit()
                             .remove("profileImageUrl").apply();
                     ivProfile.setImageResource(R.drawable.ic_person);
-                    updateMyLocationMarkerIcon(null); // 마커 아이콘도 기본값으로
+                    updateMyLocationMarkerIcon(null);
                 } else {
                     String errorMsg = "기본 프로필 변경 실패. 응답 코드: " + response.code();
                     Log.e(TAG, "Default Profile Set FAILED: " + errorMsg);
@@ -1045,10 +877,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
     }
 
-    /**
-     * [MERGE] (API 호출) 이미지 서버로 업로드 (Code 2 기능)
-     * [수정] Code 1의 'userApi' 멤버 변수 사용
-     */
     private void uploadImageToServer(Uri imageUri) {
         File file = createCacheFileFromUri(imageUri);
         if (file == null) {
@@ -1059,8 +887,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         RequestBody requestFile = RequestBody.create(MediaType.parse(getContentResolver().getType(imageUri)), file);
         MultipartBody.Part body = MultipartBody.Part.createFormData("image", file.getName(), requestFile);
 
-        // [MERGE] Code 1에서 초기화된 userApi 사용
-        Call<Map<String, Object>> call = userApi.uploadProfileImage(body);
+        // [수정] userApi -> userApiService로 변경
+        Call<Map<String, Object>> call = userApiService.uploadProfileImage(body); //
 
         call.enqueue(new Callback<Map<String, Object>>() {
             @Override
@@ -1069,19 +897,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 if (response.isSuccessful() && response.body() != null) {
                     Log.d(TAG, "Upload SUCCESS Response Body: " + response.body().toString());
                     String newImageUrl = (String) response.body().get("profileImageUrl");
-
                     if (newImageUrl != null && !newImageUrl.trim().isEmpty()) {
                         Toast.makeText(MapsActivity.this, "프로필이 변경되었습니다.", Toast.LENGTH_SHORT).show();
-
                         SharedPreferences prefs = getSharedPreferences("user_info", MODE_PRIVATE);
                         prefs.edit().putString("profileImageUrl", newImageUrl).apply();
-
-                        // [MERGE] loadProfileImage 호출로 UI와 마커 동시 업데이트
                         loadProfileImage();
                     } else {
                         Log.e(TAG, "업로드 성공 (HTTP 200) 했으나 'profileImageUrl' 필드 누락.");
                         Toast.makeText(MapsActivity.this, "프로필 변경 성공, URL 처리 오류.", Toast.LENGTH_LONG).show();
-                        loadProfileImage(); // 원래 이미지로 복원
+                        loadProfileImage();
                     }
                 } else {
                     Log.e(TAG, "업로드 실패. HTTP 오류 코드: " + response.code());
@@ -1093,14 +917,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
                 Log.e(TAG, "네트워크 오류", t);
                 Toast.makeText(MapsActivity.this, "네트워크 오류: " + t.getMessage(), Toast.LENGTH_LONG).show();
-                loadProfileImage(); // 실패 시 원래 이미지로 복원
+                loadProfileImage();
             }
         });
     }
 
-    /**
-     * [MERGE] Uri를 임시 캐시 파일(File) 객체로 변환 (Code 2 기능)
-     */
+    // --- (createCacheFileFromUri는 변경 없음) ---
     private File createCacheFileFromUri(Uri uri) {
         try (InputStream inputStream = getContentResolver().openInputStream(uri)) {
             File tempFile = new File(getCacheDir(), "temp_profile_image.jpg");
@@ -1120,6 +942,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // --- ⭐️ [MERGE] 프로필 사진 로직 끝 ---
 
 
+    // --- (Search, Weather 관련 메소드들은 변경 없음) ---
     private void performSearch() {
         String query = etSearch.getText().toString().trim();
         if (query.isEmpty()) {
@@ -1129,7 +952,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         hideKeyboard();
         searchPlacesWithNaverAPI(query);
     }
-
     private void searchPlacesWithNaverAPI(String query) {
         executor.execute(() -> {
             try {
@@ -1139,21 +961,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 conn.setRequestMethod("GET");
                 conn.setRequestProperty("X-Naver-Client-Id", NAVER_CLIENT_ID);
                 conn.setRequestProperty("X-Naver-Client-Secret", NAVER_CLIENT_SECRET);
-
                 if (conn.getResponseCode() == 200) {
                     BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                     StringBuilder response = new StringBuilder();
                     String line;
                     while ((line = reader.readLine()) != null) response.append(line);
                     reader.close();
-
                     List<SearchResult> results = parseNaverSearchResults(new JSONObject(response.toString()));
-
                     for (SearchResult result : results) {
                         String imageUrl = fetchFirstImageUrl(result.getTitle());
                         result.setImageUrl(imageUrl);
                     }
-
                     handler.post(() -> {
                         if (results.isEmpty()) Toast.makeText(this, "검색 결과가 없습니다.", Toast.LENGTH_SHORT).show();
                         else showSearchResults(results);
@@ -1167,25 +985,21 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         });
     }
-
     private String fetchFirstImageUrl(String query) {
         try {
             String simpleQuery = query.split(" ")[0].replaceAll("<[^>]*>", "");
             String encodedQuery = java.net.URLEncoder.encode(simpleQuery, "UTF-8");
-
             URL url = new URL("https://openapi.naver.com/v1/search/image?query=" + encodedQuery + "&display=1&sort=sim");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("X-Naver-Client-Id", NAVER_CLIENT_ID);
             conn.setRequestProperty("X-Naver-Client-Secret", NAVER_CLIENT_SECRET);
-
             if (conn.getResponseCode() == 200) {
                 BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                 StringBuilder response = new StringBuilder();
                 String line;
                 while ((line = reader.readLine()) != null) response.append(line);
                 reader.close();
-
                 JSONObject json = new JSONObject(response.toString());
                 JSONArray items = json.getJSONArray("items");
                 if (items.length() > 0) {
@@ -1198,7 +1012,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             return "";
         }
     }
-
     private List<SearchResult> parseNaverSearchResults(JSONObject json) throws Exception {
         List<SearchResult> results = new ArrayList<>();
         JSONArray items = json.getJSONArray("items");
@@ -1214,37 +1027,30 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
         return results;
     }
-
     private void moveToSearchResult(SearchResult result) {
         if (naverMap != null) {
             LatLng location = new LatLng(result.getLatitude(), result.getLongitude());
             naverMap.moveCamera(CameraUpdate.scrollAndZoomTo(location, 16).animate(CameraAnimation.Easing));
-
             if (searchResultMarker != null) searchResultMarker.setMap(null);
             searchResultMarker = new Marker(location);
             searchResultMarker.setCaptionText(result.getTitle());
             searchResultMarker.setMap(naverMap);
-
             SearchResultDetailFragment.newInstance(result).show(getSupportFragmentManager(), "SearchResultDetail");
         }
     }
-
     private void showSearchResults(List<SearchResult> results) {
         searchResultAdapter.updateResults(results);
         rvSearchResults.setVisibility(View.VISIBLE);
     }
-
     private void hideSearchResults() {
         rvSearchResults.setVisibility(View.GONE);
     }
-
     private void showWeatherBottomSheet() {
         Location location = locationSource.getLastLocation();
         double lat = (location != null) ? location.getLatitude() : 37.5665;
         double lon = (location != null) ? location.getLongitude() : 126.9780;
         WeatherBottomSheetFragment.newInstance(lat, lon).show(getSupportFragmentManager(), "WeatherBottomSheet");
     }
-
     private void updateWeatherWidget(LatLng location) {
         executor.execute(() -> {
             try {
@@ -1252,17 +1058,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         "https://api.openweathermap.org/data/2.5/weather?lat=%f&lon=%f&appid=%s&units=metric&lang=kr",
                         location.latitude, location.longitude, OPENWEATHERMAP_API_KEY));
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-
                 if (conn.getResponseCode() == 200) {
                     BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                     StringBuilder response = new StringBuilder();
                     String line;
                     while((line = reader.readLine()) != null) response.append(line);
-
                     JSONObject json = new JSONObject(response.toString());
                     double temp = json.getJSONObject("main").getDouble("temp");
                     String weatherMain = json.getJSONArray("weather").getJSONObject(0).getString("main");
-
                     handler.post(() -> {
                         tvTemperature.setText(String.format(Locale.getDefault(), "%.0f°", temp));
                         ivWeatherIcon.setImageResource(getWeatherIconResource(weatherMain));
@@ -1273,7 +1076,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         });
     }
-
     private int getWeatherIconResource(String weatherMain) {
         switch (weatherMain.toLowerCase()) {
             case "clear": return R.drawable.ic_weather_clear;
@@ -1286,16 +1088,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
 
     //==============================================================================================
-    // 6. Permissions & Utilities (수정 없음)
+    // 6. Permissions & Utilities
     //==============================================================================================
 
+    // --- (Permission, MapType, UI Utils 등은 변경 없음) ---
     private void checkLocationPermission() {
-        // (TODO: 갤러리 접근 권한도 함께 요청하는 것이 좋습니다)
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
         }
     }
-
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -1303,7 +1104,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             if (naverMap != null) naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
         }
     }
-
     private void moveToCurrentLocation() {
         if (naverMap != null && locationSource.getLastLocation() != null) {
             Location loc = locationSource.getLastLocation();
@@ -1311,7 +1111,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     .animate(CameraAnimation.Easing));
         }
     }
-
     private void showMapTypeMenu(View anchor) {
         PopupMenu popup = new PopupMenu(this, anchor);
         popup.getMenuInflater().inflate(R.menu.map_type_menu, popup.getMenu());
@@ -1324,53 +1123,40 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
         popup.show();
     }
-
     private float dpToPx(float dp) {
         return dp * getResources().getDisplayMetrics().density;
     }
-
     private void hideKeyboard() {
         InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
         View view = getCurrentFocus();
         if (view != null) imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
     }
-
-    /**
-     * [MERGE] Code 2의 유연한 맵 타입 설정 로직
-     */
     private void applyMapTypeSetting() {
         SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
-
-        // [MERGE] Code 2는 int(ordinal) 기반, Code 1은 boolean 기반.
-        // Code 2의 방식이 더 유연하므로 Code 2의 방식을 채택.
-        // (SettingsActivity도 int "map_type"으로 저장하도록 수정 필요할 수 있음)
         int mapTypeOrdinal = prefs.getInt("map_type", NaverMap.MapType.Basic.ordinal());
-
         NaverMap.MapType mapType;
         try {
             mapType = NaverMap.MapType.values()[mapTypeOrdinal];
         } catch (Exception e) {
             mapType = NaverMap.MapType.Basic;
         }
-
         if (naverMap != null) {
             naverMap.setMapType(mapType);
         }
     }
 
     //==============================================================================================
-    // 7. Activity Lifecycle Callbacks (로그 추가)
+    // 7. Activity Lifecycle Callbacks
     //==============================================================================================
 
+    // --- (Lifecycle 메소드들은 변경 없음) ---
     @Override
     protected void onStart() { super.onStart(); mapView.onStart(); }
-
     @Override
     protected void onResume() {
         super.onResume();
         mapView.onResume();
         applyMapTypeSetting();
-
         if (currentGroupId != -1L) {
             Log.d(TAG, "onResume: 유효한 그룹 ID(" + currentGroupId + ")가 있어 위치 공유 재시작.");
             startLocationSharing();
@@ -1379,20 +1165,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             Log.d(TAG, "onResume: 그룹 ID가 없어 위치 공유를 시작하지 않음.");
         }
     }
-
     @Override
     protected void onPause() {
         super.onPause();
         mapView.onPause();
-
         locationUpdateHandler.removeCallbacksAndMessages(null);
         Log.d(TAG, "onPause: 주기적인 위치 업데이트 (Handler) 중단.");
-
         if (animationHandler != null) {
             animationHandler.removeCallbacks(animationRunnable);
             animationHandler = null;
         }
-
         stopMapRefreshTimer();
         if (currentGroupId != -1L) {
             if (memberLocationListener != null) {
@@ -1407,53 +1189,40 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 myMarkerStatusRef.removeEventListener(myMarkerStatusListener);
                 Log.d(TAG, "onPause: 내 마커 상태 리스너 제거 완료.");
             }
-
             stopDestinationListener();
         }
-
-        // --- ⭐️ [MERGE] 동시접속 제어 리스너 중지 (Code 1 기능) ---
         stopActiveSessionListener();
-        // --- ⭐️ [MERGE] 끝 ---
     }
-
     @Override
     protected void onStop() { super.onStop(); mapView.onStop(); }
-
     @Override
     protected void onDestroy() {
         super.onDestroy();
         mapView.onDestroy();
-
         if (myMarkerStatusRef != null && myMarkerStatusListener != null) {
             myMarkerStatusRef.removeEventListener(myMarkerStatusListener);
             Log.d(TAG, "onDestroy: 내 마커 상태 리스너 제거 완료.");
         }
-
-        // --- ⭐️ [MERGE] 동시접속 제어 리스너 중지 (Code 1 기능) ---
         stopActiveSessionListener();
-        // --- ⭐️ [MERGE] 끝 ---
     }
-
     @Override
     public void onLowMemory() { super.onLowMemory(); mapView.onLowMemory(); }
 
 
     // 🚀 --- [2.5: 목적지 마커용 새 메서드 4개 추가] --- (Code 1 기준)
 
+    // --- (Destination 리스너 메소드들은 변경 없음) ---
     private void startDestinationListener() {
         if (naverMap == null || currentGroupId == -1L) {
             Log.w(TAG, "startDestinationListener: NaverMap이 null이거나 Group ID가 유효하지 않아 중단.");
             return;
         }
         stopDestinationListener();
-
         destinationRef = FirebaseDatabase.getInstance()
                 .getReference("group_destinations")
                 .child(String.valueOf(currentGroupId))
                 .child("destination");
-
         Log.d(TAG, "Firebase 목적지 리스너 등록 시도. Path: " + destinationRef.toString());
-
         destinationListener = new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
@@ -1461,7 +1230,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     Double latitude = snapshot.child("latitude").getValue(Double.class);
                     Double longitude = snapshot.child("longitude").getValue(Double.class);
                     String name = snapshot.child("name").getValue(String.class);
-
                     if (latitude != null && longitude != null && name != null &&
                             Double.isFinite(latitude) && Double.isFinite(longitude)) {
                         LatLng destinationLatLng = new LatLng(latitude, longitude);
@@ -1476,7 +1244,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     Log.d(TAG, "Firebase에 해당 그룹의 목적지 정보가 없습니다.");
                 }
             }
-
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
                 Log.e(TAG, "Firebase 목적지 리스너 취소됨", error.toException());
@@ -1485,7 +1252,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         };
         destinationRef.addValueEventListener(destinationListener);
     }
-
     private void removeDestinationMarker() {
         if (destinationMarker != null) {
             destinationMarker.setMap(null);
@@ -1493,13 +1259,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             Log.d(TAG, "목적지 마커 제거 완료.");
         }
     }
-
     private void updateDestinationMarker(LatLng position, String caption) {
         if (naverMap == null) {
             Log.w(TAG, "updateDestinationMarker: NaverMap이 null이라 마커를 업데이트할 수 없습니다.");
             return;
         }
-
         if (destinationMarker == null) {
             destinationMarker = new Marker();
             destinationMarker.setWidth(Marker.SIZE_AUTO);
@@ -1511,7 +1275,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         destinationMarker.setCaptionText("🚩 도착지: " + caption);
         destinationMarker.setMap(naverMap);
     }
-
     private void stopDestinationListener() {
         if (destinationRef != null && destinationListener != null) {
             destinationRef.removeEventListener(destinationListener);
@@ -1523,14 +1286,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // 🚀 --- [2.5 끝] ---
 
 
-    // 🚀 --- [MERGE] 프로필 사진 마커 업데이트 메소드 (Code 2 기능) ---
+    // 🚀 --- [MERGE] 프로필 사진 마커 업데이트 메소드 ---
 
-    /**
-     * [MERGE] 내 위치 마커 아이콘을 프로필 사진으로 업데이트 (Code 2 기능)
-     */
+    // --- (updateMyLocationMarkerIcon은 변경 없음) ---
     private void updateMyLocationMarkerIcon(String imageUrl) {
         if (naverMap == null || myLocationMarker == null) return;
-
         executor.execute(() -> {
             try {
                 Object loadTarget = null;
@@ -1546,7 +1306,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     }
                 }
                 Log.d(TAG, "updateMyLocationMarkerIcon - Load Target: " + (loadTarget != null ? loadTarget.toString() : "BASIC_ICON"));
-
                 final Object finalLoadTarget = loadTarget;
                 Bitmap bitmap = null;
                 if (finalLoadTarget != null) {
@@ -1560,19 +1319,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                             .get();
                 }
                 final Bitmap finalBitmap = bitmap;
-
                 handler.post(() -> {
                     if (naverMap != null && myLocationMarker != null) {
                         if (finalBitmap != null) {
                             myLocationMarker.setIcon(OverlayImage.fromBitmap(finalBitmap));
                             Log.d(TAG, "✅ 내 마커 아이콘이 프로필 사진으로 업데이트됨.");
                         } else {
-                            myLocationMarker.setIcon(OverlayImage.fromResource(R.drawable.ic_person)); // 기본 아이콘
+                            myLocationMarker.setIcon(OverlayImage.fromResource(R.drawable.ic_person));
                             Log.d(TAG, "✅ 내 마커 아이콘이 기본 아이콘으로 재설정됨.");
                         }
                     }
                 });
-
             } catch (Exception e) {
                 Log.e(TAG, "마커 아이콘 업데이트 실패", e);
                 handler.post(() -> {
@@ -1584,13 +1341,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
     }
 
-    /**
-     * [MERGE] (API 호출) 팀원 프로필 사진을 마커에 적용 (Code 2 기능)
-     * [수정] Code 1의 'userApi' 멤버 변수 사용
-     */
     private void fetchAndApplyMemberProfile(Long userId, final Marker marker) {
-        // [MERGE] Code 1에서 초기화된 userApi 사용
-        Call<Map<String, String>> call = userApi.getProfileImageUrl(userId);
+        // [수정] userApi -> userApiService로 변경
+        Call<Map<String, String>> call = userApiService.getProfileImageUrl(userId); //
 
         call.enqueue(new Callback<Map<String, String>>() {
             @Override
@@ -1603,7 +1356,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     loadBitmapForMarker(null, marker);
                 }
             }
-
             @Override
             public void onFailure(Call<Map<String, String>> call, Throwable t) {
                 Log.e(TAG, "팀원 프로필 URL 네트워크 오류: ID=" + userId, t);
@@ -1612,9 +1364,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
     }
 
-    /**
-     * [MERGE] URL로부터 비트맵을 로드하여 마커에 적용 (Code 2 기능)
-     */
+    // --- (loadBitmapForMarker는 변경 없음) ---
     private void loadBitmapForMarker(String imageUrl, final Marker marker) {
         executor.execute(() -> {
             try {
@@ -1630,7 +1380,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         loadTarget = baseUrl + imageUrl;
                     }
                 }
-
                 final Object finalLoadTarget = loadTarget;
                 Bitmap bitmap = null;
                 if (finalLoadTarget != null) {
@@ -1644,7 +1393,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                             .get();
                 }
                 final Bitmap finalBitmap = bitmap;
-
                 handler.post(() -> {
                     if (naverMap != null && marker.getMap() == naverMap) {
                         if (finalBitmap != null) {
@@ -1654,7 +1402,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         }
                     }
                 });
-
             } catch (Exception e) {
                 Log.e(TAG, "팀원 마커 아이콘 로드 실패", e);
                 handler.post(() -> {
@@ -1668,11 +1415,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // 🚀 --- [MERGE] 프로필 마커 로직 끝 ---
 
 
-    // --- ⭐️ [MERGE] 동시접속 제어 메소드 (Code 1 기능) ---
+    // --- ⭐️ [MERGE] 동시접속 제어 메소드 ---
 
-    /**
-     * [MERGE] 실시간 동시 접속 감지 리스너를 시작합니다 (Code 1 기능)
-     */
+    // --- (startActiveSessionListener, stopActiveSessionListener는 변경 없음) ---
     private void startActiveSessionListener() {
         if (loggedInUserId == -1L) {
             Log.w(TAG, "startActiveSessionListener: UserID가 없어 세션 감지를 시작할 수 없습니다.");
@@ -1681,24 +1426,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (tokenManager == null) {
             tokenManager = new TokenManager();
         }
-
         activeSessionRef = FirebaseDatabase.getInstance()
                 .getReference("user_sessions")
                 .child(String.valueOf(loggedInUserId))
                 .child("activeToken");
-
         if (activeSessionListener != null) {
             activeSessionRef.removeEventListener(activeSessionListener);
         }
-
         Log.d(TAG, "startActiveSessionListener: 실시간 세션 감지 리스너 등록 시작.");
-
         activeSessionListener = new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 String serverActiveToken = snapshot.getValue(String.class);
                 String myToken = tokenManager.getAccessToken();
-
                 if (serverActiveToken != null && myToken != null && !serverActiveToken.equals(myToken)) {
                     Log.w(TAG, "ActiveSessionListener: 동시 접속 감지! 강제 로그아웃을 실행합니다.");
                     Toast.makeText(MapsActivity.this, "다른 기기에서 로그인하여 로그아웃됩니다.", Toast.LENGTH_LONG).show();
@@ -1709,7 +1449,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     performClientLogout();
                 }
             }
-
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
                 Log.e(TAG, "ActiveSessionListener: 세션 감시 리스너 실패", error.toException());
@@ -1717,10 +1456,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         };
         activeSessionRef.addValueEventListener(activeSessionListener);
     }
-
-    /**
-     * [MERGE] 실시간 동시 접속 감지 리스너를 중지합니다 (Code 1 기능)
-     */
     private void stopActiveSessionListener() {
         if (activeSessionRef != null && activeSessionListener != null) {
             activeSessionRef.removeEventListener(activeSessionListener);
@@ -1732,12 +1467,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // --- ⭐️ [MERGE] 동시접속 제어 끝 ---
 
 
-    /**
-     * [MERGE] 서버에 실제 로그아웃을 요청하는 메소드 (Code 1 기준)
-     */
     private void logout() {
-        // [MERGE] Code 1에서 초기화된 userApi 사용
-        Call<Map<String, Object>> call = userApi.logout();
+        // [수정] userApi -> userApiService로 변경
+        Call<Map<String, Object>> call = userApiService.logout(); //
 
         call.enqueue(new Callback<Map<String, Object>>() {
             @Override
@@ -1747,30 +1479,24 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 } else {
                     Log.w("MapsActivity", "서버 로그아웃 응답 실패: " + response.code());
                 }
-                performClientLogout(); // 서버 응답과 관계없이 클라이언트 로그아웃
+                performClientLogout();
             }
 
             @Override
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
                 Log.e("MapsActivity", "서버 로그아웃 요청 실패", t);
-                performClientLogout(); // 네트워크 오류 시에도 클라이언트 로그아웃
+                performClientLogout();
             }
         });
     }
 
-    /**
-     * [MERGE] 클라이언트 측 토큰 삭제 및 화면 이동 (Code 1 기준)
-     */
+    // --- (performClientLogout은 변경 없음) ---
     private void performClientLogout() {
-        // [MERGE] Code 1의 (인자 없는) TokenManager 사용
         tokenManager.deleteTokens();
-
         Toast.makeText(MapsActivity.this, "로그아웃 되었습니다.", Toast.LENGTH_SHORT).show();
-
         Intent intent = new Intent(MapsActivity.this, LoginActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);
         finish();
     }
-
 }
