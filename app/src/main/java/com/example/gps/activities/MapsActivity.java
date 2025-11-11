@@ -173,6 +173,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private ValueEventListener activeSessionListener;
     private DatabaseReference activeSessionRef;
     // --- ⭐️ [MERGE] 끝 ---
+    private boolean isSessionListenerInitialized = false; // ◀◀◀ 이 변수를 추가합니다.
 
     //==============================================================================================
     // 1. Activity Lifecycle & Setup
@@ -1417,7 +1418,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     // --- ⭐️ [MERGE] 동시접속 제어 메소드 ---
 
-    // --- (startActiveSessionListener, stopActiveSessionListener는 변경 없음) ---
+    // app/src/main/java/com/example/gps/activities/MapsActivity.java
     private void startActiveSessionListener() {
         if (loggedInUserId == -1L) {
             Log.w(TAG, "startActiveSessionListener: UserID가 없어 세션 감지를 시작할 수 없습니다.");
@@ -1430,15 +1431,29 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .getReference("user_sessions")
                 .child(String.valueOf(loggedInUserId))
                 .child("activeToken");
+
         if (activeSessionListener != null) {
             activeSessionRef.removeEventListener(activeSessionListener);
         }
         Log.d(TAG, "startActiveSessionListener: 실시간 세션 감지 리스너 등록 시작.");
+
         activeSessionListener = new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
+
+                // ▼▼▼▼▼ [수정된 로직 시작] ▼▼▼▼▼
+
+                // ◀◀◀ 2. 리스너가 처음 데이터를 읽어온 경우(초기화)
+                if (!isSessionListenerInitialized) {
+                    isSessionListenerInitialized = true; // 플래그를 true로 설정
+                    Log.d(TAG, "ActiveSessionListener: 리스너 초기화 완료. 첫 데이터 로드는 건너뜁니다.");
+                    return; // ◀◀◀ 비교 로직을 실행하지 않고 종료
+                }
+
+                // ◀◀◀ 3. 초기화 이후 실제 데이터 변경이 감지된 경우
                 String serverActiveToken = snapshot.getValue(String.class);
                 String myToken = tokenManager.getAccessToken();
+
                 if (serverActiveToken != null && myToken != null && !serverActiveToken.equals(myToken)) {
                     Log.w(TAG, "ActiveSessionListener: 동시 접속 감지! 강제 로그아웃을 실행합니다.");
                     Toast.makeText(MapsActivity.this, "다른 기기에서 로그인하여 로그아웃됩니다.", Toast.LENGTH_LONG).show();
@@ -1448,7 +1463,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     Toast.makeText(MapsActivity.this, "로그아웃되었습니다.", Toast.LENGTH_SHORT).show();
                     performClientLogout();
                 }
+                // ▲▲▲▲▲ [수정된 로직 끝] ▲▲▲▲▲
             }
+
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
                 Log.e(TAG, "ActiveSessionListener: 세션 감시 리스너 실패", error.toException());
@@ -1456,15 +1473,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         };
         activeSessionRef.addValueEventListener(activeSessionListener);
     }
+    // app/src/main/java/com/example/gps/activities/MapsActivity.java
     private void stopActiveSessionListener() {
         if (activeSessionRef != null && activeSessionListener != null) {
             activeSessionRef.removeEventListener(activeSessionListener);
+            activeSessionListener = null;
+            activeSessionRef = null;
+            isSessionListenerInitialized = false; // ◀◀◀ 4. 플래그 리셋 추가
             Log.d(TAG, "stopActiveSessionListener: 실시간 세션 감지 리스너 제거 완료.");
         }
-        activeSessionRef = null;
-        activeSessionListener = null;
     }
-    // --- ⭐️ [MERGE] 동시접속 제어 끝 ---
 
 
     private void logout() {
