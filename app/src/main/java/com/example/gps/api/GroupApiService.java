@@ -15,6 +15,8 @@ import retrofit2.http.GET;
 import retrofit2.http.POST;
 import retrofit2.http.Path;
 import retrofit2.http.Query;
+import retrofit2.http.DELETE; // <-- [ 1. IMPORT 추가 ]
+
 
 public interface GroupApiService {
 
@@ -67,4 +69,9 @@ public interface GroupApiService {
     );
     @GET("/api/group/{groupId}/sharing/rules/source/{sourceId}")
     Call<Map<Long, Boolean>> getSharingRulesForSource(@Path("groupId") Long groupId, @Path("sourceId") Long sourceId);
+
+    // ▼▼▼ [ 2. 방장 삭제 API 인터페이스를 추가합니다 ] ▼▼▼
+    @DELETE("/api/groups/{groupId}")
+    Call<Map<String, String>> deleteGroup(@Path("groupId") Long groupId);
+    // ▲▲▲ [ 여기까지 추가 ] ▲▲▲
 }

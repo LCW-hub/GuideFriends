@@ -61,7 +61,12 @@ public class MyGroupsActivity extends AppCompatActivity implements GroupListAdap
             public void onResponse(@NonNull Call<List<GroupListResponse>> call, @NonNull Response<List<GroupListResponse>> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     // ⭐ [수정] 어댑터 생성 시 this(OnGroupClickListener)를 전달
-                    adapter = new GroupListAdapter(response.body(), MyGroupsActivity.this);
+                    adapter = new GroupListAdapter(
+                            response.body(),
+                            MyGroupsActivity.this, // 1. Context 전달
+                            loggedInUsername,      // 2. 로그인한 사용자 이름 전달
+                            MyGroupsActivity.this  // 3. OnGroupClickListener 전달
+                    );
                     rvGroups.setAdapter(adapter);
                 } else {
                     Toast.makeText(MyGroupsActivity.this, "그룹 목록을 불러오지 못했습니다.", Toast.LENGTH_SHORT).show();

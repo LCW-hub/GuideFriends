@@ -100,6 +100,13 @@ import android.graphics.Bitmap;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
 // --- ⭐️ [MERGE] 프로필 사진용 Import 끝 ---
 
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.BitmapShader;
+import android.graphics.Shader;
+import android.graphics.Bitmap.Config;
+
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, SearchResultDetailFragment.OnDestinationSelectedListener {
 
@@ -178,6 +185,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     //==============================================================================================
     // 1. Activity Lifecycle & Setup
     //==============================================================================================
+
+    // ▼▼▼ [새로 추가] 마커 테두리 속성 ▼▼▼
+    private static final int MARKER_BORDER_WIDTH_PX = 6; // 테두리 두께 (전체 직경에 추가됨)
+    private static final int MARKER_BORDER_COLOR = Color.WHITE; // 테두리 색상
+    // ▲▲▲ [새로 추가] ▲▲▲
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -322,6 +334,29 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 updateWeatherWidget(currentLocation);
             }
         });
+
+        // ▼▼▼ [이 부분을 새로 추가하세요] ▼▼▼
+        // 지도 클릭 리스너 추가 (목적지 선택 모드용)
+        naverMap.setOnMapClickListener((point, coord) -> {
+            // isSelectionMode가 true일 때만(즉, 목적지 선택 중일 때만) 작동
+            if (isSelectionMode) {
+                Log.d(TAG, "지도 클릭으로 목적지 선택됨: " + coord.latitude + ", " + coord.longitude);
+
+                // 1. 반환할 인텐트 생성
+                Intent resultIntent = new Intent();
+
+                // 2. 좌표 데이터 삽입 (검색 결과와 동일한 Key 사용)
+                resultIntent.putExtra("PLACE_NAME", "지도에서 선택한 위치"); // 이름은 임의로 지정
+                resultIntent.putExtra("PLACE_LAT", coord.latitude);
+                resultIntent.putExtra("PLACE_LNG", coord.longitude);
+
+                // 3. 결과 설정 및 액티비티 종료 (검색 항목 클릭 시와 동일한 로직)
+                setResult(Activity.RESULT_OK, resultIntent);
+                finish();
+            }
+        });
+        // ▲▲▲ [여기까지 추가] ▲▲▲
+
         applyMapTypeSetting();
         loadWeatherData();
         loadProfileImage();
@@ -364,6 +399,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void initializeButtons() {
         FloatingActionButton btnMyLocation = findViewById(R.id.btnMyLocation);
         FloatingActionButton btnTestMovement = findViewById(R.id.btnTestMovement);
+
+        // ▼▼▼ [이곳에 추가해야 합니다] ▼▼▼
+        btnMyLocation.setOnClickListener(v -> moveToCurrentLocation());
+        // ▲▲▲ [여기까지 추가] ▲▲▲
+
         findViewById(R.id.weather_widget).setOnClickListener(v -> showWeatherBottomSheet());
         FloatingActionButton btnMainMenu = findViewById(R.id.btnMainMenu);
         FloatingActionButton btnFriends = findViewById(R.id.btnFriends);
@@ -1313,6 +1353,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     bitmap = Glide.with(MapsActivity.this)
                             .asBitmap()
                             .load(finalLoadTarget)
+                            .circleCrop()
                             .diskCacheStrategy(DiskCacheStrategy.NONE)
                             .skipMemoryCache(true)
                             .override(100, 100)
@@ -1323,8 +1364,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 handler.post(() -> {
                     if (naverMap != null && myLocationMarker != null) {
                         if (finalBitmap != null) {
-                            myLocationMarker.setIcon(OverlayImage.fromBitmap(finalBitmap));
-                            Log.d(TAG, "✅ 내 마커 아이콘이 프로필 사진으로 업데이트됨.");
+                            // 헬퍼 메소드를 사용해 테두리가 적용된 비트맵 생성
+                            Bitmap borderedBitmap = addBorderToCircularBitmap(finalBitmap, MARKER_BORDER_WIDTH_PX, MARKER_BORDER_COLOR);
+                            myLocationMarker.setIcon(OverlayImage.fromBitmap(borderedBitmap)); // [c]
+                            Log.d(TAG, "✅ 내 마커 아이콘이 프로필 사진(테두리 포함)으로 업데이트됨.");
                         } else {
                             myLocationMarker.setIcon(OverlayImage.fromResource(R.drawable.ic_person));
                             Log.d(TAG, "✅ 내 마커 아이콘이 기본 아이콘으로 재설정됨.");
@@ -1365,7 +1408,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
     }
 
-    // --- (loadBitmapForMarker는 변경 없음) ---
     private void loadBitmapForMarker(String imageUrl, final Marker marker) {
         executor.execute(() -> {
             try {
@@ -1387,6 +1429,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     bitmap = Glide.with(MapsActivity.this)
                             .asBitmap()
                             .load(finalLoadTarget)
+                            .circleCrop() // <-- 1. 원형으로 자르기
                             .diskCacheStrategy(DiskCacheStrategy.NONE)
                             .skipMemoryCache(true)
                             .override(100, 100)
@@ -1397,9 +1440,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 handler.post(() -> {
                     if (naverMap != null && marker.getMap() == naverMap) {
                         if (finalBitmap != null) {
-                            marker.setIcon(OverlayImage.fromBitmap(finalBitmap));
+                            // 2. 테두리 추가 헬퍼 메소드 호출
+                            Bitmap borderedBitmap = addBorderToCircularBitmap(finalBitmap, MARKER_BORDER_WIDTH_PX, MARKER_BORDER_COLOR);
+                            // 3. 테두리가 적용된 비트맵으로 설정
+                            marker.setIcon(OverlayImage.fromBitmap(borderedBitmap));
                         } else {
-                            marker.setIcon(OverlayImage.fromResource(R.drawable.ic_person));
+                            // 4. (선택사항) 기본 아이콘을 빨간색 원으로 변경
+                            marker.setIcon(OverlayImage.fromResource(R.drawable.marker_circle_red));
                         }
                     }
                 });
@@ -1407,7 +1454,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 Log.e(TAG, "팀원 마커 아이콘 로드 실패", e);
                 handler.post(() -> {
                     if (marker.getMap() == naverMap) {
-                        marker.setIcon(OverlayImage.fromResource(R.drawable.ic_person));
+                        // 5. (선택사항) 오류 시 기본 아이콘도 동일하게 변경
+                        marker.setIcon(OverlayImage.fromResource(R.drawable.marker_circle_red));
                     }
                 });
             }
@@ -1517,4 +1565,41 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         startActivity(intent);
         finish();
     }
+
+    // ▼▼▼ [새로 추가] 원형 비트맵에 테두리를 추가하는 헬퍼 메소드 ▼▼▼
+    /**
+     * 원형 비트맵에 지정된 색상과 두께의 테두리를 추가합니다.
+     * @param srcBitmap 원본 (이미 원형으로 잘린) 비트맵
+     * @param borderWidthPx 테두리 두께 (픽셀 단위)
+     * @param borderColor 테두리 색상 (Color int)
+     * @return 테두리가 추가된 새 비트맵
+     */
+    private Bitmap addBorderToCircularBitmap(Bitmap srcBitmap, int borderWidthPx, int borderColor) {
+        if (srcBitmap == null) return null;
+
+        int srcDiameter = srcBitmap.getWidth();
+        int newDiameter = srcDiameter + (borderWidthPx * 2);
+        int radius = srcDiameter / 2;
+        int newRadius = newDiameter / 2;
+        int center = newDiameter / 2;
+
+        Bitmap outputBitmap = Bitmap.createBitmap(newDiameter, newDiameter, Config.ARGB_8888);
+        Canvas canvas = new Canvas(outputBitmap);
+
+        // 1. 테두리(바깥쪽 원)를 그립니다.
+        Paint borderPaint = new Paint();
+        borderPaint.setColor(borderColor);
+        borderPaint.setStyle(Paint.Style.FILL);
+        borderPaint.setAntiAlias(true);
+        canvas.drawCircle(center, center, newRadius, borderPaint);
+
+        // 2. 원본 비트맵(안쪽 원)을 그립니다.
+        Paint imagePaint = new Paint();
+        imagePaint.setShader(new BitmapShader(srcBitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP));
+        imagePaint.setAntiAlias(true);
+        canvas.drawCircle(center, center, radius, imagePaint);
+
+        return outputBitmap;
+    }
+    // ▲▲▲ [새로 추가] ▲▲▲
 }

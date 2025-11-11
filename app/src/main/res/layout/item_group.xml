@@ -1,22 +1,50 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
     android:padding="16dp"
     android:background="?android:attr/selectableItemBackground">
 
+    <ImageView
+        android:id="@+id/btnDeleteGroup"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentTop="true"
+        android:layout_marginStart="8dp"
+        android:src="@drawable/ic_close"
+        android:padding="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:visibility="gone"
+        android:contentDescription="그룹 삭제" />
+
     <TextView
         android:id="@+id/tvGroupName"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_toStartOf="@id/btnDeleteGroup"
         android:text="그룹 이름"
         android:textSize="18sp"
-        android:textStyle="bold" />
+        android:textStyle="bold"
+        android:maxLines="1"
+        android:ellipsize="end" />
 
     <TextView
         android:id="@+id/tvDestination"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_below="@id/tvGroupName"
         android:text="목적지"
         android:layout_marginTop="4dp" />
-</LinearLayout>
+
+    <TextView
+        android:id="@+id/tvMemberCount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/tvGroupName"
+        android:layout_alignParentEnd="true"
+        android:layout_marginTop="4dp"
+        android:layout_marginStart="8dp"
+        android:text="N명"
+        android:drawablePadding="4dp"
+        android:drawableStart="@drawable/ic_person" /> </RelativeLayout>
