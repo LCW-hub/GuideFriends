@@ -326,6 +326,7 @@ public class GroupSharingSettingsActivity extends AppCompatActivity {
         Intent intent = new Intent(GroupSharingSettingsActivity.this, com.example.gps.activities.MapsActivity.class);
         intent.putExtra("groupId", currentGroupId);
         intent.putExtra("username", loggedInUsername);
+        intent.putExtra("groupName", groupName);
 
         intent.putExtra("RULES_UPDATED", true);
 

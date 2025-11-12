@@ -550,12 +550,26 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         setIntent(intent);
         handleIntent(intent);
 
-        if (fabGroupMenu != null) { // null 체크
+        currentGroupName = intent.getStringExtra("groupName");
+
+        // 2. (null 체크) 버튼이 아직 로드되기 전일 수 있으므로
+        if (fabGroupMenu == null) {
+            // onCreate가 아직 이 UI들을 초기화하기 전이라면(드문 경우) 여기서 UI를 찾아옵니다.
+            // 하지만 일반적으로 이 시점엔 UI가 초기화 되어있어야 합니다.
+            // 만약 fabGroupMenu가 null이어서 문제가 생긴다면 이 부분에 findViewById를 추가해야 합니다.
+            fabGroupMenu = findViewById(R.id.fab_group_menu);
+            groupMenuContainer = findViewById(R.id.group_menu_container);
+        }
+
+        // 3. 버튼 가시성 재설정
+        if (fabGroupMenu != null) {
             if (currentGroupId != null && currentGroupId != -1L) {
                 fabGroupMenu.setVisibility(View.VISIBLE);
             } else {
                 fabGroupMenu.setVisibility(View.GONE);
-                groupMenuContainer.setVisibility(View.GONE); // 그룹이 종료되면 메뉴도 숨김
+                if(groupMenuContainer != null) {
+                    groupMenuContainer.setVisibility(View.GONE); // 그룹이 종료되면 메뉴도 숨김
+                }
             }
         }
     }
