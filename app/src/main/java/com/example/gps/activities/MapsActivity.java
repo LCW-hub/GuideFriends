@@ -1,4 +1,4 @@
-// [통합본] 동시접속 제어 + 프로필 사진 기능이 모두 포함된 MapsActivity
+// [통합본] 동시접속 제어 + 프로필 사진 기능 + TMap 경로 시뮬레이션 기능이 모두 포함된 MapsActivity
 package com.example.gps.activities;
 
 import android.Manifest;
@@ -24,7 +24,6 @@ import android.widget.Toast;
 import java.util.Iterator;
 
 import com.example.gps.activities.Register_Login.LoginActivity;
-// import com.example.gps.api.UserApi; //
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -37,7 +36,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.gps.R;
 import com.example.gps.activities.Friend.FriendsActivity;
 import com.example.gps.adapters.SearchResultAdapter;
-import com.example.gps.api.ApiClient; // Still needed for other API calls if any
+import com.example.gps.api.ApiClient;
 import com.example.gps.dto.LocationResponse;
 import com.example.gps.fragments.SearchResultDetailFragment;
 import com.example.gps.fragments.WeatherBottomSheetFragment;
@@ -64,6 +63,9 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+// ⭐️ [TMap 추가 Import]
+import java.io.OutputStream;
+// ⭐️ [TMap 추가 Import]
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
@@ -107,13 +109,19 @@ import android.graphics.BitmapShader;
 import android.graphics.Shader;
 import android.graphics.Bitmap.Config;
 
-import androidx.cardview.widget.CardView; // ◀◀◀ [추가]
-import android.widget.Button; // ◀◀◀ [추가]
-import com.example.gps.activities.ChatRoomActivity; // ◀◀◀ [추가]
-import com.example.gps.activities.GroupSharingSettingsActivity; // ◀◀◀ [추가]
+import androidx.cardview.widget.CardView;
+import android.widget.Button;
+import com.example.gps.activities.ChatRoomActivity;
+import com.example.gps.activities.GroupSharingSettingsActivity;
+
+// ⭐️ [TMap 추가 Import]
+import com.naver.maps.map.overlay.PathOverlay;
 
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, SearchResultDetailFragment.OnDestinationSelectedListener {
+
+    // ⭐️ [TMap 추가] TMap API 키
+    private static final String TMAP_API_KEY = "6BXu3W092c8kdbZVOOzDe5YqlALysG305fjlKG10";
 
     // --- (UI, Map, Search, Weather, Menu 변수들은 변경 없음) ---
     private MapView mapView;
@@ -134,7 +142,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler handler = new Handler(Looper.getMainLooper());
 
-    // --- (Constants, Firebase, Mock Movement, Destination 변수들은 변경 없음) ---
+    // --- (Constants, Firebase, Destination 변수들은 변경 없음) ---
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1000;
     private static final String OPENWEATHERMAP_API_KEY = "7a4aa78797771aa887fe9b14a9be94e5";
     private static final String NAVER_CLIENT_ID = "OAQnuwhbAL34Of8mlxve";
@@ -157,13 +165,20 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private Marker myLocationMarker = null;
     private DatabaseReference rulesRef;
     private ValueEventListener rulesListener;
+
+    // ⭐️ [Mock Movement / TMap 변수 수정]
     private Handler animationHandler;
     private Runnable animationRunnable;
-    private LatLng startLatLng = new LatLng(37.5665, 126.9780);
-    private LatLng endLatLng = new LatLng(35.115, 129.04);
+    private LatLng startLatLng = new LatLng(37.5665, 126.9780); // 서울시청
+    private LatLng endLatLng = new LatLng(37.48723, 126.82056); // 유한대학교
     private final long totalDuration = 10000;
     private final int updateInterval = 50;
     private long startTime;
+    // ⭐️ [TMap 시뮬레이션 상태 변수 추가]
+    private boolean isSimulationRunning = false;
+    private final List<PathOverlay> pathOverlays = new ArrayList<>();
+    // ⭐️ [TMap 변수 수정 끝]
+
     private Long loggedInUserId = -1L;
     private final Map<String, LocationResponse> memberLocationsCache = new HashMap<>();
     private DatabaseReference myMarkerStatusRef;
@@ -175,33 +190,29 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // --- ⭐️ [MERGE] 프로필 사진용 멤버 변수 ---
     private CircleImageView ivProfile;
     private ActivityResultLauncher<Intent> galleryLauncher;
+    private static final int MARKER_BORDER_WIDTH_PX = 6;
+    private static final int MARKER_BORDER_COLOR = Color.WHITE;
     // --- ⭐️ [MERGE] 끝 ---
 
     private TokenManager tokenManager;
-    // private UserApi userApi; //
-    private UserApiService userApiService; //
+    private UserApiService userApiService;
 
     // --- ⭐️ [MERGE] 동시접속 제어용 변수 ---
     private ValueEventListener activeSessionListener;
     private DatabaseReference activeSessionRef;
+    private boolean isSessionListenerInitialized = false;
     // --- ⭐️ [MERGE] 끝 ---
-    private boolean isSessionListenerInitialized = false; // ◀◀◀ 이 변수를 추가합니다.
+
+    // ▼▼▼ [그룹 메뉴 변수 추가] (원래 코드에서 복사) ▼▼▼
+    private FloatingActionButton fabGroupMenu;
+    private CardView groupMenuContainer;
+    private Button btnMenuChat, btnMenuSettings, btnMenuToggle;
+    private String currentGroupName;
+    // ▲▲▲ [그룹 메뉴 변수 추가] ▲▲▲
 
     //==============================================================================================
     // 1. Activity Lifecycle & Setup
     //==============================================================================================
-
-    // ▼▼▼ [새로 추가] 마커 테두리 속성 ▼▼▼
-    private static final int MARKER_BORDER_WIDTH_PX = 6; // 테두리 두께 (전체 직경에 추가됨)
-    private static final int MARKER_BORDER_COLOR = Color.WHITE; // 테두리 색상
-    // ▲▲▲ [새로 추가] ▲▲▲
-
-    // ▼▼▼ [그룹 메뉴 변수 추가] ▼▼▼
-    private FloatingActionButton fabGroupMenu;
-    private CardView groupMenuContainer;
-    private Button btnMenuChat, btnMenuSettings, btnMenuToggle;
-    private String currentGroupName; // ChatRoomActivity로 전달하기 위함
-    // ▲▲▲ [그룹 메뉴 변수 추가] ▲▲▲
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -210,8 +221,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         // [수정] TokenManager 및 UserApiService 초기화 (ApiClient.getUserApiService 사용)
         tokenManager = new TokenManager();
-        // userApi = ApiClient.getClient(this).create(UserApi.class); //
-        userApiService = ApiClient.getUserApiService(this); //
+        userApiService = ApiClient.getUserApiService(this);
 
         checkLocationPermission();
         handleIntent(getIntent());
@@ -234,15 +244,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         initializeSearch();
         initializeSubMenu();
 
-        // --- ⭐️ [MERGE] 갤러리 런처 및 마이페이지 헤더 초기화 (Code 2 기능) ---
+        // --- ⭐️ [MERGE] 갤러리 런처 및 마이페이지 헤더 초기화 ---
         initializeGalleryLauncher();
         bindMyPageHeader();
         // --- ⭐️ [MERGE] 끝 ---
 
 
-        // ▼▼▼ [그룹 메뉴 로직 추가 시작] ▼▼▼
+        // ▼▼▼ [그룹 메뉴 로직 추가 시작] (원래 코드에서 복사) ▼▼▼
 
-        // 인텐트에서 groupName 가져오기 (currentGroupId는 handleIntent에서 이미 설정됨)
         currentGroupName = getIntent().getStringExtra("groupName");
 
         // UI 요소 초기화
@@ -277,7 +286,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             groupMenuContainer.setVisibility(View.GONE); // 메뉴 닫기
         });
 
-// 하위 메뉴 - 위치권한설정 버튼
+        // 하위 메뉴 - 위치권한설정 버튼
         btnMenuSettings.setOnClickListener(v -> {
             Intent intent = new Intent(MapsActivity.this, GroupSharingSettingsActivity.class);
             intent.putExtra("groupId", currentGroupId); // Long 타입 ID 전달
@@ -301,7 +310,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     }
 
-    // --- (startMyLocationMarkerListener, startFirebaseRulesListener, onMapReady, startMapRefreshTimer, stopMapRefreshTimer는 변경 없음) ---
     private void startMyLocationMarkerListener() {
         if (loggedInUserId == -1L || naverMap == null) return;
         myMarkerStatusRef = FirebaseDatabase.getInstance()
@@ -397,38 +405,32 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         naverMap.addOnLocationChangeListener(location -> {
             if (location != null && Double.isFinite(location.getLatitude()) && Double.isFinite(location.getLongitude())) {
                 LatLng currentLocation = new LatLng(location.getLatitude(), location.getLongitude());
-                if (animationHandler == null) {
+
+                // ⭐️ [TMap 수정] TMap 시뮬레이션 중이 아닐 때만 실제 위치에 '내 위치' 마커 업데이트
+                if (animationHandler == null && !isSimulationRunning) {
                     myLocationMarker.setPosition(currentLocation);
                 }
                 updateWeatherWidget(currentLocation);
             }
         });
 
-        // ▼▼▼ [이 부분을 새로 추가하세요] ▼▼▼
-        // 지도 클릭 리스너 추가 (목적지 선택 모드용)
+        // ▼▼▼ [지도 클릭 리스너 - 목적지 선택 모드용] ▼▼▼ (원래 코드에서 복사)
         naverMap.setOnMapClickListener((point, coord) -> {
-            // isSelectionMode가 true일 때만(즉, 목적지 선택 중일 때만) 작동
             if (isSelectionMode) {
                 Log.d(TAG, "지도 클릭으로 목적지 선택됨: " + coord.latitude + ", " + coord.longitude);
-
-                // 1. 반환할 인텐트 생성
                 Intent resultIntent = new Intent();
-
-                // 2. 좌표 데이터 삽입 (검색 결과와 동일한 Key 사용)
-                resultIntent.putExtra("PLACE_NAME", "지도에서 선택한 위치"); // 이름은 임의로 지정
+                resultIntent.putExtra("PLACE_NAME", "지도에서 선택한 위치");
                 resultIntent.putExtra("PLACE_LAT", coord.latitude);
                 resultIntent.putExtra("PLACE_LNG", coord.longitude);
-
-                // 3. 결과 설정 및 액티비티 종료 (검색 항목 클릭 시와 동일한 로직)
                 setResult(Activity.RESULT_OK, resultIntent);
                 finish();
             }
         });
-        // ▲▲▲ [여기까지 추가] ▲▲▲
+        // ▲▲▲ [지도 클릭 리스너 - 목적지 선택 모드용] ▲▲▲
 
         applyMapTypeSetting();
         loadWeatherData();
-        loadProfileImage();
+        loadProfileImage(); // ⭐️ [프로필]
     }
     private void startMapRefreshTimer() {
         if (naverMap == null) return;
@@ -460,7 +462,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // 2. Initializers
     //==============================================================================================
 
-    // --- (initializeMap, initializeButtons, initializeSearch는 변경 없음) ---
     private void initializeMap() {
         locationSource = new FusedLocationSource(this, LOCATION_PERMISSION_REQUEST_CODE);
         mapView.getMapAsync(this);
@@ -469,9 +470,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         FloatingActionButton btnMyLocation = findViewById(R.id.btnMyLocation);
         FloatingActionButton btnTestMovement = findViewById(R.id.btnTestMovement);
 
-        // ▼▼▼ [이곳에 추가해야 합니다] ▼▼▼
         btnMyLocation.setOnClickListener(v -> moveToCurrentLocation());
-        // ▲▲▲ [여기까지 추가] ▲▲▲
+
+        // ⭐️ [TMap 수정] Mock Movement 버튼 클릭 시 TMap 시뮬레이션 시작/중지
+        btnTestMovement.setOnClickListener(v -> startMockMovement());
 
         findViewById(R.id.weather_widget).setOnClickListener(v -> showWeatherBottomSheet());
         FloatingActionButton btnMainMenu = findViewById(R.id.btnMainMenu);
@@ -540,10 +542,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     //==============================================================================================
-    // 3. Real-time Location Sharing (Firebase - 로그 추가)
+    // 3. Real-time Location Sharing (Firebase)
     //==============================================================================================
 
-    // --- (onNewIntent, handleIntent, reapplyRulesAndRefreshMarkers는 변경 없음) ---
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
@@ -552,23 +553,18 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         currentGroupName = intent.getStringExtra("groupName");
 
-        // 2. (null 체크) 버튼이 아직 로드되기 전일 수 있으므로
         if (fabGroupMenu == null) {
-            // onCreate가 아직 이 UI들을 초기화하기 전이라면(드문 경우) 여기서 UI를 찾아옵니다.
-            // 하지만 일반적으로 이 시점엔 UI가 초기화 되어있어야 합니다.
-            // 만약 fabGroupMenu가 null이어서 문제가 생긴다면 이 부분에 findViewById를 추가해야 합니다.
             fabGroupMenu = findViewById(R.id.fab_group_menu);
             groupMenuContainer = findViewById(R.id.group_menu_container);
         }
 
-        // 3. 버튼 가시성 재설정
         if (fabGroupMenu != null) {
             if (currentGroupId != null && currentGroupId != -1L) {
                 fabGroupMenu.setVisibility(View.VISIBLE);
             } else {
                 fabGroupMenu.setVisibility(View.GONE);
                 if(groupMenuContainer != null) {
-                    groupMenuContainer.setVisibility(View.GONE); // 그룹이 종료되면 메뉴도 숨김
+                    groupMenuContainer.setVisibility(View.GONE);
                 }
             }
         }
@@ -625,30 +621,26 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private void fetchLoggedInUserId() {
-        // [수정] 멤버 변수인 userApiService를 사용
-        // UserApiService apiService = ApiClient.getUserApiService(this); //
-        Call<Map<String, Long>> call = userApiService.getUserIdByUsername(loggedInUsername); //
-
+        Call<Map<String, Long>> call = userApiService.getUserIdByUsername(loggedInUsername);
         call.enqueue(new Callback<Map<String, Long>>() {
             @Override
             public void onResponse(@NonNull Call<Map<String, Long>> call, @NonNull Response<Map<String, Long>> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     Long userId = response.body().get("userId");
-
                     if (userId != null && userId != -1L) {
                         loggedInUserId = userId;
                         Log.d(TAG, "사용자 ID 획득 성공: " + loggedInUserId);
 
-                        // --- ⭐️ [MERGE] 동시접속 제어 리스너 시작 (Code 1 기능) ---
+                        // --- ⭐️ [MERGE] 동시접속 제어 리스너 시작 ---
                         startActiveSessionListener();
                         // --- ⭐️ [MERGE] 끝 ---
 
                         if (currentGroupId != -1L) {
                             startLocationSharing();
                         }
-                        return; //
+                        return;
                     }
-                    reapplyRulesAndRefreshMarkers(); //
+                    reapplyRulesAndRefreshMarkers();
                 }
                 Log.e(TAG, "❌ 사용자 ID 획득 실패. 응답 코드: " + response.code());
             }
@@ -661,7 +653,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
 
-    // --- (startLocationSharing, startFirebaseLocationListener, updateMyLocation, updateMemberMarkers는 변경 없음) ---
     private void startLocationSharing() {
         locationUpdateHandler.removeCallbacksAndMessages(null);
         if (loggedInUserId == -1L) {
@@ -673,7 +664,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         startDestinationListener();
         Log.d(TAG, "startLocationSharing: 위치 공유 프로세스 시작. 업데이트 주기=" + LOCATION_UPDATE_INTERVAL + "ms");
         locationUpdateRunnable = () -> {
-            if (locationSource != null && animationHandler == null) {
+
+            // ⭐️ [TMap 수정] TMap 시뮬레이션 중이 아닐 때만 실제 위치 업데이트
+            if (locationSource != null && animationHandler == null && !isSimulationRunning) {
                 Location lastKnownLocation = locationSource.getLastLocation();
                 if (lastKnownLocation != null) {
                     Log.d(TAG, "Location Update: 위치 획득 성공. Latitude=" + lastKnownLocation.getLatitude());
@@ -681,7 +674,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 } else {
                     Log.w(TAG, "Location Update: LocationSource에서 마지막 위치 정보를 가져올 수 없습니다. GPS 신호 대기 중.");
                 }
-            } else if (animationHandler != null) {
+            } else if (animationHandler != null || isSimulationRunning) {
                 Log.d(TAG, "Location Update: 모의(Mock) 이동 중이므로 실제 위치 업데이트는 건너뜁니다.");
             }
             locationUpdateHandler.postDelayed(locationUpdateRunnable, LOCATION_UPDATE_INTERVAL);
@@ -727,7 +720,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
     private void updateMyLocation(Location location) {
         if (currentGroupId == -1L || location == null || loggedInUsername == null || loggedInUserId == -1L) {
-            Log.e(TAG, "updateMyLocation: 위치 업데이트 중단. GroupID=" + currentGroupId + ", Username=" + loggedInUsername + " (유효하지 않음)");
+            Log.d(TAG, "updateMyLocation: 위치 업데이트 중단. GroupID=" + currentGroupId + ", Username=" + loggedInUsername + " (유효하지 않음)");
             return;
         }
         double latitude = location.getLatitude();
@@ -789,48 +782,61 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     //==============================================================================================
-    // 4. Mock Movement & Destination Selection
+    // 4. Mock Movement (TMap 시뮬레이션으로 대체) & Destination Selection
     //==============================================================================================
 
-    // --- (loadWeatherData, startMockMovement, onDestinationSelected는 변경 없음) ---
     private void loadWeatherData() {
         LatLng defaultLocation = new LatLng(37.5665, 126.9780);
         updateWeatherWidget(defaultLocation);
     }
+
+    // ⭐️ [TMap 대체] startMockMovement 메서드
+    // ⭐️ [TMap 대체] startMockMovement 메서드
     private void startMockMovement() {
-        if (animationHandler != null) {
-            animationHandler.removeCallbacks(animationRunnable);
-        }
-        animationHandler = new Handler(Looper.getMainLooper());
-        startTime = System.currentTimeMillis();
-        startLatLng = myLocationMarker.getPosition();
-        Toast.makeText(this, "Mock movement to Busan started.", Toast.LENGTH_LONG).show();
-        Log.d(TAG, "startMockMovement: 가상 이동 시작. 시작 위치: " + startLatLng.latitude);
-        animationRunnable = new Runnable() {
-            @Override
-            public void run() {
-                long elapsed = System.currentTimeMillis() - startTime;
-                float fraction = Math.min((float) elapsed / totalDuration, 1.0f);
-                double lat = startLatLng.latitude + (endLatLng.latitude - startLatLng.latitude) * fraction;
-                double lon = startLatLng.longitude + (endLatLng.longitude - startLatLng.longitude) * fraction;
-                LatLng currentLatLng = new LatLng(lat, lon);
-                myLocationMarker.setPosition(currentLatLng);
-                naverMap.moveCamera(CameraUpdate.scrollTo(currentLatLng));
-                Location mockLocation = new Location("MockProvider");
-                mockLocation.setLatitude(lat);
-                mockLocation.setLongitude(lon);
-                updateMyLocation(mockLocation);
-                if (fraction < 1.0) {
-                    animationHandler.postDelayed(this, updateInterval);
-                } else {
-                    Toast.makeText(MapsActivity.this, "Arrived in Busan.", Toast.LENGTH_SHORT).show();
-                    Log.d(TAG, "startMockMovement: 가상 이동 완료.");
-                    animationHandler = null;
-                }
+        if (isSimulationRunning) {
+            // --- 시뮬레이션 중지 ---
+            isSimulationRunning = false;
+            if (animationHandler != null) {
+                animationHandler.removeCallbacks(animationRunnable);
+                animationHandler = null;
             }
-        };
-        animationHandler.post(animationRunnable);
+            for (PathOverlay p : pathOverlays) p.setMap(null);
+            pathOverlays.clear();
+
+            Toast.makeText(this, "TMap 시뮬레이션을 중지합니다.", Toast.LENGTH_SHORT).show();
+            Log.d(TAG, "startMockMovement: TMap 시뮬레이션 중지됨.");
+            return;
+        }
+
+        if (naverMap == null) {
+            Toast.makeText(this, "지도가 준비되지 않았습니다.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // ⭐️ [수정된 로직 시작] 현재 위치를 가져옵니다.
+        Location lastKnownLocation = locationSource.getLastLocation();
+        if (lastKnownLocation == null) {
+            Toast.makeText(this, "현재 위치 정보를 가져올 수 없습니다. GPS 신호를 확인해주세요.", Toast.LENGTH_LONG).show();
+            Log.e(TAG, "startMockMovement: FusedLocationSource에서 위치를 가져오지 못했습니다.");
+            return;
+        }
+
+        // ⭐️ 현재 위치를 출발지로 설정
+        startLatLng = new LatLng(lastKnownLocation.getLatitude(), lastKnownLocation.getLongitude());
+        // ⭐️ 도착지는 유한대학교로 유지 (37.48723, 126.82056)
+
+        // --- 시뮬레이션 시작 ---
+        isSimulationRunning = true;
+
+        Toast.makeText(this, "TMap API 가상 이동 시작 (현재 위치->유한대학교)", Toast.LENGTH_LONG).show();
+        Log.d(TAG, "startMockMovement: TMap API 가상 이동 시작. " + startLatLng.latitude + " -> " + endLatLng.latitude);
+
+        // TMap API로 경로 요청
+        double totalDistance = calculateDistance(startLatLng, endLatLng);
+        requestTMapWalkSegmentForSimulation(startLatLng, endLatLng, totalDistance);
     }
+    // ⭐️ [TMap 대체 끝]
+
     @Override
     public void onDestinationSelected(SearchResult selectedResult) {
         Toast.makeText(this, selectedResult.getTitle() + " selected as destination.", Toast.LENGTH_LONG).show();
@@ -846,7 +852,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // 5. UI Features (Menus, Search, Weather, Profile)
     //==============================================================================================
 
-    // --- (toggleSubMenu, showSubMenu, hideSubMenu, initializeSubMenu는 변경 없음) ---
     private void toggleSubMenu() {
         if (isSubMenuOpen) hideSubMenu();
         else showSubMenu();
@@ -899,7 +904,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     // --- ⭐️ [MERGE] 프로필 사진 로직 시작 ---
 
-    // --- (initializeGalleryLauncher, bindMyPageHeader, showProfileImageOptions, loadProfileImage는 변경 없음) ---
     private void initializeGalleryLauncher() {
         galleryLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
@@ -983,8 +987,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private void setProfileToDefault() {
-        // [수정] userApi -> userApiService로 변경
-        Call<Map<String, Object>> call = userApiService.setDefaultProfileImage(); //
+        Call<Map<String, Object>> call = userApiService.setDefaultProfileImage();
 
         call.enqueue(new Callback<Map<String, Object>>() {
             @Override
@@ -1020,8 +1023,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         RequestBody requestFile = RequestBody.create(MediaType.parse(getContentResolver().getType(imageUri)), file);
         MultipartBody.Part body = MultipartBody.Part.createFormData("image", file.getName(), requestFile);
 
-        // [수정] userApi -> userApiService로 변경
-        Call<Map<String, Object>> call = userApiService.uploadProfileImage(body); //
+        Call<Map<String, Object>> call = userApiService.uploadProfileImage(body);
 
         call.enqueue(new Callback<Map<String, Object>>() {
             @Override
@@ -1055,7 +1057,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
     }
 
-    // --- (createCacheFileFromUri는 변경 없음) ---
     private File createCacheFileFromUri(Uri uri) {
         try (InputStream inputStream = getContentResolver().openInputStream(uri)) {
             File tempFile = new File(getCacheDir(), "temp_profile_image.jpg");
@@ -1075,7 +1076,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // --- ⭐️ [MERGE] 프로필 사진 로직 끝 ---
 
 
-    // --- (Search, Weather 관련 메소드들은 변경 없음) ---
     private void performSearch() {
         String query = etSearch.getText().toString().trim();
         if (query.isEmpty()) {
@@ -1224,7 +1224,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // 6. Permissions & Utilities
     //==============================================================================================
 
-    // --- (Permission, MapType, UI Utils 등은 변경 없음) ---
     private void checkLocationPermission() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
@@ -1244,18 +1243,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     .animate(CameraAnimation.Easing));
         }
     }
-    private void showMapTypeMenu(View anchor) {
-        PopupMenu popup = new PopupMenu(this, anchor);
-        popup.getMenuInflater().inflate(R.menu.map_type_menu, popup.getMenu());
-        popup.setOnMenuItemClickListener(item -> {
-            int id = item.getItemId();
-            if (id == R.id.map_type_normal) naverMap.setMapType(NaverMap.MapType.Basic);
-            else if (id == R.id.map_type_satellite) naverMap.setMapType(NaverMap.MapType.Satellite);
-            else if (id == R.id.map_type_terrain) naverMap.setMapType(NaverMap.MapType.Terrain);
-            return true;
-        });
-        popup.show();
-    }
+
     private float dpToPx(float dp) {
         return dp * getResources().getDisplayMetrics().density;
     }
@@ -1282,7 +1270,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // 7. Activity Lifecycle Callbacks
     //==============================================================================================
 
-    // --- (Lifecycle 메소드들은 변경 없음) ---
     @Override
     protected void onStart() { super.onStart(); mapView.onStart(); }
     @Override
@@ -1304,10 +1291,24 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         mapView.onPause();
         locationUpdateHandler.removeCallbacksAndMessages(null);
         Log.d(TAG, "onPause: 주기적인 위치 업데이트 (Handler) 중단.");
-        if (animationHandler != null) {
+
+        // ⭐️ [TMap 수정] TMap 시뮬레이션 중지 로직 추가
+        if (isSimulationRunning) {
+            isSimulationRunning = false;
+            if (animationHandler != null) {
+                animationHandler.removeCallbacks(animationRunnable);
+                animationHandler = null;
+            }
+            for (PathOverlay p : pathOverlays) p.setMap(null);
+            pathOverlays.clear();
+            Log.d(TAG, "onPause: TMap 시뮬레이션 중지.");
+        }
+        // ⭐️ [TMap 수정] 기존 부산행 애니메이션 중지 로직 유지
+        else if (animationHandler != null) {
             animationHandler.removeCallbacks(animationRunnable);
             animationHandler = null;
         }
+
         stopMapRefreshTimer();
         if (currentGroupId != -1L) {
             if (memberLocationListener != null) {
@@ -1342,9 +1343,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onLowMemory() { super.onLowMemory(); mapView.onLowMemory(); }
 
 
-    // 🚀 --- [2.5: 목적지 마커용 새 메서드 4개 추가] --- (Code 1 기준)
+    // 🚀 --- [2.5: 목적지 마커용 새 메서드 4개] ---
 
-    // --- (Destination 리스너 메소드들은 변경 없음) ---
     private void startDestinationListener() {
         if (naverMap == null || currentGroupId == -1L) {
             Log.w(TAG, "startDestinationListener: NaverMap이 null이거나 Group ID가 유효하지 않아 중단.");
@@ -1421,7 +1421,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     // 🚀 --- [MERGE] 프로필 사진 마커 업데이트 메소드 ---
 
-    // --- (updateMyLocationMarkerIcon은 변경 없음) ---
     private void updateMyLocationMarkerIcon(String imageUrl) {
         if (naverMap == null || myLocationMarker == null) return;
         executor.execute(() -> {
@@ -1456,9 +1455,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 handler.post(() -> {
                     if (naverMap != null && myLocationMarker != null) {
                         if (finalBitmap != null) {
-                            // 헬퍼 메소드를 사용해 테두리가 적용된 비트맵 생성
                             Bitmap borderedBitmap = addBorderToCircularBitmap(finalBitmap, MARKER_BORDER_WIDTH_PX, MARKER_BORDER_COLOR);
-                            myLocationMarker.setIcon(OverlayImage.fromBitmap(borderedBitmap)); // [c]
+                            myLocationMarker.setIcon(OverlayImage.fromBitmap(borderedBitmap));
                             Log.d(TAG, "✅ 내 마커 아이콘이 프로필 사진(테두리 포함)으로 업데이트됨.");
                         } else {
                             myLocationMarker.setIcon(OverlayImage.fromResource(R.drawable.ic_person));
@@ -1478,9 +1476,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private void fetchAndApplyMemberProfile(Long userId, final Marker marker) {
-        // [수정] userApi -> userApiService로 변경
-        Call<Map<String, String>> call = userApiService.getProfileImageUrl(userId); //
-
+        Call<Map<String, String>> call = userApiService.getProfileImageUrl(userId);
         call.enqueue(new Callback<Map<String, String>>() {
             @Override
             public void onResponse(Call<Map<String, String>> call, Response<Map<String, String>> response) {
@@ -1521,7 +1517,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     bitmap = Glide.with(MapsActivity.this)
                             .asBitmap()
                             .load(finalLoadTarget)
-                            .circleCrop() // <-- 1. 원형으로 자르기
+                            .circleCrop()
                             .diskCacheStrategy(DiskCacheStrategy.NONE)
                             .skipMemoryCache(true)
                             .override(100, 100)
@@ -1532,12 +1528,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 handler.post(() -> {
                     if (naverMap != null && marker.getMap() == naverMap) {
                         if (finalBitmap != null) {
-                            // 2. 테두리 추가 헬퍼 메소드 호출
                             Bitmap borderedBitmap = addBorderToCircularBitmap(finalBitmap, MARKER_BORDER_WIDTH_PX, MARKER_BORDER_COLOR);
-                            // 3. 테두리가 적용된 비트맵으로 설정
                             marker.setIcon(OverlayImage.fromBitmap(borderedBitmap));
                         } else {
-                            // 4. (선택사항) 기본 아이콘을 빨간색 원으로 변경
                             marker.setIcon(OverlayImage.fromResource(R.drawable.marker_circle_red));
                         }
                     }
@@ -1546,19 +1539,18 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 Log.e(TAG, "팀원 마커 아이콘 로드 실패", e);
                 handler.post(() -> {
                     if (marker.getMap() == naverMap) {
-                        // 5. (선택사항) 오류 시 기본 아이콘도 동일하게 변경
                         marker.setIcon(OverlayImage.fromResource(R.drawable.marker_circle_red));
                     }
                 });
             }
         });
     }
+
     // 🚀 --- [MERGE] 프로필 마커 로직 끝 ---
 
 
     // --- ⭐️ [MERGE] 동시접속 제어 메소드 ---
 
-    // app/src/main/java/com/example/gps/activities/MapsActivity.java
     private void startActiveSessionListener() {
         if (loggedInUserId == -1L) {
             Log.w(TAG, "startActiveSessionListener: UserID가 없어 세션 감지를 시작할 수 없습니다.");
@@ -1580,17 +1572,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         activeSessionListener = new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
-
-                // ▼▼▼▼▼ [수정된 로직 시작] ▼▼▼▼▼
-
-                // ◀◀◀ 2. 리스너가 처음 데이터를 읽어온 경우(초기화)
                 if (!isSessionListenerInitialized) {
-                    isSessionListenerInitialized = true; // 플래그를 true로 설정
+                    isSessionListenerInitialized = true;
                     Log.d(TAG, "ActiveSessionListener: 리스너 초기화 완료. 첫 데이터 로드는 건너뜁니다.");
-                    return; // ◀◀◀ 비교 로직을 실행하지 않고 종료
+                    return;
                 }
 
-                // ◀◀◀ 3. 초기화 이후 실제 데이터 변경이 감지된 경우
                 String serverActiveToken = snapshot.getValue(String.class);
                 String myToken = tokenManager.getAccessToken();
 
@@ -1603,7 +1590,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     Toast.makeText(MapsActivity.this, "로그아웃되었습니다.", Toast.LENGTH_SHORT).show();
                     performClientLogout();
                 }
-                // ▲▲▲▲▲ [수정된 로직 끝] ▲▲▲▲▲
             }
 
             @Override
@@ -1613,21 +1599,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         };
         activeSessionRef.addValueEventListener(activeSessionListener);
     }
-    // app/src/main/java/com/example/gps/activities/MapsActivity.java
     private void stopActiveSessionListener() {
         if (activeSessionRef != null && activeSessionListener != null) {
             activeSessionRef.removeEventListener(activeSessionListener);
             activeSessionListener = null;
             activeSessionRef = null;
-            isSessionListenerInitialized = false; // ◀◀◀ 4. 플래그 리셋 추가
+            isSessionListenerInitialized = false;
             Log.d(TAG, "stopActiveSessionListener: 실시간 세션 감지 리스너 제거 완료.");
         }
     }
 
 
     private void logout() {
-        // [수정] userApi -> userApiService로 변경
-        Call<Map<String, Object>> call = userApiService.logout(); //
+        Call<Map<String, Object>> call = userApiService.logout();
 
         call.enqueue(new Callback<Map<String, Object>>() {
             @Override
@@ -1648,7 +1632,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
     }
 
-    // --- (performClientLogout은 변경 없음) ---
     private void performClientLogout() {
         tokenManager.deleteTokens();
         Toast.makeText(MapsActivity.this, "로그아웃 되었습니다.", Toast.LENGTH_SHORT).show();
@@ -1658,14 +1641,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         finish();
     }
 
-    // ▼▼▼ [새로 추가] 원형 비트맵에 테두리를 추가하는 헬퍼 메소드 ▼▼▼
-    /**
-     * 원형 비트맵에 지정된 색상과 두께의 테두리를 추가합니다.
-     * @param srcBitmap 원본 (이미 원형으로 잘린) 비트맵
-     * @param borderWidthPx 테두리 두께 (픽셀 단위)
-     * @param borderColor 테두리 색상 (Color int)
-     * @return 테두리가 추가된 새 비트맵
-     */
     private Bitmap addBorderToCircularBitmap(Bitmap srcBitmap, int borderWidthPx, int borderColor) {
         if (srcBitmap == null) return null;
 
@@ -1693,5 +1668,241 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         return outputBitmap;
     }
-    // ▲▲▲ [새로 추가] ▲▲▲
+
+    // ----------------------------------------------------------------
+    // ⭐️ [TMap 추가] TMap 시뮬레이션 관련 메서드 4개
+    // ----------------------------------------------------------------
+
+    /**
+     * TMap API를 호출하여 시뮬레이션을 위한 실제 보행 경로를 요청합니다.
+     */
+    private void requestTMapWalkSegmentForSimulation(LatLng start, LatLng end, double totalDistance) {
+        new Thread(() -> {
+            try {
+                URL url = new URL("https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1&format=json");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setRequestProperty("appKey", TMAP_API_KEY);
+                conn.setDoOutput(true);
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(20000);
+
+                JSONObject body = new JSONObject();
+                body.put("startX", start.longitude);
+                body.put("startY", start.latitude);
+                body.put("endX", end.longitude);
+                body.put("endY", end.latitude);
+                body.put("reqCoordType", "WGS84GEO");
+                body.put("resCoordType", "WGS84GEO");
+                body.put("startName", "출발지");
+                body.put("endName", "도착지");
+
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(body.toString().getBytes("UTF-8"));
+                }
+
+                int code = conn.getResponseCode();
+                if (code == 200) {
+                    InputStreamReader isr = new InputStreamReader(conn.getInputStream());
+                    BufferedReader br = new BufferedReader(isr);
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = br.readLine()) != null) sb.append(line);
+
+                    JSONObject json = new JSONObject(sb.toString());
+                    JSONArray features = json.getJSONArray("features");
+                    List<LatLng> path = new ArrayList<>();
+
+                    for (int i = 0; i < features.length(); i++) {
+                        JSONObject geometry = features.getJSONObject(i).getJSONObject("geometry");
+                        if ("LineString".equals(geometry.getString("type"))) {
+                            JSONArray coords = geometry.getJSONArray("coordinates");
+                            for (int j = 0; j < coords.length(); j++) {
+                                JSONArray point = coords.getJSONArray(j);
+                                path.add(new LatLng(point.getDouble(1), point.getDouble(0)));
+                            }
+                        }
+                    }
+
+                    if (path.size() > 2) {
+                        runOnUiThread(() -> startPathSimulation(path, totalDistance));
+                    } else {
+                        Log.w(TAG, "TMap API 경로가 유효하지 않아 직선 경로로 대체합니다.");
+                        runOnUiThread(() -> {
+                            List<LatLng> straightPath = new ArrayList<>();
+                            straightPath.add(start);
+                            straightPath.add(end);
+                            startPathSimulation(straightPath, totalDistance);
+                        });
+                    }
+                } else {
+                    Log.e(TAG, "TMap API 오류 (HTTP " + code + "). 직선 경로로 대체합니다.");
+                    runOnUiThread(() -> {
+                        List<LatLng> straightPath = new ArrayList<>();
+                        straightPath.add(start);
+                        straightPath.add(end);
+                        startPathSimulation(straightPath, totalDistance);
+                    });
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "TMapSimulation 경로 요청 실패", e);
+                runOnUiThread(() -> {
+                    List<LatLng> straightPath = new ArrayList<>();
+                    straightPath.add(start);
+                    straightPath.add(end);
+                    startPathSimulation(straightPath, totalDistance);
+                });
+            }
+        }).start();
+    }
+
+    /**
+     * TMap API로 받은 경로(path)를 따라 마커를 이동시키는 시뮬레이션을 시작합니다.
+     */
+    private void startPathSimulation(List<LatLng> path, double totalDistance) {
+        if (path.size() < 2) {
+            isSimulationRunning = false;
+            return;
+        }
+
+        for (PathOverlay p : pathOverlays) p.setMap(null);
+        pathOverlays.clear();
+
+        PathOverlay pathOverlay = new PathOverlay();
+        pathOverlay.setCoords(path);
+        pathOverlay.setColor(0xFF00FF00); // TMap 시뮬레이션 경로는 초록색
+        pathOverlay.setWidth(12);
+        pathOverlay.setMap(naverMap);
+        pathOverlays.add(pathOverlay);
+
+        final int[] currentPathIndex = {0};
+        final LatLng[] currentPosition = {new LatLng(path.get(0).latitude, path.get(0).longitude)};
+
+        if (animationHandler != null) {
+            animationHandler.removeCallbacks(animationRunnable);
+        }
+        animationHandler = new Handler(Looper.getMainLooper());
+
+        // 내 마커를 시작 위치로 이동시킵니다.
+        if (myLocationMarker != null) {
+            myLocationMarker.setPosition(currentPosition[0]);
+            myLocationMarker.setMap(naverMap);
+        }
+        naverMap.moveCamera(CameraUpdate.scrollTo(currentPosition[0]).animate(CameraAnimation.Easing));
+
+        animationRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (!isSimulationRunning) {
+                    animationHandler = null;
+                    return;
+                }
+
+                if (currentPathIndex[0] >= path.size() - 1) {
+                    isSimulationRunning = false;
+                    Toast.makeText(MapsActivity.this, "TMap 시뮬레이션이 완료되었습니다!", Toast.LENGTH_SHORT).show();
+                    animationHandler = null;
+
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        for (PathOverlay p : pathOverlays) p.setMap(null);
+                        pathOverlays.clear();
+                    }, 2000);
+                    return;
+                }
+
+                LatLng nextPoint = path.get(currentPathIndex[0] + 1);
+                double distanceToNext = calculateDistance(currentPosition[0], nextPoint);
+
+                if (distanceToNext <= 2.0) {
+                    currentPathIndex[0]++;
+                    currentPosition[0] = new LatLng(nextPoint.latitude, nextPoint.longitude);
+                } else {
+
+                    double realWalkSpeedPerFrame = 1.0;
+
+                    double moveDistance = Math.min(distanceToNext * 0.1, realWalkSpeedPerFrame);
+                    double bearing = calculateBearing(currentPosition[0], nextPoint);
+                    LatLng newPosition = calculateNewPosition(currentPosition[0], bearing, moveDistance);
+                    currentPosition[0] = newPosition;
+                }
+
+                if (myLocationMarker != null) {
+                    myLocationMarker.setPosition(currentPosition[0]);
+                }
+
+                Location mockLocation = new Location("TMapMockProvider");
+                mockLocation.setLatitude(currentPosition[0].latitude);
+                mockLocation.setLongitude(currentPosition[0].longitude);
+                updateMyLocation(mockLocation);
+
+                if (animationHandler != null) {
+                    animationHandler.postDelayed(this, 10);
+                }
+            }
+        };
+
+        animationHandler.post(animationRunnable);
+    }
+
+    /**
+     * 두 지점 간 거리 계산 (미터)
+     */
+    private double calculateDistance(LatLng point1, LatLng point2) {
+        double lat1 = Math.toRadians(point1.latitude);
+        double lat2 = Math.toRadians(point2.latitude);
+        double deltaLat = Math.toRadians(point2.latitude - point1.latitude);
+        double deltaLng = Math.toRadians(point2.longitude - point1.longitude);
+
+        double a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+                Math.cos(lat1) * Math.cos(lat2) *
+                        Math.sin(deltaLng / 2) * Math.sin(deltaLng / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        return 6371000 * c; // 지구 반지름 (미터)
+    }
+
+    /**
+     * 두 지점 간 방향 계산 (도)
+     */
+    private double calculateBearing(LatLng point1, LatLng point2) {
+        double lat1 = Math.toRadians(point1.latitude);
+        double lat2 = Math.toRadians(point2.latitude);
+        double dLon = Math.toRadians(point2.longitude - point1.longitude);
+
+        double y = Math.sin(dLon) * Math.cos(lat2);
+        double x = Math.cos(lat1) * Math.sin(lat2) -
+                Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+
+        double bearing = Math.atan2(y, x);
+
+        // 라디안을 도로로 변환 (0~360)
+        bearing = Math.toDegrees(bearing);
+        if (bearing < 0) {
+            bearing += 360;
+        }
+        return bearing;
+    }
+
+    /**
+     * 새로운 위치 계산 (현재 위치, 방향, 거리)
+     */
+    private LatLng calculateNewPosition(LatLng current, double bearing, double distance) {
+        double R = 6371000; // 지구 반지름 (미터)
+        double lat1 = Math.toRadians(current.latitude);
+        double lon1 = Math.toRadians(current.longitude);
+        double brng = Math.toRadians(bearing);
+
+        double lat2 = Math.asin(Math.sin(lat1) * Math.cos(distance / R) +
+                Math.cos(lat1) * Math.sin(distance / R) * Math.cos(brng));
+
+        double lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(distance / R) * Math.cos(lat1),
+                Math.cos(distance / R) - Math.sin(lat1) * Math.sin(lat2));
+
+        // 경도 범위 조정 (-180 ~ 180)
+        lon2 = (lon2 + 540) % 360 - 180;
+
+        return new LatLng(Math.toDegrees(lat2), Math.toDegrees(lon2));
+    }
+
 }
