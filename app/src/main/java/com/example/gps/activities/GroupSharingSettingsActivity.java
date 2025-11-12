@@ -71,8 +71,8 @@ public class GroupSharingSettingsActivity extends AppCompatActivity {
         Log.d(TAG, "onCreate - GroupId: " + currentGroupId + ", Username: " + loggedInUsername);
 
         // 2. 유효성 검사
-        if (currentGroupId == -1L || loggedInUsername == null) {
-            Toast.makeText(this, "그룹 또는 사용자 정보가 유효하지 않습니다. (로그인 사용자 이름 누락)", Toast.LENGTH_LONG).show();
+        if (currentGroupId == -1L || loggedInUsername == null) { // ◀ 여기서 loggedInUsername이 null이라서
+            Toast.makeText(this, "그룹 또는 사용자 정보가 유효하지 않습니다. (로그인 사용자 이름 누락)", Toast.LENGTH_LONG).show(); // ◀ 이 Toast가 발생합니다.
             finish();
             return;
         }

@@ -107,6 +107,11 @@ import android.graphics.BitmapShader;
 import android.graphics.Shader;
 import android.graphics.Bitmap.Config;
 
+import androidx.cardview.widget.CardView; // ◀◀◀ [추가]
+import android.widget.Button; // ◀◀◀ [추가]
+import com.example.gps.activities.ChatRoomActivity; // ◀◀◀ [추가]
+import com.example.gps.activities.GroupSharingSettingsActivity; // ◀◀◀ [추가]
+
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, SearchResultDetailFragment.OnDestinationSelectedListener {
 
@@ -191,6 +196,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private static final int MARKER_BORDER_COLOR = Color.WHITE; // 테두리 색상
     // ▲▲▲ [새로 추가] ▲▲▲
 
+    // ▼▼▼ [그룹 메뉴 변수 추가] ▼▼▼
+    private FloatingActionButton fabGroupMenu;
+    private CardView groupMenuContainer;
+    private Button btnMenuChat, btnMenuSettings, btnMenuToggle;
+    private String currentGroupName; // ChatRoomActivity로 전달하기 위함
+    // ▲▲▲ [그룹 메뉴 변수 추가] ▲▲▲
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -227,9 +239,66 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         bindMyPageHeader();
         // --- ⭐️ [MERGE] 끝 ---
 
+
+        // ▼▼▼ [그룹 메뉴 로직 추가 시작] ▼▼▼
+
+        // 인텐트에서 groupName 가져오기 (currentGroupId는 handleIntent에서 이미 설정됨)
+        currentGroupName = getIntent().getStringExtra("groupName");
+
+        // UI 요소 초기화
+        fabGroupMenu = findViewById(R.id.fab_group_menu);
+        groupMenuContainer = findViewById(R.id.group_menu_container);
+        btnMenuChat = findViewById(R.id.btn_menu_chat);
+        btnMenuSettings = findViewById(R.id.btn_menu_settings);
+        btnMenuToggle = findViewById(R.id.btn_menu_toggle);
+
+        // 그룹 공유 상태일 때만(groupId가 있을 때) 메뉴 버튼 표시
+        if (currentGroupId != null && currentGroupId != -1L) {
+            fabGroupMenu.setVisibility(View.VISIBLE);
+        } else {
+            fabGroupMenu.setVisibility(View.GONE);
+        }
+
+        // 메인 그룹 메뉴 버튼 클릭 리스너 (하위 메뉴 토글)
+        fabGroupMenu.setOnClickListener(v -> {
+            if (groupMenuContainer.getVisibility() == View.VISIBLE) {
+                groupMenuContainer.setVisibility(View.GONE);
+            } else {
+                groupMenuContainer.setVisibility(View.VISIBLE);
+            }
+        });
+
+        // 하위 메뉴 - 채팅방 버튼
+        btnMenuChat.setOnClickListener(v -> {
+            Intent intent = new Intent(MapsActivity.this, ChatRoomActivity.class);
+            intent.putExtra("groupId", currentGroupId); // Long 타입 ID 전달
+            intent.putExtra("groupName", currentGroupName); // String 타입 이름 전달
+            startActivity(intent);
+            groupMenuContainer.setVisibility(View.GONE); // 메뉴 닫기
+        });
+
+// 하위 메뉴 - 위치권한설정 버튼
+        btnMenuSettings.setOnClickListener(v -> {
+            Intent intent = new Intent(MapsActivity.this, GroupSharingSettingsActivity.class);
+            intent.putExtra("groupId", currentGroupId); // Long 타입 ID 전달
+            intent.putExtra("username", loggedInUsername);
+            intent.putExtra("groupName", currentGroupName);
+            startActivity(intent);
+            groupMenuContainer.setVisibility(View.GONE); // 메뉴 닫기
+        });
+
+        // 하위 메뉴 - 위치공유 on/off 버튼
+        btnMenuToggle.setOnClickListener(v -> {
+            Toast.makeText(MapsActivity.this, "위치공유 on/off (기능 구현 예정)", Toast.LENGTH_SHORT).show();
+            groupMenuContainer.setVisibility(View.GONE); // 메뉴 닫기
+        });
+        // ▲▲▲ [그룹 메뉴 로직 추가 끝] ▲▲▲
+
         if (loggedInUsername != null) {
             fetchLoggedInUserId();
         }
+
+
     }
 
     // --- (startMyLocationMarkerListener, startFirebaseRulesListener, onMapReady, startMapRefreshTimer, stopMapRefreshTimer는 변경 없음) ---
@@ -480,6 +549,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         super.onNewIntent(intent);
         setIntent(intent);
         handleIntent(intent);
+
+        if (fabGroupMenu != null) { // null 체크
+            if (currentGroupId != null && currentGroupId != -1L) {
+                fabGroupMenu.setVisibility(View.VISIBLE);
+            } else {
+                fabGroupMenu.setVisibility(View.GONE);
+                groupMenuContainer.setVisibility(View.GONE); // 그룹이 종료되면 메뉴도 숨김
+            }
+        }
     }
     private void handleIntent(Intent intent) {
         if (intent == null) return;
