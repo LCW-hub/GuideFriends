@@ -2,13 +2,15 @@ package com.example.gps.model;
 
 public class User {
 
-    // ⭐ [추가] 서버의 Long 타입 ID 필드
     private Long id;
-
     private String username;
     private String password;
     private String email;
     private String phoneNum;
+    private String nickname;
+
+    // ⭐️ [이 필드를 추가하세요] ⭐️
+    private String profileImageUrl;
 
     // 1. 기본 생성자
     public User() {}
@@ -21,13 +23,23 @@ public class User {
         this.phoneNum = phoneNum;
     }
 
+    // ⭐️ [수정] 닉네임 포함하는 생성자 추가 (선택 사항)
+    public User(String username, String password, String email, String phoneNum, String nickname) {
+        this.username = username;
+        this.password = password;
+        this.email = email;
+        this.phoneNum = phoneNum;
+        this.nickname = nickname;
+    }
+
     // ⭐ 3. [추가] ID와 Username만 받는 생성자 (오류 해결용)
     public User(Long id, String username) {
         this.id = id;
         this.username = username;
     }
 
-    // ⭐ 4. [추가] ID Getter/Setter
+    // --- Getters & Setters ---
+
     public Long getId() {
         return id;
     }
@@ -35,7 +47,9 @@ public class User {
         this.id = id;
     }
 
-    // getter & setter (기존 유지)
+    public String getNickname() { return nickname; }
+    public void setNickname(String nickname) { this.nickname = nickname; }
+
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
 
@@ -47,4 +61,12 @@ public class User {
 
     public String getPhoneNum() { return phoneNum; }
     public void setPhoneNum(String phone) { this.phoneNum = phone; }
+
+    // ⭐️ [이 Getter/Setter를 추가하세요] ⭐️
+    public String getProfileImageUrl() {
+        return profileImageUrl;
+    }
+    public void setProfileImageUrl(String profileImageUrl) {
+        this.profileImageUrl = profileImageUrl;
+    }
 }

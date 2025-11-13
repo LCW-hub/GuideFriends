@@ -22,9 +22,9 @@ import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.util.Iterator;
-
+import com.example.gps.api.UserApi;
+import com.example.gps.dto.FriendResponse;
 import com.example.gps.activities.Register_Login.LoginActivity;
-// import com.example.gps.api.UserApi; //
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -37,7 +37,11 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.gps.R;
 import com.example.gps.activities.Friend.FriendsActivity;
 import com.example.gps.adapters.SearchResultAdapter;
-import com.example.gps.api.ApiClient; // Still needed for other API calls if any
+// ⭐️ [추가/수정] FriendAdapter, User 모델 Import
+import com.example.gps.adapters.FriendAdapter;
+import com.example.gps.model.User;
+// ⭐️ [추가/수정 끝]
+import com.example.gps.api.ApiClient;
 import com.example.gps.dto.LocationResponse;
 import com.example.gps.fragments.SearchResultDetailFragment;
 import com.example.gps.fragments.WeatherBottomSheetFragment;
@@ -74,8 +78,10 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+// ⭐️ [수정] FriendApiService와 GroupApiService 모두 유지
 import com.example.gps.api.GroupApiService;
 import com.example.gps.api.UserApiService;
+import com.example.gps.api.FriendApiService;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -101,7 +107,8 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy;
 // --- ⭐️ [MERGE] 프로필 사진용 Import 끝 ---
 
 
-public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, SearchResultDetailFragment.OnDestinationSelectedListener {
+// ⭐️ [수정] FriendAdapter.OnDeleteClickListener 인터페이스 구현 추가
+public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, SearchResultDetailFragment.OnDestinationSelectedListener, FriendAdapter.OnDeleteClickListener {
 
     // --- (UI, Map, Search, Weather, Menu 변수들은 변경 없음) ---
     private MapView mapView;
@@ -166,14 +173,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // --- ⭐️ [MERGE] 끝 ---
 
     private TokenManager tokenManager;
-    // private UserApi userApi; //
-    private UserApiService userApiService; //
+    private UserApiService userApiService;
 
     // --- ⭐️ [MERGE] 동시접속 제어용 변수 ---
     private ValueEventListener activeSessionListener;
     private DatabaseReference activeSessionRef;
     // --- ⭐️ [MERGE] 끝 ---
-    private boolean isSessionListenerInitialized = false; // ◀◀◀ 이 변수를 추가합니다.
+    private boolean isSessionListenerInitialized = false;
+
+    // --- ⭐️ [추가] 마이페이지 친구 목록 관련 변수 ---
+    private RecyclerView rvMyPageFriends; // 마이페이지 드로어의 RecyclerView (ID: rv_mypage_friends_list)
+    private FriendAdapter friendAdapter; // FriendAdapter 인스턴스
+    private FriendApiService friendApiService; // ⭐️ [수정] FriendApiService 사용
+    // --- ⭐️ [추가 끝] ---
 
     //==============================================================================================
     // 1. Activity Lifecycle & Setup
@@ -184,10 +196,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
 
-        // [수정] TokenManager 및 UserApiService 초기화 (ApiClient.getUserApiService 사용)
+        // [수정] TokenManager 및 API Service 초기화
         tokenManager = new TokenManager();
-        // userApi = ApiClient.getClient(this).create(UserApi.class); //
-        userApiService = ApiClient.getUserApiService(this); //
+        userApiService = ApiClient.getUserApiService(this);
+        friendApiService = ApiClient.getFriendApiService(this); // ⭐️ [수정] FriendApiService 초기화
 
         checkLocationPermission();
         handleIntent(getIntent());
@@ -213,7 +225,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         // --- ⭐️ [MERGE] 갤러리 런처 및 마이페이지 헤더 초기화 (Code 2 기능) ---
         initializeGalleryLauncher();
         bindMyPageHeader();
+        fetchUserEmailAndBindHeader(); // ⭐️⭐️⭐️ 추가된 이메일 로드 로직 호출 ⭐️⭐️⭐️
         // --- ⭐️ [MERGE] 끝 ---
+
+        // ⭐️ [추가] 마이페이지 친구 목록 초기화 호출
+        initializeMyPageFriendsList();
+        // ⭐️ [추가 끝]
 
         if (loggedInUsername != null) {
             fetchLoggedInUserId();
@@ -250,6 +267,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 Log.e(TAG, "My Marker Status Listener Cancelled", error.toException());
             }
         };
+        // ⭐️ [오타 수정] addValueEventListener로 정정
         myMarkerStatusRef.addValueEventListener(myMarkerStatusListener);
         Log.d(TAG, "startMyLocationMarkerListener: 내 마커 상태 리스너 등록 완료.");
     }
@@ -296,6 +314,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 Toast.makeText(MapsActivity.this, "위치 공유 규칙 로드에 실패했습니다.", Toast.LENGTH_SHORT).show();
             }
         };
+        // ⭐️ [오타 수정] addValueEventListener로 정정
         rulesRef.addValueEventListener(rulesListener);
         Log.d(TAG, "startFirebaseRulesListener: Firebase 규칙 리스너 등록 완료.");
     }
@@ -392,6 +411,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 drawerLayout.closeDrawer(sidebar);
             } else {
                 drawerLayout.openDrawer(sidebar);
+                // ⭐️ [추가] 마이페이지 열릴 때 친구 목록 새로고침
+                fetchFriendsListForMyPage();
             }
             hideSubMenu();
         });
@@ -511,6 +532,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         startActiveSessionListener();
                         // --- ⭐️ [MERGE] 끝 ---
 
+                        // ⭐️ [추가] ID 로드 성공 후 친구 목록 로드 시작 (최초 로드)
+                        fetchFriendsListForMyPage();
+                        // ⭐️ [추가 끝]
+
                         if (currentGroupId != -1L) {
                             startLocationSharing();
                         }
@@ -550,7 +575,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     Log.w(TAG, "Location Update: LocationSource에서 마지막 위치 정보를 가져올 수 없습니다. GPS 신호 대기 중.");
                 }
             } else if (animationHandler != null) {
-                Log.d(TAG, "Location Update: 모의(Mock) 이동 중이므로 실제 위치 업데이트는 건너뜁니다.");
+                Log.d(TAG, "Location Update: 모의(Mock) 이동 중이므로 실제 위치 업데이트는 건너킵니다.");
             }
             locationUpdateHandler.postDelayed(locationUpdateRunnable, LOCATION_UPDATE_INTERVAL);
         };
@@ -591,6 +616,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 Log.e(TAG, "onCancelled: Firebase 리스너 취소 오류 (🚨보안 규칙 확인 요망)", error.toException());
             }
         };
+        // ⭐️ [오타 수정] addValueEventListener로 정정
         groupPathRef.addValueEventListener(memberLocationListener);
     }
     private void updateMyLocation(Location location) {
@@ -620,7 +646,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             String username = location.getUserName();
             Long userId = location.getUserId();
             if (userId == null || userId == -1L) {
-                Log.w(TAG, "updateMemberMarkers: UserID가 없어 이미지 로드 건너뜀 -> " + username);
+                Log.w(TAG, "updateMemberMarkers: UserID가 없어 이미지 로드 건너뜐 -> " + username);
                 continue;
             }
             updatedUsernames.add(username);
@@ -711,7 +737,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     //==============================================================================================
-    // 5. UI Features (Menus, Search, Weather, Profile)
+    // 5. UI Features (Menus, Search, Weather, Profile, Friends List)
     //==============================================================================================
 
     // --- (toggleSubMenu, showSubMenu, hideSubMenu, initializeSubMenu는 변경 없음) ---
@@ -788,10 +814,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
     private void bindMyPageHeader() {
         TextView tvUsername = findViewById(R.id.tv_username);
-        TextView tvEmail = findViewById(R.id.tv_email);
-        ivProfile = findViewById(R.id.iv_profile);
+        TextView tvEmail = findViewById(R.id.tv_email); // ⭐️ 이 줄이 살아 있어야 합니다.
+        ImageView ivProfile = findViewById(R.id.iv_profile);
+
         if (tvUsername != null) tvUsername.setText(loggedInUsername != null ? loggedInUsername : "Guest");
-        if (tvEmail != null) tvEmail.setText(getSharedPreferences("user_info", MODE_PRIVATE).getString("email", ""));
+
+        // 이메일 초기 로드 로직 (이전에 수정한 로직)
+        // ⭐️ 이메일 로드 전에 tvEmail 변수가 선언되어 있어야 오류가 사라집니다.
+        String savedEmail = getSharedPreferences("user_info", MODE_PRIVATE).getString("email", "로딩 중...");
+        if (tvEmail != null) tvEmail.setText(savedEmail);
+
         loadProfileImage();
         ivProfile.setOnClickListener(v -> {
             showProfileImageOptions();
@@ -942,6 +974,179 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
     // --- ⭐️ [MERGE] 프로필 사진 로직 끝 ---
 
+    // --- ⭐️ [추가] 마이페이지 친구 목록 로직 시작 ---
+
+    private void initializeMyPageFriendsList() {
+        // ⭐️ R.id.rv_mypage_friends_list는 my_page_drawer.xml에 추가된 ID입니다.
+        rvMyPageFriends = findViewById(R.id.rv_mypage_friends_list);
+        rvMyPageFriends.setLayoutManager(new LinearLayoutManager(this));
+
+        // FriendAdapter 초기화 시 MapsActivity 자신을 OnDeleteClickListener로 전달
+        friendAdapter = new FriendAdapter(new ArrayList<>(), this);
+        rvMyPageFriends.setAdapter(friendAdapter);
+
+        // 친구 목록 불러오기는 ID 로드 후 또는 드로어 열릴 때 호출됩니다.
+    }
+
+    @Override
+    public void onDeleteClick(User friend) {
+        // 🚨 [수정] 이 로그가 찍히는지 확인해야 합니다! 🚨
+        Log.d(TAG, "🔴 FRIEND DELETE CLICK HANDLED IN MAPS ACTIVITY! Attempting deletion...");
+
+        // 1. 친구 ID 유효성 검사
+        if (friend.getId() == null || friend.getId() == -1L) {
+            Toast.makeText(this, "친구 ID를 찾을 수 없습니다.", Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "onDeleteClick: 삭제할 친구의 ID가 유효하지 않습니다.");
+            return;
+        }
+
+        Log.d(TAG, "친구 삭제 요청 시작: ID=" + friend.getId() + ", Username=" + friend.getUsername());
+
+        // 2. FriendApiService를 사용하여 삭제 API 호출
+        friendApiService.deleteFriend(friend.getId()).enqueue(new Callback<Void>() {
+            @Override
+            public void onResponse(@NonNull Call<Void> call, @NonNull Response<Void> response) {
+                if (response.isSuccessful()) {
+                    // HTTP 200 또는 204 (성공) 응답
+                    Toast.makeText(MapsActivity.this, friend.getUsername() + " 친구가 삭제되었습니다.", Toast.LENGTH_SHORT).show();
+                    Log.d(TAG, "친구 삭제 성공. 응답 코드: " + response.code());
+
+                    // 3. 삭제 성공 후, 친구 목록을 새로고침하여 화면을 갱신
+                    fetchFriendsListForMyPage();
+                } else {
+                    // 4xx 또는 5xx 오류 처리
+                    Toast.makeText(MapsActivity.this, "친구 삭제에 실패했습니다. (코드: " + response.code() + ")", Toast.LENGTH_LONG).show();
+                    Log.e(TAG, "친구 삭제 실패. 응답 코드: " + response.code());
+                }
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<Void> call, @NonNull Throwable t) {
+                // 네트워크 연결 오류 처리
+                Toast.makeText(MapsActivity.this, "네트워크 오류로 삭제에 실패했습니다.", Toast.LENGTH_LONG).show();
+                Log.e(TAG, "친구 삭제 네트워크 오류", t);
+            }
+        });
+    }
+
+    private void fetchFriendsListForMyPage() {
+        if (loggedInUserId == -1L) {
+            // User ID 로드 대기
+            Log.w(TAG, "fetchFriendsListForMyPage: User ID가 유효하지 않아 친구 목록 로드 중단. ID 로드 대기 중.");
+            return;
+        }
+
+        // FriendApiService 정의에 따라 인수를 제거했습니다.
+        Call<List<FriendResponse>> call = friendApiService.getFriends(); // ⭐️ List<User> -> List<FriendResponse>로 변경
+
+        call.enqueue(new Callback<List<FriendResponse>>() { // ⭐️ Callback<List<User>> -> Callback<List<FriendResponse>>로 변경
+            @Override
+            public void onResponse(@NonNull Call<List<FriendResponse>> call, @NonNull Response<List<FriendResponse>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+
+                    List<FriendResponse> friendResponses = response.body();
+
+                    // ⭐️ 핵심: FriendResponse를 User 모델로 변환하는 로직 추가 ⭐️
+                    List<User> friends = new ArrayList<>(); // 변환된 User 리스트
+                    for (FriendResponse fr : friendResponses) {
+                        User user = new User();
+
+                        // FriendResponse의 필드를 User 모델에 매핑
+                        user.setId(fr.getFriendId());
+
+                        // Adapter가 Username 또는 Nickname을 찾으므로, 여기에 친구의 이름을 할당합니다.
+                        user.setUsername(fr.getFriendUsername());
+                        // user.setNickname(fr.getFriendUsername()); // User 모델에 setNickname이 있다면 이것을 사용하는 것이 가장 좋습니다.
+                        user.setProfileImageUrl(fr.getProfileImageUrl());
+                        friends.add(user);
+                    }
+                    // ⭐️ 변환 로직 끝 ⭐️
+
+                    friendAdapter.setFriends(friends); // 변환된 List<User>를 전달
+                    Log.d(TAG, "마이페이지 친구 목록 로드 성공. 개수: " + friends.size());
+                } else {
+                    Log.e(TAG, "마이페이지 친구 목록 로드 실패. 응답 코드: " + response.code());
+                }
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<List<FriendResponse>> call, @NonNull Throwable t) {
+                Log.e(TAG, "마이페이지 친구 목록 네트워크 오류", t);
+            }
+        });
+    }
+
+    // ⭐️ [추가] 서버에서 이메일을 가져와 헤더를 업데이트하는 메서드 ⭐️
+    /**
+     * 서버에서 사용자 이메일을 가져와 마이페이지 헤더를 업데이트합니다.
+     */
+    private void fetchUserEmailAndBindHeader() {
+        if (userApiService == null) {
+            Log.e(TAG, "fetchUserEmail: userApiService가 null입니다.");
+            return;
+        }
+
+        Call<Map<String, String>> call = userApiService.getMyEmail();
+
+        call.enqueue(new Callback<Map<String, String>>() {
+            @Override
+            public void onResponse(@NonNull Call<Map<String, String>> call, @NonNull Response<Map<String, String>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    Map<String, String> responseBody = response.body();
+                    String email = null;
+
+                    // ⭐️ 1. 서버 응답에서 이메일 키를 유연하게 확인 (가장 유력한 문제 해결) ⭐️
+                    if (responseBody.containsKey("email")) {
+                        email = responseBody.get("email");
+                    } else if (responseBody.containsKey("userEmail")) { // 혹시 userEmail로 보낸다면
+                        email = responseBody.get("userEmail");
+                    } else {
+                        Log.w(TAG, "이메일 로드 실패: 응답 본문에 'email' 또는 'userEmail' 키가 없습니다.");
+                    }
+
+                    // 2. 이메일 UI 업데이트 및 SharedPreferences 저장
+                    if (email != null && !email.isEmpty()) {
+                        getSharedPreferences("user_info", MODE_PRIVATE).edit().putString("email", email).apply();
+
+                        TextView tvEmail = findViewById(R.id.tv_email);
+                        if (tvEmail != null) {
+                            tvEmail.setText(email);
+                        }
+                        Log.d(TAG, "✅ 사용자 이메일 로드 및 업데이트 성공: " + email);
+                    }
+                } else {
+                    Log.e(TAG, "❌ 사용자 이메일 로드 실패. 응답 코드: " + response.code());
+
+                    try {
+                        // 🚨 [수정] 서버가 잘못된 응답을 보낼 때 어떤 데이터를 보냈는지 확인
+                        String errorBody = response.errorBody() != null ? response.errorBody().string() : "No Error Body";
+                        Log.e(TAG, "❌ 이메일 로드 실패 Error Body: " + errorBody);
+                    } catch (Exception e) {
+                        Log.e(TAG, "❌ Error Body 로드 중 오류 발생", e);
+                    }
+
+                    // ⭐️ 3. 실패 시, 잘못된 값 대신 로그인 이름 기반의 기본값 설정 ⭐️
+                    // (기존에 잘못 저장된 "12@example.com" 대신 로그인 이름으로 기본값을 만듭니다.)
+                    String defaultEmail = loggedInUsername + "@example.com";
+
+                    TextView tvEmail = findViewById(R.id.tv_email);
+                    if (tvEmail != null) {
+                        tvEmail.setText(defaultEmail);
+                    }
+                    getSharedPreferences("user_info", MODE_PRIVATE).edit().putString("email", defaultEmail).apply();
+
+                }
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<Map<String, String>> call, @NonNull Throwable t) {
+                Log.e(TAG, "사용자 이메일 네트워크 오류", t);
+                // 네트워크 오류 시에도 기본값 설정을 유지합니다.
+            }
+        });
+    }
+    // --- ⭐️ [추가] 마이페이지 친구 목록 로직 끝 ---
+
 
     // --- (Search, Weather 관련 메소드들은 변경 없음) ---
     private void performSearch() {
@@ -1082,7 +1287,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             case "clear": return R.drawable.ic_weather_clear;
             case "clouds": return R.drawable.ic_weather_cloudy;
             case "rain": case "drizzle": return R.drawable.ic_weather_rainy;
-            case "snow": return R.drawable.ic_weather_snow;
             default: return R.drawable.ic_weather_clear;
         }
     }
@@ -1158,6 +1362,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         super.onResume();
         mapView.onResume();
         applyMapTypeSetting();
+
+        // ⭐️ fetchFriendsListForMyPage() 호출을 제거했습니다. ⭐️
+
         if (currentGroupId != -1L) {
             Log.d(TAG, "onResume: 유효한 그룹 ID(" + currentGroupId + ")가 있어 위치 공유 재시작.");
             startLocationSharing();
@@ -1251,6 +1458,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 removeDestinationMarker();
             }
         };
+        // ⭐️ [오타 수정] addValueEventListener로 정정
         destinationRef.addValueEventListener(destinationListener);
     }
     private void removeDestinationMarker() {
@@ -1404,7 +1612,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     }
                 });
             } catch (Exception e) {
-                Log.e(TAG, "팀원 마커 아이콘 로드 실패", e);
+                Log.e(TAG, "마커 아이콘 업데이트 실패", e);
                 handler.post(() -> {
                     if (marker.getMap() == naverMap) {
                         marker.setIcon(OverlayImage.fromResource(R.drawable.ic_person));
@@ -1446,7 +1654,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 // ◀◀◀ 2. 리스너가 처음 데이터를 읽어온 경우(초기화)
                 if (!isSessionListenerInitialized) {
                     isSessionListenerInitialized = true; // 플래그를 true로 설정
-                    Log.d(TAG, "ActiveSessionListener: 리스너 초기화 완료. 첫 데이터 로드는 건너뜁니다.");
+                    Log.d(TAG, "ActiveSessionListener: 리스너 초기화 완료. 첫 데이터 로드는 건너킵니다.");
                     return; // ◀◀◀ 비교 로직을 실행하지 않고 종료
                 }
 
@@ -1471,6 +1679,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 Log.e(TAG, "ActiveSessionListener: 세션 감시 리스너 실패", error.toException());
             }
         };
+        // ⭐️ [오타 수정] addValueEventListener로 정정
         activeSessionRef.addValueEventListener(activeSessionListener);
     }
     // app/src/main/java/com/example/gps/activities/MapsActivity.java

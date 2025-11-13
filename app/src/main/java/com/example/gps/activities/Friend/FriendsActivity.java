@@ -16,7 +16,9 @@ import com.example.gps.adapters.FriendAdapter;
 import com.example.gps.adapters.PendingRequestAdapter;
 import com.example.gps.adapters.SentRequestAdapter;
 import com.example.gps.api.ApiClient;
-import com.example.gps.api.UserApi;
+// ⭐️ [수정] FriendApiService 임포트
+import com.example.gps.api.FriendApiService;
+import com.example.gps.dto.FriendResponse; // ⭐️ [추가] FriendResponse DTO 임포트
 import com.example.gps.model.User;
 
 import java.util.ArrayList;
@@ -37,37 +39,34 @@ public class FriendsActivity extends AppCompatActivity
 
     private EditText etFriendUsername;
     private Button btnAddFriend;
-    private RecyclerView rvPendingRequests, rvFriendsList;
+    private RecyclerView rvPendingRequests, rvFriendsList, rvSentRequests;
 
     private FriendAdapter friendAdapter;
     private PendingRequestAdapter pendingRequestAdapter;
+    private SentRequestAdapter sentRequestAdapter;
 
     private List<User> friendList = new ArrayList<>();
     private List<User> pendingList = new ArrayList<>();
-
-    private UserApi userApi;
-    private String currentUsername; // 현재 로그인된 사용자 아이디
-
-    private RecyclerView rvSentRequests;
-    private SentRequestAdapter sentRequestAdapter;
     private List<User> sentList = new ArrayList<>();
 
+    // ⭐️ [수정] UserApi -> FriendApiService
+    private FriendApiService friendApiService;
+    private String currentUsername;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_friends);
 
-        // 이전 Activity(MapsActivity)에서 현재 사용자 이름을 받아옴
         currentUsername = getIntent().getStringExtra("username");
         if (currentUsername == null || currentUsername.isEmpty()) {
             Toast.makeText(this, "사용자 정보를 불러올 수 없습니다.", Toast.LENGTH_SHORT).show();
-            finish(); // 사용자 정보 없으면 액티비티 종료
+            finish();
             return;
         }
 
-        // ⭐ [수정] ApiClient.getClient(this) -> ApiClient.getRetrofit(this)
-        userApi = ApiClient.getClient(this).create(UserApi.class);
+        // ⭐️ [수정] MapsActivity와 동일한 방식으로 FriendApiService 초기화
+        friendApiService = ApiClient.getFriendApiService(this);
 
         // UI 요소 초기화
         etFriendUsername = findViewById(R.id.etFriendUsername);
@@ -75,7 +74,6 @@ public class FriendsActivity extends AppCompatActivity
         rvPendingRequests = findViewById(R.id.rvPendingRequests);
         rvFriendsList = findViewById(R.id.rvFriendsList);
         rvSentRequests = findViewById(R.id.rvSentRequests);
-        rvFriendsList = findViewById(R.id.rvFriendsList);
 
         setupRecyclerViews();
         setupClickListeners();
@@ -88,14 +86,13 @@ public class FriendsActivity extends AppCompatActivity
 
     // RecyclerView 설정
     private void setupRecyclerViews() {
-        // 친구 목록 RecyclerView
         rvFriendsList.setLayoutManager(new LinearLayoutManager(this));
+        // ⭐️ [수정] friendList가 null일 수 있으므로 안전하게 초기화
         friendAdapter = new FriendAdapter(friendList, this);
         rvFriendsList.setAdapter(friendAdapter);
 
-        // 친구 요청 목록 RecyclerView
         rvPendingRequests.setLayoutManager(new LinearLayoutManager(this));
-        pendingRequestAdapter = new PendingRequestAdapter(pendingList, this); // 'this'를 리스너로 전달
+        pendingRequestAdapter = new PendingRequestAdapter(pendingList, this);
         rvPendingRequests.setAdapter(pendingRequestAdapter);
 
         rvSentRequests.setLayoutManager(new LinearLayoutManager(this));
@@ -122,24 +119,31 @@ public class FriendsActivity extends AppCompatActivity
     // 서버에 친구 요청 보내기
     private void requestFriend(String toUsername) {
         Map<String, String> requestBody = new HashMap<>();
-        requestBody.put("fromUsername", currentUsername);
+        // ⭐️ [수정] "fromUsername" 제거 (서버가 토큰에서 가져옴)
         requestBody.put("toUsername", toUsername);
 
-        userApi.requestFriend(requestBody).enqueue(new Callback<Map<String, Object>>() {
+        // ⭐️ [수정] userApi -> friendApiService
+        friendApiService.requestFriend(requestBody).enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(@NonNull Call<Map<String, Object>> call, @NonNull Response<Map<String, Object>> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     String status = (String) response.body().get("status");
                     String message = (String) response.body().get("message");
 
-                    Toast.makeText(FriendsActivity.this, message, Toast.LENGTH_SHORT).show(); // ✅ 서버 메시지 사용
+                    Toast.makeText(FriendsActivity.this, message, Toast.LENGTH_SHORT).show();
 
                     if ("success".equals(status)) {
                         etFriendUsername.setText("");
-                        fetchSentRequests(); // ✅ 요청 성공 시 '보낸 요청' 목록 새로고침
+                        fetchSentRequests();
                     }
                 } else {
-                    Toast.makeText(FriendsActivity.this, "요청에 실패했습니다.", Toast.LENGTH_SHORT).show();
+                    String errorMsg = "요청에 실패했습니다.";
+                    try {
+                        if (response.errorBody() != null) {
+                            errorMsg += " (코드: " + response.code() + ")";
+                        }
+                    } catch (Exception e) {}
+                    Toast.makeText(FriendsActivity.this, errorMsg, Toast.LENGTH_SHORT).show();
                 }
             }
 
@@ -151,15 +155,18 @@ public class FriendsActivity extends AppCompatActivity
         });
     }
 
-    // 7. '보낸 요청' 목록을 불러오는 새로운 메서드를 클래스 내부에 추가합니다.
+    // '보낸 요청' 목록 불러오기
     private void fetchSentRequests() {
-        userApi.getSentFriendRequests(currentUsername).enqueue(new Callback<List<User>>() {
+        // ⭐️ [수정] userApi -> friendApiService, 파라미터 제거
+        friendApiService.getSentFriendRequests().enqueue(new Callback<List<User>>() {
             @Override
             public void onResponse(@NonNull Call<List<User>> call, @NonNull Response<List<User>> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     sentList.clear();
                     sentList.addAll(response.body());
                     sentRequestAdapter.notifyDataSetChanged();
+                } else { // ⭐️ [추가] 실패 로그
+                    Log.e(TAG, "Fetch sent requests failed, Code: " + response.code());
                 }
             }
 
@@ -172,18 +179,33 @@ public class FriendsActivity extends AppCompatActivity
 
     // 내 친구 목록 불러오기
     private void fetchFriends() {
-        userApi.getFriends(currentUsername).enqueue(new Callback<List<User>>() {
+        // ⭐️ [수정] userApi -> friendApiService, 파라미터 제거, DTO 사용
+        friendApiService.getFriends().enqueue(new Callback<List<FriendResponse>>() {
             @Override
-            public void onResponse(@NonNull Call<List<User>> call, @NonNull Response<List<User>> response) {
+            public void onResponse(@NonNull Call<List<FriendResponse>> call, @NonNull Response<List<FriendResponse>> response) {
                 if (response.isSuccessful() && response.body() != null) {
+
+                    // ⭐️ [추가] MapsActivity와 동일하게 DTO -> Model 변환
+                    List<FriendResponse> friendResponses = response.body();
+                    List<User> friends = new ArrayList<>();
+                    for (FriendResponse fr : friendResponses) {
+                        User user = new User();
+                        user.setId(fr.getFriendId());
+                        user.setUsername(fr.getFriendUsername());
+                        user.setProfileImageUrl(fr.getProfileImageUrl()); // 프로필 이미지 URL 복사
+                        friends.add(user);
+                    }
+
                     friendList.clear();
-                    friendList.addAll(response.body());
-                    friendAdapter.notifyDataSetChanged();
+                    friendList.addAll(friends); // 변환된 리스트 추가
+                    friendAdapter.setFriends(friendList); // ⭐️ [수정] 어댑터에 새 리스트 설정
+                } else { // ⭐️ [추가] 실패 로그
+                    Log.e(TAG, "Fetch friends failed, Code: " + response.code());
                 }
             }
 
             @Override
-            public void onFailure(@NonNull Call<List<User>> call, @NonNull Throwable t) {
+            public void onFailure(@NonNull Call<List<FriendResponse>> call, @NonNull Throwable t) {
                 Log.e(TAG, "Fetch friends failed: " + t.getMessage());
             }
         });
@@ -191,8 +213,8 @@ public class FriendsActivity extends AppCompatActivity
 
     // 받은 친구 요청 목록 불러오기
     private void fetchPendingRequests() {
-        // 새로 추가한 API를 정확히 호출합니다.
-        userApi.getPendingFriendRequests(currentUsername).enqueue(new Callback<List<User>>() {
+        // ⭐️ [수정] userApi -> friendApiService, 파라미터 제거
+        friendApiService.getPendingFriendRequests().enqueue(new Callback<List<User>>() {
             @Override
             public void onResponse(@NonNull Call<List<User>> call, @NonNull Response<List<User>> response) {
                 if (response.isSuccessful() && response.body() != null) {
@@ -217,27 +239,19 @@ public class FriendsActivity extends AppCompatActivity
     @Override
     public void onAccept(User user) {
         Map<String, String> requestBody = new HashMap<>();
-        requestBody.put("currentUsername", currentUsername);
-        requestBody.put("requestUsername", user.getUsername());
+        // ⭐️ [수정] "currentUsername" 제거 (서버가 토큰에서 가져옴)
+        requestBody.put("requestUsername", user.getUsername()); // 요청 보낸 사람
 
-        userApi.acceptFriend(requestBody).enqueue(new Callback<Map<String, Object>>() {
+        // ⭐️ [수정] userApi -> friendApiService
+        friendApiService.acceptFriend(requestBody).enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(@NonNull Call<Map<String, Object>> call, @NonNull Response<Map<String, Object>> response) {
                 if (response.isSuccessful() && response.body() != null && "success".equals(response.body().get("status"))) {
                     Toast.makeText(FriendsActivity.this, user.getUsername() + "님의 친구 요청을 수락했습니다.", Toast.LENGTH_SHORT).show();
 
-                    // --- 화면 즉시 업데이트 로직 ---
-                    // 1. '받은 요청' 목록에서 해당 유저를 제거합니다.
-                    pendingList.remove(user);
-
-                    // 2. '내 친구' 목록에 해당 유저를 추가합니다.
-                    friendList.add(user);
-
-                    // 3. 두 목록의 어댑터에게 데이터가 변경되었음을 알려 화면을 새로 그리게 합니다.
-                    pendingRequestAdapter.notifyDataSetChanged();
-                    friendAdapter.notifyDataSetChanged();
-                    // ------------------------------------
-
+                    // ⭐️ [수정] 목록 새로고침 (가장 확실한 방법)
+                    fetchPendingRequests();
+                    fetchFriends();
                 } else {
                     Toast.makeText(FriendsActivity.this, "요청 수락에 실패했습니다.", Toast.LENGTH_SHORT).show();
                 }
@@ -251,21 +265,20 @@ public class FriendsActivity extends AppCompatActivity
     }
 
     @Override
-    public void onDeleteClick(User friend) {
+    public void onDecline(User user) {
         Map<String, String> requestBody = new HashMap<>();
-        requestBody.put("myUsername", currentUsername);
-        requestBody.put("friendUsername", friend.getUsername());
+        // ⭐️ [수정] "declinerUsername" 제거 (서버가 토큰에서 가져옴)
+        requestBody.put("requesterUsername", user.getUsername());
 
-        userApi.deleteFriend(requestBody).enqueue(new Callback<Map<String, Object>>() {
+        // ⭐️ [수정] userApi -> friendApiService
+        friendApiService.declineFriendRequest(requestBody).enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(@NonNull Call<Map<String, Object>> call, @NonNull Response<Map<String, Object>> response) {
                 if (response.isSuccessful()) {
-                    Toast.makeText(FriendsActivity.this, friend.getUsername() + "님을 친구 목록에서 삭제했습니다.", Toast.LENGTH_SHORT).show();
-                    // UI에서 즉시 제거
-                    friendList.remove(friend);
-                    friendAdapter.notifyDataSetChanged();
+                    Toast.makeText(FriendsActivity.this, user.getUsername() + "님의 요청을 거절했습니다.", Toast.LENGTH_SHORT).show();
+                    fetchPendingRequests(); // ⭐️ 목록 새로고침
                 } else {
-                    Toast.makeText(FriendsActivity.this, "삭제에 실패했습니다.", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(FriendsActivity.this, "거절에 실패했습니다.", Toast.LENGTH_SHORT).show();
                 }
             }
 
@@ -276,21 +289,21 @@ public class FriendsActivity extends AppCompatActivity
         });
     }
 
-    // 8. '취소' 버튼 클릭을 처리하는 onCancel 메서드를 클래스 내부에 추가합니다.
+    // --- SentRequestAdapter의 버튼 클릭 처리 ---
+
     @Override
     public void onCancel(User user) {
         Map<String, String> requestBody = new HashMap<>();
-        requestBody.put("fromUsername", currentUsername);
+        // ⭐️ [수정] "fromUsername" 제거 (서버가 토큰에서 가져옴)
         requestBody.put("toUsername", user.getUsername());
 
-        userApi.cancelFriendRequest(requestBody).enqueue(new Callback<Map<String, Object>>() {
+        // ⭐️ [수정] userApi -> friendApiService
+        friendApiService.cancelFriendRequest(requestBody).enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(@NonNull Call<Map<String, Object>> call, @NonNull Response<Map<String, Object>> response) {
                 if (response.isSuccessful()) {
                     Toast.makeText(FriendsActivity.this, "요청을 취소했습니다.", Toast.LENGTH_SHORT).show();
-                    // UI에서 즉시 제거
-                    sentList.remove(user);
-                    sentRequestAdapter.notifyDataSetChanged();
+                    fetchSentRequests(); // ⭐️ 목록 새로고침
                 } else {
                     Toast.makeText(FriendsActivity.this, "취소에 실패했습니다.", Toast.LENGTH_SHORT).show();
                 }
@@ -303,28 +316,31 @@ public class FriendsActivity extends AppCompatActivity
         });
     }
 
+    // --- FriendAdapter의 버튼 클릭 처리 ---
+
     @Override
-    public void onDecline(User user) {
-        Map<String, String> requestBody = new HashMap<>();
-        requestBody.put("declinerUsername", currentUsername);     // 거절하는 사람 (나)
-        requestBody.put("requesterUsername", user.getUsername()); // 요청을 보냈던 사람
+    public void onDeleteClick(User friend) {
+        // ⭐️ [수정] MapsActivity와 동일하게 RESTful API 호출 방식으로 변경
 
-        userApi.declineFriendRequest(requestBody).enqueue(new Callback<Map<String, Object>>() {
+        if (friend.getId() == null) {
+            Toast.makeText(this, "친구 ID가 없어 삭제할 수 없습니다.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // ⭐️ [수정] userApi -> friendApiService, ID로 삭제
+        friendApiService.deleteFriend(friend.getId()).enqueue(new Callback<Void>() {
             @Override
-            public void onResponse(@NonNull Call<Map<String, Object>> call, @NonNull Response<Map<String, Object>> response) {
+            public void onResponse(@NonNull Call<Void> call, @NonNull Response<Void> response) {
                 if (response.isSuccessful()) {
-                    Toast.makeText(FriendsActivity.this, user.getUsername() + "님의 요청을 거절했습니다.", Toast.LENGTH_SHORT).show();
-
-                    // UI에서 즉시 제거
-                    pendingList.remove(user);
-                    pendingRequestAdapter.notifyDataSetChanged();
+                    Toast.makeText(FriendsActivity.this, friend.getUsername() + "님을 친구 목록에서 삭제했습니다.", Toast.LENGTH_SHORT).show();
+                    fetchFriends(); // ⭐️ 목록 새로고침
                 } else {
-                    Toast.makeText(FriendsActivity.this, "거절에 실패했습니다.", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(FriendsActivity.this, "삭제에 실패했습니다. (코드: " + response.code() + ")", Toast.LENGTH_SHORT).show();
                 }
             }
 
             @Override
-            public void onFailure(@NonNull Call<Map<String, Object>> call, @NonNull Throwable t) {
+            public void onFailure(@NonNull Call<Void> call, @NonNull Throwable t) {
                 Toast.makeText(FriendsActivity.this, "네트워크 오류가 발생했습니다.", Toast.LENGTH_SHORT).show();
             }
         });

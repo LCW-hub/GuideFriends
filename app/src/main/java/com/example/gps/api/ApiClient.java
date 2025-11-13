@@ -3,6 +3,9 @@ package com.example.gps.api;
 import android.content.Context;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+
+import java.util.concurrent.TimeUnit;
+
 import okhttp3.OkHttpClient;
 import okhttp3.logging.HttpLoggingInterceptor;
 import retrofit2.Retrofit;
@@ -10,7 +13,7 @@ import retrofit2.converter.gson.GsonConverterFactory;
 
 public class ApiClient {
     // [수정] IP 주소 확인 (백엔드 서버 IP)
-    private static final String BASE_URL = "http://172.30.1.55:8080";
+    private static final String BASE_URL = "http://10.0.2.2:8080/";
 
     // --- 🔽 [이 메소드 추가] ---
     /**
@@ -39,7 +42,9 @@ public class ApiClient {
             loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY);
 
             OkHttpClient.Builder httpClientBuilder = new OkHttpClient.Builder();
-
+// ⭐️ [추가] 타임아웃 설정 증가 ⭐️
+            httpClientBuilder.connectTimeout(30, TimeUnit.SECONDS); // 연결 타임아웃 30초
+            httpClientBuilder.readTimeout(30, TimeUnit.SECONDS);    // 데이터 읽기 타임아웃 30초
             // 1. AuthInterceptor 추가 (Access Token 삽입)
             httpClientBuilder.addInterceptor(new AuthInterceptor(context));
 
