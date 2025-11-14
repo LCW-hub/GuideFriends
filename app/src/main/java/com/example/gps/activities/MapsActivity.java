@@ -160,6 +160,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private String loggedInUsername;
     private boolean isSelectionMode = false;
     private Long currentGroupId = -1L;
+
+    // ⭐️ [병합 오류 수정 1] 사라졌던 T맵(main) 브랜치의 변수들 선언
+    private String currentGroupName;
+    private FloatingActionButton fabGroupMenu;
+    private CardView groupMenuContainer;
+    // ⭐️ [병합 오류 수정 1 끝]
+
     private DatabaseReference firebaseDatabase;
     private ValueEventListener memberLocationListener;
     private final Handler locationUpdateHandler = new Handler(Looper.getMainLooper());
@@ -210,7 +217,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private DatabaseReference activeSessionRef;
     private boolean isSessionListenerInitialized = false;
     // --- ⭐️ [MERGE] 끝 ---
-    private boolean isSessionListenerInitialized = false;
+
+    // ⭐️ [병합 오류 수정 2] 중복 선언된 변수 제거 (아래 한 줄이 삭제됨)
+    // private boolean isSessionListenerInitialized = false;
+    // ⭐️ [병합 오류 수정 2 끝]
+
 
     // --- ⭐️ [추가] 마이페이지 친구 목록 관련 변수 ---
     private RecyclerView rvMyPageFriends; // 마이페이지 드로어의 RecyclerView (ID: rv_mypage_friends_list)
