@@ -3,6 +3,9 @@ package com.example.gps.api;
 import android.content.Context;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+
+import java.util.concurrent.TimeUnit;
+
 import okhttp3.OkHttpClient;
 import okhttp3.logging.HttpLoggingInterceptor;
 import retrofit2.Retrofit;
@@ -39,7 +42,9 @@ public class ApiClient {
             loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY);
 
             OkHttpClient.Builder httpClientBuilder = new OkHttpClient.Builder();
-
+// ⭐️ [추가] 타임아웃 설정 증가 ⭐️
+            httpClientBuilder.connectTimeout(30, TimeUnit.SECONDS); // 연결 타임아웃 30초
+            httpClientBuilder.readTimeout(30, TimeUnit.SECONDS);    // 데이터 읽기 타임아웃 30초
             // 1. AuthInterceptor 추가 (Access Token 삽입)
             httpClientBuilder.addInterceptor(new AuthInterceptor(context));
 

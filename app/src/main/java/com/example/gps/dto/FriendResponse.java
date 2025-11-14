@@ -9,7 +9,15 @@ public class FriendResponse {
     @SerializedName("friendUsername")
     private String friendUsername;
 
-    // Getter
+    // ⭐️ [이 필드를 추가하세요] ⭐️
+    @SerializedName("profileImageUrl")
+    private String profileImageUrl;
+
+    // --- Getters ---
+
     public Long getFriendId() { return friendId; }
     public String getFriendUsername() { return friendUsername; }
+
+    // ⭐️ [이 Getter를 추가하세요] ⭐️
+    public String getProfileImageUrl() { return profileImageUrl; }
 }

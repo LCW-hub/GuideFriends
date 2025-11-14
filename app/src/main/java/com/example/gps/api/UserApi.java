@@ -102,5 +102,10 @@ public interface UserApi {
     @GET("/api/users/username/{username}") // 사용자 이름으로 ID를 가져오는 API
     Call<Map<String, Long>> getUserIdByUsername(@Path("username") String username);
 
-
+    // ⭐ [추가 완료] 현재 로그인된 사용자 프로필 상세 정보 조회 API
+    @GET("/api/users/profile")
+    Call<Map<String, String>> getUserProfile();
+// 서버는 사용자 이름, 이메일 등이 포함된 Map<String, String>을 반환한다고 가정합니다.
+@GET("/api/users/me/email")
+Call<Map<String, String>> getMyEmail();
 }
