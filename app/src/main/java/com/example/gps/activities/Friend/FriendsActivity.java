@@ -179,27 +179,31 @@ public class FriendsActivity extends AppCompatActivity
 
     // 내 친구 목록 불러오기
     private void fetchFriends() {
-        // ⭐️ [수정] userApi -> friendApiService, 파라미터 제거, DTO 사용
         friendApiService.getFriends().enqueue(new Callback<List<FriendResponse>>() {
             @Override
             public void onResponse(@NonNull Call<List<FriendResponse>> call, @NonNull Response<List<FriendResponse>> response) {
                 if (response.isSuccessful() && response.body() != null) {
 
-                    // ⭐️ [추가] MapsActivity와 동일하게 DTO -> Model 변환
                     List<FriendResponse> friendResponses = response.body();
-                    List<User> friends = new ArrayList<>();
+                    List<User> friends = new ArrayList<>(); // 👈 'friends' (새 로컬 리스트) 생성
+
                     for (FriendResponse fr : friendResponses) {
                         User user = new User();
                         user.setId(fr.getFriendId());
                         user.setUsername(fr.getFriendUsername());
-                        user.setProfileImageUrl(fr.getProfileImageUrl()); // 프로필 이미지 URL 복사
+                        user.setProfileImageUrl(fr.getProfileImageUrl());
                         friends.add(user);
                     }
 
+                    // ⭐️⭐️⭐️ [수정된 부분] ⭐️⭐️⭐️
+                    // MapsActivity와 동일하게 'friends' (새 리스트)를 어댑터에 바로 전달합니다.
+                    friendAdapter.setFriends(friends);
+
+                    // (선택 사항: Activity의 리스트도 최신 상태로 동기화)
                     friendList.clear();
-                    friendList.addAll(friends); // 변환된 리스트 추가
-                    friendAdapter.setFriends(friendList); // ⭐️ [수정] 어댑터에 새 리스트 설정
-                } else { // ⭐️ [추가] 실패 로그
+                    friendList.addAll(friends);
+
+                } else {
                     Log.e(TAG, "Fetch friends failed, Code: " + response.code());
                 }
             }
