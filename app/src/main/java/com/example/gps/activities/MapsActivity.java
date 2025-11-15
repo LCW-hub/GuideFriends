@@ -229,6 +229,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private FriendApiService friendApiService; // ⭐️ [수정] FriendApiService 사용
     // --- ⭐️ [추가 끝] ---
 
+
+    private boolean isMyMarkerVisibleGlobally = true;
+
     //==============================================================================================
     // 1. Activity Lifecycle & Setup
     //==============================================================================================
@@ -281,6 +284,82 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     }
 
+
+    private void toggleGroupMenu() {
+        // onNewIntent와 initializeButtons에서 이미 변수들이 초기화되지만, 안정성을 위해 다시 확인합니다.
+        if (groupMenuContainer == null) {
+            groupMenuContainer = findViewById(R.id.group_menu_container);
+            if (groupMenuContainer == null) return;
+        }
+        if (fabGroupMenu == null) {
+            fabGroupMenu = findViewById(R.id.fab_group_menu);
+            if (fabGroupMenu == null) return;
+        }
+
+        boolean isGroupMenuOpen = groupMenuContainer.getVisibility() == View.VISIBLE;
+
+        if (isGroupMenuOpen) {
+            // 메뉴 닫기
+            groupMenuContainer.animate()
+                    .alpha(0f)
+                    .setDuration(150)
+                    .withEndAction(() -> groupMenuContainer.setVisibility(View.GONE))
+                    .start();
+            // 닫기 아이콘 -> 일반 메뉴 아이콘 (혹은 그룹 아이콘)으로 변경
+            fabGroupMenu.setImageResource(R.drawable.ic_menu);
+        } else {
+            // 메뉴 열기
+            setupGroupMenuListeners(); // 리스너를 설정하고 버튼이 준비되었는지 확인합니다.
+            groupMenuContainer.setVisibility(View.VISIBLE); // 핵심: 컨테이너를 보이게 합니다.
+            groupMenuContainer.setAlpha(0f);
+            groupMenuContainer.animate()
+                    .alpha(1f)
+                    .setDuration(150)
+                    .start();
+            fabGroupMenu.setImageResource(R.drawable.ic_close); // 닫기 아이콘으로 변경
+        }
+    }
+
+    /**
+     * 그룹 메뉴의 하위 Button 요소들에 대한 클릭 리스너를 설정합니다.
+     * (XML에 정의된 btn_menu_chat, btn_menu_settings, btn_menu_toggle ID 사용)
+     */
+    private void setupGroupMenuListeners() {
+        if (groupMenuContainer == null) return;
+
+        // ⭐️ XML에 정의된 Button ID와 타입을 정확히 사용합니다.
+        Button btnChat = groupMenuContainer.findViewById(R.id.btn_menu_chat);
+        // ⭐️ [수정] 위치 권한 설정 버튼
+        Button btnSettings = groupMenuContainer.findViewById(R.id.btn_menu_settings);
+        Button btnToggle = groupMenuContainer.findViewById(R.id.btn_menu_toggle); // (위치 공유 on/off)
+
+        if (btnChat != null) {
+            btnChat.setOnClickListener(v -> {
+                Toast.makeText(this, "그룹 채팅방으로 이동합니다.", Toast.LENGTH_SHORT).show();
+                Intent intent = new Intent(this, ChatRoomActivity.class);
+                intent.putExtra("groupId", currentGroupId);
+                intent.putExtra("groupName", currentGroupName);
+                startActivity(intent);
+                toggleGroupMenu();
+            });
+        }
+
+        if (btnSettings != null) {
+            // ⭐️ [핵심 수정] 위치권한설정 버튼을 클릭하면 내 위치 공유 상태를 토글합니다.
+            btnSettings.setOnClickListener(v -> {
+                toggleMyLocationMarkerStatus(); // 이 메서드만 호출하도록 수정
+                toggleGroupMenu(); // 메뉴 닫기
+            });
+        }
+
+        if (btnToggle != null) {
+            btnToggle.setOnClickListener(v -> {
+                // 위치 공유 on/off 로직 (이 버튼은 그룹 전체 공유/미공유 설정용으로 유지)
+                Toast.makeText(this, "위치 공유 상태를 토글합니다. (로직 구현 필요)", Toast.LENGTH_SHORT).show();
+                toggleGroupMenu();
+            });
+        }
+    }
     private void startMyLocationMarkerListener() {
         if (loggedInUserId == -1L || naverMap == null) return;
         myMarkerStatusRef = FirebaseDatabase.getInstance()
@@ -295,6 +374,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 Boolean isVisible = snapshot.getValue(Boolean.class);
                 boolean showMarker = (isVisible != null) ? isVisible : true;
+
+                isMyMarkerVisibleGlobally = showMarker;
+
                 if (myLocationMarker != null) {
                     if (showMarker) {
                         myLocationMarker.setMap(naverMap);
@@ -360,6 +442,79 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         // ⭐️ [오타 수정] addValueEventListener로 정정
         rulesRef.addValueEventListener(rulesListener);
         Log.d(TAG, "startFirebaseRulesListener: Firebase 규칙 리스너 등록 완료.");
+    }
+
+    private void toggleMyLocationMarkerStatus() {
+        if (loggedInUserId == -1L) {
+            Toast.makeText(this, "사용자 ID를 찾을 수 없습니다.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        DatabaseReference statusRef = FirebaseDatabase.getInstance()
+                .getReference("user_status")
+                .child(String.valueOf(loggedInUserId))
+                .child("is_marker_visible");
+
+        // 1. Firebase에서 현재 상태를 읽어옵니다.
+        statusRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                // 기본값은 true (켜짐)
+                Boolean currentState = snapshot.getValue(Boolean.class);
+                boolean isVisible = (currentState != null) ? currentState : true;
+
+                // 2. 상태를 반전시킵니다.
+                boolean newState = !isVisible;
+
+                isMyMarkerVisibleGlobally = newState;
+
+                // 3. Firebase에 새 상태를 기록합니다.
+                statusRef.setValue(newState)
+                        .addOnSuccessListener(aVoid -> {
+                            String statusText = newState ? "켜짐" : "꺼짐";
+                            Toast.makeText(MapsActivity.this,
+                                    "내 위치 공유를 **" + statusText + "**으로 설정했습니다.",
+                                    Toast.LENGTH_SHORT).show();
+
+                            if (!newState) {
+                                removeMyLastKnownLocation(); // 즉시 위치 데이터 삭제
+                            }
+
+
+                            locationUpdateHandler.removeCallbacks(locationUpdateRunnable);
+                            locationUpdateHandler.post(locationUpdateRunnable);
+                            // 마커 상태는 startMyLocationMarkerListener에 의해 자동으로 업데이트됩니다.
+                        })
+                        .addOnFailureListener(e -> {
+                            Toast.makeText(MapsActivity.this, "상태 업데이트 실패", Toast.LENGTH_SHORT).show();
+                            Log.e(TAG, "위치 공유 상태 업데이트 실패", e);
+                        });
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Toast.makeText(MapsActivity.this, "현재 위치 상태를 읽어오는 데 실패했습니다.", Toast.LENGTH_SHORT).show();
+                Log.e(TAG, "위치 공유 상태 읽기 실패", error.toException());
+            }
+        });
+    }
+
+    private void removeMyLastKnownLocation() {
+        if (currentGroupId != -1L && loggedInUsername != null) {
+            DatabaseReference myLocationRef = FirebaseDatabase.getInstance()
+                    .getReference("group_locations")
+                    .child(String.valueOf(currentGroupId))
+                    .child(loggedInUsername);
+
+            // 해당 경로의 데이터를 삭제합니다.
+            myLocationRef.removeValue()
+                    .addOnSuccessListener(aVoid -> {
+                        Log.d(TAG, "✅ Firebase 그룹 위치 데이터 삭제 완료. 상대방에게 마커가 사라져야 합니다.");
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "❌ Firebase 그룹 위치 데이터 삭제 실패", e);
+                    });
+        }
     }
     @Override
     public void onMapReady(@NonNull NaverMap map) {
@@ -455,6 +610,20 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         FloatingActionButton btnMyGroups = findViewById(R.id.btnMyGroups);
         FloatingActionButton btnMyPage = findViewById(R.id.btnMyPage);
         FloatingActionButton btnSettings = findViewById(R.id.btnSettings);
+
+        fabGroupMenu = findViewById(R.id.fab_group_menu);
+        groupMenuContainer = findViewById(R.id.group_menu_container);
+
+        if (fabGroupMenu != null) {
+            fabGroupMenu.setOnClickListener(v -> toggleGroupMenu());
+            // 처음 로드될 때 그룹 ID가 있으면 (onResume에서 currentGroupId가 설정됨) 상태를 갱신합니다.
+            if (currentGroupId != -1L) {
+                fabGroupMenu.setVisibility(View.VISIBLE);
+            } else {
+                fabGroupMenu.setVisibility(View.GONE);
+            }
+        }
+
         btnMainMenu.setOnClickListener(v -> toggleSubMenu());
         btnFriends.setOnClickListener(v -> {
             startActivity(new Intent(this, FriendsActivity.class).putExtra("username", loggedInUsername));
@@ -527,6 +696,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         handleIntent(intent);
 
         currentGroupName = intent.getStringExtra("groupName");
+
+        fabGroupMenu = findViewById(R.id.fab_group_menu);
+        groupMenuContainer = findViewById(R.id.group_menu_container);
 
         if (fabGroupMenu == null) {
             fabGroupMenu = findViewById(R.id.fab_group_menu);
@@ -643,6 +815,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         startDestinationListener();
         Log.d(TAG, "startLocationSharing: 위치 공유 프로세스 시작. 업데이트 주기=" + LOCATION_UPDATE_INTERVAL + "ms");
         locationUpdateRunnable = () -> {
+            if (!isMyMarkerVisibleGlobally) {
+                Log.d(TAG, "Location Update: 마커 숨김 상태이므로 위치 전송을 중단합니다.");
+                locationUpdateHandler.postDelayed(locationUpdateRunnable, LOCATION_UPDATE_INTERVAL);
+                return;
+            }
 
             // ⭐️ [TMap 수정] TMap 시뮬레이션 중이 아닐 때만 실제 위치 업데이트
             if (locationSource != null && animationHandler == null && !isSimulationRunning) {
@@ -783,6 +960,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             for (PathOverlay p : pathOverlays) p.setMap(null);
             pathOverlays.clear();
 
+            removeMyLastKnownLocation();
+
+
             Toast.makeText(this, "TMap 시뮬레이션을 중지합니다.", Toast.LENGTH_SHORT).show();
             Log.d(TAG, "startMockMovement: TMap 시뮬레이션 중지됨.");
             return;
@@ -807,6 +987,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         // --- 시뮬레이션 시작 ---
         isSimulationRunning = true;
+
+        removeMyLastKnownLocation();
 
         Toast.makeText(this, "TMap API 가상 이동 시작 (현재 위치->유한대학교)", Toast.LENGTH_LONG).show();
         Log.d(TAG, "startMockMovement: TMap API 가상 이동 시작. " + startLatLng.latitude + " -> " + endLatLng.latitude);
@@ -1990,15 +2172,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     currentPosition[0] = newPosition;
                 }
 
-                if (myLocationMarker != null) {
-                    myLocationMarker.setPosition(currentPosition[0]);
+                // ⭐️ [핵심 수정] 위치 공유 상태(isMyMarkerVisibleGlobally)가 켜진 경우에만 위치 데이터를 전송합니다.
+                if (isMyMarkerVisibleGlobally) {
+                    Location mockLocation = new Location("TMapMockProvider");
+                    mockLocation.setLatitude(currentPosition[0].latitude);
+                    mockLocation.setLongitude(currentPosition[0].longitude);
+                    updateMyLocation(mockLocation); // ⭐️ 조건부 위치 전송
+                } else {
+                    Log.d(TAG, "Simulate Update: 위치 공유 OFF 상태, 시뮬레이션 위치 전송 중단.");
                 }
-
-                Location mockLocation = new Location("TMapMockProvider");
-                mockLocation.setLatitude(currentPosition[0].latitude);
-                mockLocation.setLongitude(currentPosition[0].longitude);
-                updateMyLocation(mockLocation);
-
                 if (animationHandler != null) {
                     animationHandler.postDelayed(this, 10);
                 }
