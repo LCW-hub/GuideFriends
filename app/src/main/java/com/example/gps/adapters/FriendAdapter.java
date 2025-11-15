@@ -54,42 +54,40 @@ public class FriendAdapter extends RecyclerView.Adapter<FriendAdapter.FriendView
         holder.tvFriendUsername.setText(displayName);
 
 
-        // --- ⭐️ [START OF REVISED CODE] 프로필 이미지 로드 로직 (수정됨) ⭐️ ---
-
+        // --- (프로필 이미지 로드 로직 - 수정 없음) ---
         String imageUrl = friend.getProfileImageUrl();
         Object loadTarget = null;
-
         if (imageUrl != null && !imageUrl.isEmpty()) {
             String baseUrl = ApiClient.getBaseUrl();
             if (baseUrl.endsWith("/")) {
                 baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
             }
-
-            // ⭐️ [핵심 수정] ⭐️
-            // URL이 "/"로 시작하면(상대 경로), 앞에 baseUrl을 붙여줍니다.
-            // (예: "/static/..." 또는 "/media/profiles/...")
             if (imageUrl.startsWith("/")) {
                 loadTarget = baseUrl + imageUrl;
             } else {
-                // "http://"로 시작하는 절대 경로면 그대로 사용합니다.
                 loadTarget = imageUrl;
             }
             Log.d("FriendAdapter", "Loading image for " + friend.getUsername() + ": " + loadTarget);
-
         } else {
             Log.d("FriendAdapter", "No image URL for " + friend.getUsername() + ". Loading placeholder.");
         }
-
-        // Glide로 이미지 로드
         Glide.with(holder.itemView.getContext())
                 .load(loadTarget)
-                .placeholder(R.drawable.ic_person) // 기본 이미지
-                .error(R.drawable.ic_person)       // 에러 시 이미지
-                .diskCacheStrategy(DiskCacheStrategy.NONE) // 프로필 사진은 캐시 스킵
+                .placeholder(R.drawable.ic_person)
+                .error(R.drawable.ic_person)
+                .diskCacheStrategy(DiskCacheStrategy.NONE)
                 .skipMemoryCache(true)
-                .into(holder.ivFriendProfile); // ⭐️ ViewHolder의 이미지뷰
+                .into(holder.ivFriendProfile);
+        // --- (프로필 이미지 로드 로직 끝) ---
 
-        // --- ⭐️ [END OF REVISED CODE] ⭐️ ---
+
+        // --- ⭐️ [추가] 4단계: 온라인 상태 로직 ---
+        if (friend.isOnline()) {
+            holder.viewOnlineStatus.setVisibility(View.VISIBLE);
+        } else {
+            holder.viewOnlineStatus.setVisibility(View.GONE);
+        }
+        // --- ⭐️ [추가 끝] ---
 
 
         // --- (기존 삭제 버튼 로직 - 수정 없음) ---
@@ -116,17 +114,19 @@ public class FriendAdapter extends RecyclerView.Adapter<FriendAdapter.FriendView
         notifyDataSetChanged();
     }
 
-    // [ViewHolder - 수정 없음]
+    // [ViewHolder - ⭐️ 수정됨]
     static class FriendViewHolder extends RecyclerView.ViewHolder {
         TextView tvFriendUsername;
         Button btnDeleteFriend;
         CircleImageView ivFriendProfile;
+        View viewOnlineStatus; // ⭐️ [추가] 온라인 상태 뷰
 
         public FriendViewHolder(@NonNull View itemView) {
             super(itemView);
             tvFriendUsername = itemView.findViewById(R.id.tvFriendUsername);
             btnDeleteFriend = itemView.findViewById(R.id.btnDeleteFriend);
             ivFriendProfile = itemView.findViewById(R.id.iv_friend_profile);
+            viewOnlineStatus = itemView.findViewById(R.id.view_online_status); // ⭐️ [추가] ID 연결
         }
     }
 }

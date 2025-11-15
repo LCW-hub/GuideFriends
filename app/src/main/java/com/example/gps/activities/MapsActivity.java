@@ -1,4 +1,4 @@
-// [통합본] 동시접속 제어 + 프로필 사진 기능 + TMap 경로 시뮬레이션 기능이 모두 포함된 MapsActivity
+// [최종 통합본] 동시접속 + 프로필 사진 + TMap + ⭐️(추가) 친구 온라인 상태 기능
 package com.example.gps.activities;
 
 import android.Manifest;
@@ -124,6 +124,10 @@ import com.example.gps.activities.GroupSharingSettingsActivity;
 // ⭐️ [TMap 추가 Import]
 import com.naver.maps.map.overlay.PathOverlay;
 
+// ⭐️ [추가] 5단계: 온라인 상태 감지를 위한 Set Import
+import java.util.Set;
+import java.util.HashSet;
+
 
 // ⭐️ [수정] FriendAdapter.OnDeleteClickListener 인터페이스 구현 추가
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, SearchResultDetailFragment.OnDestinationSelectedListener, FriendAdapter.OnDeleteClickListener {
@@ -156,7 +160,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private static final String NAVER_CLIENT_ID = "OAQnuwhbAL34Of8mlxve";
     private static final String NAVER_CLIENT_SECRET = "4roXQDJBpc";
     private static final int LOCATION_UPDATE_INTERVAL = 10000; // 10 seconds
+
+    // ⭐️ [수정] 원본 TAG 변수 사용
     private static final String TAG = "MapsActivity_FIREBASE";
+
     private String loggedInUsername;
     private boolean isSelectionMode = false;
     private Long currentGroupId = -1L;
@@ -232,6 +239,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private boolean isMyMarkerVisibleGlobally = true;
 
+    // --- ⭐️ [추가] 1단계 & 5단계: Presence (온라인 상태) 관련 변수 ---
+    private DatabaseReference presenceRef; // 1단계: 내 접속 상태 기록용
+    private DatabaseReference presenceRootRef; // 5단계: "presence" 최상위 경로 참조
+    private ValueEventListener presenceListener; // 5단계: 온라인 상태 감지 리스너
+    private List<User> myPageFriendsList = new ArrayList<>(); // 5단계: ⭐️ 어댑터가 공유할 리스트
+    private final Set<Long> onlineUserIds = new HashSet<>(); // 5단계: ⭐️ 온라인 상태인 유저 ID 캐시
+    // --- ⭐️ [추가 끝] ---
+
+
     //==============================================================================================
     // 1. Activity Lifecycle & Setup
     //==============================================================================================
@@ -280,11 +296,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (loggedInUsername != null) {
             fetchLoggedInUserId();
         }
-
-
     }
 
-
+    // ... (toggleGroupMenu 부터 onMapReady 까지 원본과 동일) ...
     private void toggleGroupMenu() {
         // onNewIntent와 initializeButtons에서 이미 변수들이 초기화되지만, 안정성을 위해 다시 확인합니다.
         if (groupMenuContainer == null) {
@@ -319,11 +333,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             fabGroupMenu.setImageResource(R.drawable.ic_close); // 닫기 아이콘으로 변경
         }
     }
-
-    /**
-     * 그룹 메뉴의 하위 Button 요소들에 대한 클릭 리스너를 설정합니다.
-     * (XML에 정의된 btn_menu_chat, btn_menu_settings, btn_menu_toggle ID 사용)
-     */
     private void setupGroupMenuListeners() {
         if (groupMenuContainer == null) return;
 
@@ -443,7 +452,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         rulesRef.addValueEventListener(rulesListener);
         Log.d(TAG, "startFirebaseRulesListener: Firebase 규칙 리스너 등록 완료.");
     }
-
     private void toggleMyLocationMarkerStatus() {
         if (loggedInUserId == -1L) {
             Toast.makeText(this, "사용자 ID를 찾을 수 없습니다.", Toast.LENGTH_SHORT).show();
@@ -498,7 +506,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         });
     }
-
     private void removeMyLastKnownLocation() {
         if (currentGroupId != -1L && loggedInUsername != null) {
             DatabaseReference myLocationRef = FirebaseDatabase.getInstance()
@@ -516,6 +523,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     });
         }
     }
+
     @Override
     public void onMapReady(@NonNull NaverMap map) {
         this.naverMap = map;
@@ -560,6 +568,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         loadWeatherData();
         loadProfileImage(); // ⭐️ [프로필]
     }
+
+    // ... (startMapRefreshTimer 부터 handleIntent 까지 원본과 동일) ...
     private void startMapRefreshTimer() {
         if (naverMap == null) return;
         if (mapRefreshRunnable != null) {
@@ -585,11 +595,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             Log.d(TAG, "stopMapRefreshTimer: 지도 강제 갱신 타이머 중단.");
         }
     }
-
-    //==============================================================================================
-    // 2. Initializers
-    //==============================================================================================
-
     private void initializeMap() {
         locationSource = new FusedLocationSource(this, LOCATION_PERMISSION_REQUEST_CODE);
         mapView.getMapAsync(this);
@@ -740,6 +745,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         }
     }
+
+    // ... (reapplyRulesAndRefreshMarkers 원본과 동일) ...
     private void reapplyRulesAndRefreshMarkers() {
         Log.d(TAG, "reapplyRulesAndRefreshMarkers: 상호 규칙 기반 마커 재적용 시작.");
         if (memberLocationsCache != null) {
@@ -767,6 +774,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
+
+    // ⭐️ [수정됨] 1단계 수정 사항 적용
     private void fetchLoggedInUserId() {
         Call<Map<String, Long>> call = userApiService.getUserIdByUsername(loggedInUsername);
         call.enqueue(new Callback<Map<String, Long>>() {
@@ -777,6 +786,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     if (userId != null && userId != -1L) {
                         loggedInUserId = userId;
                         Log.d(TAG, "사용자 ID 획득 성공: " + loggedInUserId);
+
+                        // --- ⭐️ [추가] 1단계: Firebase Presence (온라인 상태) 설정 ---
+                        setupFirebasePresence();
+                        // --- ⭐️ [추가 끝] ---
 
                         // --- ⭐️ [MERGE] 동시접속 제어 리스너 시작 ---
                         startActiveSessionListener();
@@ -789,9 +802,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         if (currentGroupId != -1L) {
                             startLocationSharing();
                         }
-                        return;
+                        return; // ⭐️ [수정] 1단계: 불필요한 호출 방지
                     }
-                    reapplyRulesAndRefreshMarkers();
+                    // [제거] reapplyRulesAndRefreshMarkers();
                 }
                 Log.e(TAG, "❌ 사용자 ID 획득 실패. 응답 코드: " + response.code());
             }
@@ -803,7 +816,31 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
     }
 
+    // --- ⭐️ [추가] 1단계: Firebase Presence 설정 메서드 ---
+    /**
+     * 사용자가 온라인 상태임을 Firebase 'presence' 노드에 기록합니다.
+     * 앱 연결이 끊어지면 (정상 종료, 강제 종료, 네트워크 단절) Firebase가 자동으로 해당 데이터를 삭제합니다.
+     */
+    private void setupFirebasePresence() {
+        if (loggedInUserId == -1L) return;
 
+        // 1. "presence/내ID" 경로에 대한 참조 생성
+        presenceRef = FirebaseDatabase.getInstance()
+                .getReference("presence")
+                .child(String.valueOf(loggedInUserId));
+
+        // 2. 내가 온라인임을 나타내는 데이터 기록
+        presenceRef.child("isOnline").setValue(true);
+        presenceRef.child("lastSeen").setValue(System.currentTimeMillis());
+
+        // 3. (가장 중요) 연결이 끊어지면(onDisconnect) 위 데이터를 자동으로 삭제(removeValue)하도록 예약
+        presenceRef.onDisconnect().removeValue();
+        Log.d(TAG, "Firebase Presence 설정 완료: 온라인 상태.");
+    }
+    // --- ⭐️ [추가 끝] ---
+
+
+    // ... (startLocationSharing 부터 onDestinationSelected 까지 원본과 동일) ...
     private void startLocationSharing() {
         locationUpdateHandler.removeCallbacksAndMessages(null);
         if (loggedInUserId == -1L) {
@@ -946,9 +983,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         LatLng defaultLocation = new LatLng(37.5665, 126.9780);
         updateWeatherWidget(defaultLocation);
     }
-
-    // ⭐️ [TMap 대체] startMockMovement 메서드
-    // ⭐️ [TMap 대체] startMockMovement 메서드
     private void startMockMovement() {
         if (isSimulationRunning) {
             // --- 시뮬레이션 중지 ---
@@ -997,8 +1031,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         double totalDistance = calculateDistance(startLatLng, endLatLng);
         requestTMapWalkSegmentForSimulation(startLatLng, endLatLng, totalDistance);
     }
-    // ⭐️ [TMap 대체 끝]
-
     @Override
     public void onDestinationSelected(SearchResult selectedResult) {
         Toast.makeText(this, selectedResult.getTitle() + " selected as destination.", Toast.LENGTH_LONG).show();
@@ -1014,6 +1046,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // 5. UI Features (Menus, Search, Weather, Profile, Friends List)
     //==============================================================================================
 
+    // ... (toggleSubMenu 부터 createCacheFileFromUri 까지 원본과 동일) ...
     private void toggleSubMenu() {
         if (isSubMenuOpen) hideSubMenu();
         else showSubMenu();
@@ -1063,9 +1096,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             fab.setAlpha(0f);
         }
     }
-
-    // --- ⭐️ [MERGE] 프로필 사진 로직 시작 ---
-
     private void initializeGalleryLauncher() {
         galleryLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
@@ -1153,7 +1183,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
         updateMyLocationMarkerIcon(imageUrl);
     }
-
     private void setProfileToDefault() {
         Call<Map<String, Object>> call = userApiService.setDefaultProfileImage();
 
@@ -1180,7 +1209,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         });
     }
-
     private void uploadImageToServer(Uri imageUri) {
         File file = createCacheFileFromUri(imageUri);
         if (file == null) {
@@ -1224,7 +1252,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         });
     }
-
     private File createCacheFileFromUri(Uri uri) {
         try (InputStream inputStream = getContentResolver().openInputStream(uri)) {
             File tempFile = new File(getCacheDir(), "temp_profile_image.jpg");
@@ -1241,17 +1268,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             return null;
         }
     }
-    // --- ⭐️ [MERGE] 프로필 사진 로직 끝 ---
 
-    // --- ⭐️ [추가] 마이페이지 친구 목록 로직 시작 ---
+    // --- ⭐️ [수정됨] 5단계 수정 사항 적용 ---
 
     private void initializeMyPageFriendsList() {
         // ⭐️ R.id.rv_mypage_friends_list는 my_page_drawer.xml에 추가된 ID입니다.
         rvMyPageFriends = findViewById(R.id.rv_mypage_friends_list);
         rvMyPageFriends.setLayoutManager(new LinearLayoutManager(this));
 
-        // FriendAdapter 초기화 시 MapsActivity 자신을 OnDeleteClickListener로 전달
-        friendAdapter = new FriendAdapter(new ArrayList<>(), this);
+        // ⭐️ [5단계 수정] FriendAdapter 초기화 시 MapsActivity 자신을 OnDeleteClickListener로 전달
+        // ⭐️ [5단계 수정] 멤버 변수인 myPageFriendsList를 어댑터에 전달
+        friendAdapter = new FriendAdapter(myPageFriendsList, this);
         rvMyPageFriends.setAdapter(friendAdapter);
 
         // 친구 목록 불러오기는 ID 로드 후 또는 드로어 열릴 때 호출됩니다.
@@ -1315,24 +1342,29 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                     List<FriendResponse> friendResponses = response.body();
 
-                    // ⭐️ 핵심: FriendResponse를 User 모델로 변환하는 로직 추가 ⭐️
-                    List<User> friends = new ArrayList<>(); // 변환된 User 리스트
+                    // ⭐️ [5단계 수정] 어댑터가 참조하는 리스트를 직접 클리어
+                    myPageFriendsList.clear();
+
                     for (FriendResponse fr : friendResponses) {
                         User user = new User();
 
                         // FriendResponse의 필드를 User 모델에 매핑
                         user.setId(fr.getFriendId());
-
-                        // Adapter가 Username 또는 Nickname을 찾으므로, 여기에 친구의 이름을 할당합니다.
                         user.setUsername(fr.getFriendUsername());
-                        // user.setNickname(fr.getFriendUsername()); // User 모델에 setNickname이 있다면 이것을 사용하는 것이 가장 좋습니다.
                         user.setProfileImageUrl(fr.getProfileImageUrl());
-                        friends.add(user);
-                    }
-                    // ⭐️ 변환 로직 끝 ⭐️
 
-                    friendAdapter.setFriends(friends); // 변환된 List<User>를 전달
-                    Log.d(TAG, "마이페이지 친구 목록 로드 성공. 개수: " + friends.size());
+                        // ⭐️ [5단계 수정] API 응답 처리 시, 현재 캐시된 온라인 상태를 즉시 적용
+                        user.setOnline(onlineUserIds.contains(user.getId()));
+
+                        myPageFriendsList.add(user); // ⭐️ [5단계 수정] 어댑터가 참조하는 리스트에 직접 추가
+                    }
+
+                    friendAdapter.notifyDataSetChanged(); // ⭐️ [5단계 수정] 어댑터 갱신
+                    Log.d(TAG, "마이페이지 친구 목록 로드 성공. 개수: " + myPageFriendsList.size());
+
+                    // ⭐️ [5단계 추가] 친구 목록 로드 성공 시, 온라인 상태 감지 리스너 시작
+                    startPresenceListener();
+
                 } else {
                     Log.e(TAG, "마이페이지 친구 목록 로드 실패. 응답 코드: " + response.code());
                 }
@@ -1345,10 +1377,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
     }
 
-    // ⭐️ [추가] 서버에서 이메일을 가져와 헤더를 업데이트하는 메서드 ⭐️
-    /**
-     * 서버에서 사용자 이메일을 가져와 마이페이지 헤더를 업데이트합니다.
-     */
+    // ... (fetchUserEmailAndBindHeader 부터 onResume 직전까지 원본과 동일) ...
     private void fetchUserEmailAndBindHeader() {
         if (userApiService == null) {
             Log.e(TAG, "fetchUserEmail: userApiService가 null입니다.");
@@ -1414,9 +1443,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         });
     }
-    // --- ⭐️ [추가] 마이페이지 친구 목록 로직 끝 ---
-
-
     private void performSearch() {
         String query = etSearch.getText().toString().trim();
         if (query.isEmpty()) {
@@ -1558,12 +1584,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             default: return R.drawable.ic_weather_clear;
         }
     }
-
-
-    //==============================================================================================
-    // 6. Permissions & Utilities
-    //==============================================================================================
-
     private void checkLocationPermission() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
@@ -1583,7 +1603,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     .animate(CameraAnimation.Easing));
         }
     }
-
     private float dpToPx(float dp) {
         return dp * getResources().getDisplayMetrics().density;
     }
@@ -1612,13 +1631,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     protected void onStart() { super.onStart(); mapView.onStart(); }
+
+    // ⭐️ [수정됨] 5단계 수정 사항 적용
     @Override
     protected void onResume() {
         super.onResume();
         mapView.onResume();
         applyMapTypeSetting();
 
-        // ⭐️ fetchFriendsListForMyPage() 호출을 제거했습니다. ⭐️
+        // ⭐️ [5단계 수정] onResume 시 친구 목록을 다시 불러옵니다.
+        // (성공 콜백에서 'startPresenceListener'가 자동으로 호출됩니다)
+        fetchFriendsListForMyPage();
 
         if (currentGroupId != -1L) {
             Log.d(TAG, "onResume: 유효한 그룹 ID(" + currentGroupId + ")가 있어 위치 공유 재시작.");
@@ -1628,6 +1651,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             Log.d(TAG, "onResume: 그룹 ID가 없어 위치 공유를 시작하지 않음.");
         }
     }
+
+    // ⭐️ [수정됨] 5단계 수정 사항 적용
     @Override
     protected void onPause() {
         super.onPause();
@@ -1669,7 +1694,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             stopDestinationListener();
         }
         stopActiveSessionListener();
+
+        stopPresenceListener(); // ⭐️ [5단계 추가] 온라인 감지 리스너 중지
     }
+
     @Override
     protected void onStop() { super.onStop(); mapView.onStop(); }
     @Override
@@ -1686,8 +1714,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onLowMemory() { super.onLowMemory(); mapView.onLowMemory(); }
 
 
-    // 🚀 --- [2.5: 목적지 마커용 새 메서드 4개] ---
-
+    // ... (startDestinationListener 부터 addBorderToCircularBitmap 까지 원본과 동일) ...
     private void startDestinationListener() {
         if (naverMap == null || currentGroupId == -1L) {
             Log.w(TAG, "startDestinationListener: NaverMap이 null이거나 Group ID가 유효하지 않아 중단.");
@@ -1760,11 +1787,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         destinationRef = null;
         destinationListener = null;
     }
-    // 🚀 --- [2.5 끝] ---
-
-
-    // 🚀 --- [MERGE] 프로필 사진 마커 업데이트 메소드 ---
-
     private void updateMyLocationMarkerIcon(String imageUrl) {
         if (naverMap == null || myLocationMarker == null) return;
         executor.execute(() -> {
@@ -1818,7 +1840,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         });
     }
-
     private void fetchAndApplyMemberProfile(Long userId, final Marker marker) {
         Call<Map<String, String>> call = userApiService.getProfileImageUrl(userId);
         call.enqueue(new Callback<Map<String, String>>() {
@@ -1839,7 +1860,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         });
     }
-
     private void loadBitmapForMarker(String imageUrl, final Marker marker) {
         executor.execute(() -> {
             try {
@@ -1889,12 +1909,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         });
     }
-
-    // 🚀 --- [MERGE] 프로필 마커 로직 끝 ---
-
-
-    // --- ⭐️ [MERGE] 동시접속 제어 메소드 ---
-
     private void startActiveSessionListener() {
         if (loggedInUserId == -1L) {
             Log.w(TAG, "startActiveSessionListener: UserID가 없어 세션 감지를 시작할 수 없습니다.");
@@ -1953,8 +1967,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             Log.d(TAG, "stopActiveSessionListener: 실시간 세션 감지 리스너 제거 완료.");
         }
     }
-
-
     private void logout() {
         Call<Map<String, Object>> call = userApiService.logout();
 
@@ -1977,7 +1989,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
     }
 
+    // ⭐️ [수정됨] 1단계 수정 사항 적용
     private void performClientLogout() {
+        // --- ⭐️ [추가] 1단계: 수동으로 Presence 제거 ---
+        if (presenceRef != null) {
+            presenceRef.removeValue(); // 수동으로 오프라인 처리
+        }
+        // --- ⭐️ [추가 끝] ---
+
         tokenManager.deleteTokens();
         Toast.makeText(MapsActivity.this, "로그아웃 되었습니다.", Toast.LENGTH_SHORT).show();
         Intent intent = new Intent(MapsActivity.this, LoginActivity.class);
@@ -2014,13 +2033,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         return outputBitmap;
     }
 
-    // ----------------------------------------------------------------
-    // ⭐️ [TMap 추가] TMap 시뮬레이션 관련 메서드 4개
-    // ----------------------------------------------------------------
-
-    /**
-     * TMap API를 호출하여 시뮬레이션을 위한 실제 보행 경로를 요청합니다.
-     */
+    // ... (TMap 시뮬레이션 관련 메서드 4개 원본과 동일) ...
     private void requestTMapWalkSegmentForSimulation(LatLng start, LatLng end, double totalDistance) {
         new Thread(() -> {
             try {
@@ -2101,10 +2114,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         }).start();
     }
-
-    /**
-     * TMap API로 받은 경로(path)를 따라 마커를 이동시키는 시뮬레이션을 시작합니다.
-     */
     private void startPathSimulation(List<LatLng> path, double totalDistance) {
         if (path.size() < 2) {
             isSimulationRunning = false;
@@ -2192,10 +2201,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         animationHandler.post(animationRunnable);
     }
-
-    /**
-     * 두 지점 간 거리 계산 (미터)
-     */
     private double calculateDistance(LatLng point1, LatLng point2) {
         double lat1 = Math.toRadians(point1.latitude);
         double lat2 = Math.toRadians(point2.latitude);
@@ -2209,10 +2214,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         return 6371000 * c; // 지구 반지름 (미터)
     }
-
-    /**
-     * 두 지점 간 방향 계산 (도)
-     */
     private double calculateBearing(LatLng point1, LatLng point2) {
         double lat1 = Math.toRadians(point1.latitude);
         double lat2 = Math.toRadians(point2.latitude);
@@ -2231,10 +2232,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
         return bearing;
     }
-
-    /**
-     * 새로운 위치 계산 (현재 위치, 방향, 거리)
-     */
     private LatLng calculateNewPosition(LatLng current, double bearing, double distance) {
         double R = 6371000; // 지구 반지름 (미터)
         double lat1 = Math.toRadians(current.latitude);
@@ -2253,4 +2250,93 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         return new LatLng(Math.toDegrees(lat2), Math.toDegrees(lon2));
     }
 
-}
+
+    // --- ⭐️ [추가] 5단계: 온라인 상태 감지 리스너 관련 메서드 3개 ---
+
+    /**
+     * Firebase의 "presence" 노드를 구독하여 실시간 온라인 상태를 감지합니다.
+     */
+    private void startPresenceListener() {
+        // ⭐️ 이미 리스너가 실행 중이면 중복 등록 방지
+        if (presenceListener != null) {
+            Log.d(TAG, "startPresenceListener: 이미 리스너가 실행 중입니다.");
+            // (선택) 만약 친구가 추가/삭제되었을 수 있으니, 상태만 한번 더 갱신
+            updateAdapterWithOnlineStatus();
+            return;
+        }
+
+        presenceRootRef = FirebaseDatabase.getInstance().getReference("presence");
+        Log.d(TAG, "startPresenceListener: 온라인 상태 감지 리스너 등록 시작.");
+
+        presenceListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                onlineUserIds.clear(); // ⭐️ 온라인 사용자 ID 목록 초기화
+
+                for (DataSnapshot userSnapshot : snapshot.getChildren()) {
+                    try {
+                        // ⭐️ Firebase "presence" 노드의 key (유저 ID)를 Long 타입으로 변환하여 Set에 추가
+                        Long onlineUserId = Long.parseLong(userSnapshot.getKey());
+                        onlineUserIds.add(onlineUserId);
+                    } catch (NumberFormatException e) {
+                        Log.w(TAG, "Presence_Listener: 잘못된 User ID 형식 감지: " + userSnapshot.getKey());
+                    }
+                }
+
+                Log.d(TAG, "Presence_Listener: 온라인 사용자 " + onlineUserIds.size() + "명 감지.");
+
+                // ⭐️ 감지된 최신 상태를 어댑터에 즉시 반영
+                updateAdapterWithOnlineStatus();
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Log.e(TAG, "Presence_Listener: 온라인 상태 감지 실패", error.toException());
+            }
+        };
+        presenceRootRef.addValueEventListener(presenceListener);
+    }
+
+    /**
+     * 온라인 상태가 변경될 때마다 어댑터의 데이터를 갱신합니다.
+     */
+    private void updateAdapterWithOnlineStatus() {
+        if (friendAdapter == null || myPageFriendsList.isEmpty()) {
+            return; // 갱신할 어댑터나 데이터가 없음
+        }
+
+        boolean needsUpdate = false; // ⭐️ 불필요한 갱신을 막기 위한 플래그
+        for (User user : myPageFriendsList) {
+            boolean isNowOnline = onlineUserIds.contains(user.getId());
+
+            // ⭐️ 현재 상태와 새로 감지된 상태가 다를 경우에만 갱신
+            if (user.isOnline() != isNowOnline) {
+                user.setOnline(isNowOnline);
+                needsUpdate = true;
+            }
+        }
+
+        if (needsUpdate) {
+            Log.d(TAG, "updateAdapterWithOnlineStatus: 친구 목록 UI 갱신.");
+            // ⭐️ UI 스레드에서 갱신하도록 보장
+            runOnUiThread(() -> {
+                if (friendAdapter != null) {
+                    friendAdapter.notifyDataSetChanged();
+                }
+            });
+        }
+    }
+
+    /**
+     * 액티비티가 중지/종료될 때 리스너를 제거합니다. (메모리 누수 및 배터리 소모 방지)
+     */
+    private void stopPresenceListener() {
+        if (presenceRootRef != null && presenceListener != null) {
+            presenceRootRef.removeEventListener(presenceListener);
+            presenceListener = null; // ⭐️ 리스너 참조 제거 (중복 실행 방지)
+            Log.d(TAG, "stopPresenceListener: 온라인 상태 감지 리스너 제거 완료.");
+        }
+    }
+    // --- ⭐️ [추가 끝] ---
+
+} // [⭐️⭐️⭐️] 여기가 클래스의 마지막입니다.

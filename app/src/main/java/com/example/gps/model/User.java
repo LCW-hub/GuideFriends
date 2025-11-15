@@ -8,9 +8,12 @@ public class User {
     private String email;
     private String phoneNum;
     private String nickname;
+    private String profileImageUrl; // (기존 필드)
 
-    // ⭐️ [이 필드를 추가하세요] ⭐️
-    private String profileImageUrl;
+    // ⭐️ [추가] 2단계: 온라인 상태 저장을 위한 필드
+    // 'transient'는 이 필드가 DB나 JSON 직렬화에 포함되지 않도록 합니다.
+    private transient boolean isOnline = false;
+
 
     // 1. 기본 생성자
     public User() {}
@@ -23,7 +26,7 @@ public class User {
         this.phoneNum = phoneNum;
     }
 
-    // ⭐️ [수정] 닉네임 포함하는 생성자 추가 (선택 사항)
+    // 닉네임 포함하는 생성자 (기존 코드)
     public User(String username, String password, String email, String phoneNum, String nickname) {
         this.username = username;
         this.password = password;
@@ -32,7 +35,7 @@ public class User {
         this.nickname = nickname;
     }
 
-    // ⭐ 3. [추가] ID와 Username만 받는 생성자 (오류 해결용)
+    // ID와 Username만 받는 생성자 (기존 코드)
     public User(Long id, String username) {
         this.id = id;
         this.username = username;
@@ -62,11 +65,19 @@ public class User {
     public String getPhoneNum() { return phoneNum; }
     public void setPhoneNum(String phone) { this.phoneNum = phone; }
 
-    // ⭐️ [이 Getter/Setter를 추가하세요] ⭐️
     public String getProfileImageUrl() {
         return profileImageUrl;
     }
     public void setProfileImageUrl(String profileImageUrl) {
         this.profileImageUrl = profileImageUrl;
+    }
+
+    // ⭐️ [추가] 2단계: isOnline 필드의 Getter와 Setter
+    public boolean isOnline() {
+        return isOnline;
+    }
+
+    public void setOnline(boolean online) {
+        isOnline = online;
     }
 }
