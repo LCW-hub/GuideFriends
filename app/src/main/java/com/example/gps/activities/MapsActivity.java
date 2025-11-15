@@ -2171,6 +2171,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     LatLng newPosition = calculateNewPosition(currentPosition[0], bearing, moveDistance);
                     currentPosition[0] = newPosition;
                 }
+                if (myLocationMarker != null) {
+                    myLocationMarker.setPosition(currentPosition[0]);
+                }
 
                 // ⭐️ [핵심 수정] 위치 공유 상태(isMyMarkerVisibleGlobally)가 켜진 경우에만 위치 데이터를 전송합니다.
                 if (isMyMarkerVisibleGlobally) {
