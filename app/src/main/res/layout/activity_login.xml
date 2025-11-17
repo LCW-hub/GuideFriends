@@ -6,15 +6,6 @@
     android:orientation="vertical"
     android:background="@drawable/bg_gradient_spring">
 
-    <!-- 툴바 -->
-    <androidx.appcompat.widget.Toolbar
-        android:id="@+id/toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="@color/colorPrimary"
-        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
-        app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
-
     <!-- 스크롤뷰 -->
     <ScrollView
         android:layout_width="match_parent"
@@ -33,35 +24,62 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:gravity="center"
-                android:layout_marginBottom="40dp"
-                android:layout_marginTop="40dp">
+                android:layout_marginBottom="48dp"
+                android:layout_marginTop="32dp">
 
-                <ImageView
-                    android:layout_width="80dp"
-                    android:layout_height="80dp"
-                    android:background="@drawable/circle_image_background"
-                    android:padding="20dp"
-                    android:src="@drawable/ic_trail_logo_modern"
-                    android:tint="@color/colorPrimary"
-                    android:layout_marginBottom="16dp" />
+                <!-- 로고 컨테이너 -->
+                <RelativeLayout
+                    android:layout_width="120dp"
+                    android:layout_height="120dp"
+                    android:layout_marginBottom="24dp">
 
+                    <!-- 그라데이션 배경 -->
+                    <View
+                        android:layout_width="120dp"
+                        android:layout_height="120dp"
+                        android:background="@drawable/logo_circle_gradient" />
+
+                    <!-- 로고 아이콘 -->
+                    <ImageView
+                        android:layout_width="60dp"
+                        android:layout_height="60dp"
+                        android:layout_centerInParent="true"
+                        android:src="@drawable/ic_trail_logo_modern"
+                        android:tint="@color/white" />
+                </RelativeLayout>
+
+                <!-- 앱 이름 (그라데이션 텍스트) -->
                 <TextView
+                    android:id="@+id/tv_app_name_gradient"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="봄 산책의 시작! 🌸"
-                    android:textSize="22sp"
+                    android:text="WICHIN"
+                    android:textSize="42sp"
                     android:textStyle="bold"
-                    android:textColor="@color/textPrimary"
-                    android:gravity="center" />
+                    android:background="@drawable/wichin_text_gradient"
+                    android:paddingHorizontal="16dp"
+                    android:paddingVertical="8dp"
+                    android:textColor="@color/white"
+                    android:letterSpacing="0.08"
+                    android:elevation="4dp"
+                    android:layout_marginBottom="12dp" />
 
+                <!-- 슬로건 -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="시원한 봄바람과 함께 걸으며 코인을 모아보세요! 🌿"
-                    android:textSize="16sp"
+                    android:text="위치를 공유하는 친구들"
+                    android:textSize="15sp"
                     android:textColor="@color/textSecondary"
-                    android:layout_marginTop="8dp"
+                    android:letterSpacing="0.05"
                     android:gravity="center" />
+
+                <!-- 장식선 -->
+                <View
+                    android:layout_width="60dp"
+                    android:layout_height="3dp"
+                    android:layout_marginTop="16dp"
+                    android:background="@drawable/tab_selected_indicator" />
 
             </LinearLayout>
 
@@ -71,8 +89,8 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="24dp"
                 app:cardBackgroundColor="@android:color/white"
-                app:cardCornerRadius="25dp"
-                app:cardElevation="12dp">
+                app:cardCornerRadius="28dp"
+                app:cardElevation="16dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -80,15 +98,15 @@
                     android:orientation="vertical"
                     android:padding="24dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="center"
-                        android:layout_marginBottom="24dp"
-                        android:text="로그인 🌱"
-                        android:textColor="@color/colorPrimary"
-                        android:textSize="24sp"
-                        android:textStyle="bold" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:layout_marginBottom="24dp"
+                    android:text="로그인 🔐"
+                    android:textColor="@color/colorPrimary"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
 
                     <!-- 아이디 입력 -->
                     <com.google.android.material.textfield.TextInputLayout
@@ -149,7 +167,7 @@
                         android:id="@+id/btnLogin"
                         android:layout_width="match_parent"
                         android:layout_height="56dp"
-                        android:text="로그인 🌿"
+                        android:text="로그인 ✨"
                         android:textSize="18sp"
                         android:textStyle="bold"
                         android:textColor="@android:color/white"
@@ -160,18 +178,6 @@
                 </LinearLayout>
 
             </androidx.cardview.widget.CardView>
-
-            <!-- 게스트 모드 버튼 -->
-            <Button
-                android:id="@+id/btnGuest"
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:text="게스트 모드로 시작 🌸"
-                android:textSize="16sp"
-                android:textColor="@color/colorPrimary"
-                android:background="@drawable/button_guest_background"
-                android:elevation="4dp"
-                android:layout_marginBottom="32dp" />
 
             <!-- 링크들 -->
             <LinearLayout
@@ -184,7 +190,7 @@
                     android:id="@+id/tvSignup"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="아직 회원이 아니신가요? 회원가입 🌱"
+                    android:text="아직 회원이 아니신가요? 회원가입 💜"
                     android:textSize="16sp"
                     android:textColor="@color/colorPrimary"
                     android:padding="12dp"

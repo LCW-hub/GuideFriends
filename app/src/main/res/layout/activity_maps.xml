@@ -24,8 +24,9 @@
             android:layout_marginStart="16dp"
             android:layout_marginTop="16dp"
             android:layout_marginEnd="16dp"
-            app:cardCornerRadius="24dp"
-            app:cardElevation="4dp"
+            app:cardCornerRadius="28dp"
+            app:cardElevation="8dp"
+            app:cardBackgroundColor="@color/white"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent">
@@ -34,34 +35,44 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
-                android:orientation="horizontal">
+                android:orientation="horizontal"
+                android:background="@color/white">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_marginStart="20dp"
+                    android:src="@drawable/ic_search"
+                    app:tint="@color/colorPrimary" />
 
                 <EditText
                     android:id="@+id/et_search"
                     android:layout_width="0dp"
-                    android:layout_height="48dp"
+                    android:layout_height="56dp"
                     android:layout_weight="1"
                     android:autofillHints="name"
                     android:background="@android:color/transparent"
-                    android:hint="장소를 검색해보세요..."
+                    android:hint="위치를 검색하세요... 🔍"
                     android:imeOptions="actionSearch"
                     android:inputType="text"
                     android:maxLines="1"
-                    android:paddingStart="20dp"
+                    android:paddingStart="12dp"
                     android:paddingEnd="16dp"
-                    android:textSize="14sp" />
+                    android:textSize="15sp"
+                    android:textColorHint="@color/textHint" />
 
                 <ImageView
                     android:id="@+id/iv_search_icon"
                     android:layout_width="48dp"
                     android:layout_height="48dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:layout_marginEnd="4dp"
+                    android:background="@drawable/fab_gradient_background"
                     android:clickable="true"
                     android:contentDescription="@string/desc_search_button"
                     android:focusable="true"
                     android:padding="12dp"
                     android:src="@drawable/ic_search"
-                    app:tint="@color/colorPrimary" />
+                    app:tint="@color/white" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
@@ -75,6 +86,8 @@
             app:fabSize="mini"
             app:backgroundTint="@color/white"
             app:tint="@color/colorPrimary"
+            app:borderWidth="0dp"
+            app:elevation="6dp"
             app:layout_constraintEnd_toEndOf="@id/search_card"
             app:layout_constraintTop_toBottomOf="@id/search_card"
             android:visibility="gone"
@@ -86,8 +99,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            app:cardCornerRadius="8dp"
-            app:cardElevation="4dp"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="12dp"
+            app:cardBackgroundColor="@color/white"
             app:layout_constraintEnd_toEndOf="@id/fab_group_menu"
             app:layout_constraintTop_toBottomOf="@id/fab_group_menu"
             android:visibility="gone"
@@ -97,47 +111,133 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:paddingTop="4dp"
-                android:paddingBottom="4dp">
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
+                android:minWidth="220dp"
+                android:background="@drawable/gradient_menu_background">
 
-                <Button
+                <!-- 채팅방 버튼 -->
+                <LinearLayout
                     android:id="@+id/btn_menu_chat"
-                    style="@style/Widget.AppCompat.Button.Borderless"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:drawableStart="@drawable/ic_chat"
-                    android:drawablePadding="12dp"
-                    android:paddingStart="16dp"
-                    android:paddingEnd="16dp"
-                    android:text="채팅방"
-                    android:textColor="@color/black"
-                    android:gravity="start|center_vertical" />
+                    android:orientation="horizontal"
+                    android:background="@drawable/bg_menu_button"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingStart="20dp"
+                    android:paddingEnd="20dp"
+                    android:paddingTop="14dp"
+                    android:paddingBottom="14dp"
+                    android:layout_marginStart="12dp"
+                    android:layout_marginEnd="12dp"
+                    android:layout_marginBottom="8dp"
+                    android:gravity="center_vertical">
 
-                <Button
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_chat"
+                        app:tint="@color/colorPrimary"
+                        android:layout_marginEnd="14dp" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="채팅방"
+                        android:textColor="@color/textPrimary"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:src="@drawable/ic_arrow_forward"
+                        app:tint="@color/textSecondary" />
+                </LinearLayout>
+
+                <!-- 위치공유 on/off 버튼 -->
+                <LinearLayout
                     android:id="@+id/btn_menu_settings"
-                    style="@style/Widget.AppCompat.Button.Borderless"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:drawableStart="@drawable/ic_settings"
-                    android:drawablePadding="12dp"
-                    android:paddingStart="16dp"
-                    android:paddingEnd="16dp"
-                    android:text="위치권한설정"
-                    android:textColor="@color/black"
-                    android:gravity="start|center_vertical" />
+                    android:orientation="horizontal"
+                    android:background="@drawable/bg_menu_button"
+                    android:clickable="false"
+                    android:focusable="false"
+                    android:paddingStart="20dp"
+                    android:paddingEnd="20dp"
+                    android:paddingTop="14dp"
+                    android:paddingBottom="14dp"
+                    android:layout_marginStart="12dp"
+                    android:layout_marginEnd="12dp"
+                    android:layout_marginBottom="8dp"
+                    android:gravity="center_vertical">
 
-                <Button
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_my_location"
+                        app:tint="@color/colorPrimary"
+                        android:layout_marginEnd="14dp" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="위치공유"
+                        android:textColor="@color/textPrimary"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <Switch
+                        android:id="@+id/switch_location_share"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:thumbTint="@drawable/switch_thumb"
+                        android:trackTint="@drawable/switch_track"
+                        android:checked="true"
+                        android:paddingStart="8dp" />
+                </LinearLayout>
+
+                <!-- 위치권한설정 버튼 -->
+                <LinearLayout
                     android:id="@+id/btn_menu_toggle"
-                    style="@style/Widget.AppCompat.Button.Borderless"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:drawableStart="@drawable/ic_my_location"
-                    android:drawablePadding="12dp"
-                    android:paddingStart="16dp"
-                    android:paddingEnd="16dp"
-                    android:text="위치공유 on/off"
-                    android:textColor="@color/black"
-                    android:gravity="start|center_vertical" />
+                    android:orientation="horizontal"
+                    android:background="@drawable/bg_menu_button"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingStart="20dp"
+                    android:paddingEnd="20dp"
+                    android:paddingTop="14dp"
+                    android:paddingBottom="14dp"
+                    android:layout_marginStart="12dp"
+                    android:layout_marginEnd="12dp"
+                    android:gravity="center_vertical">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_settings"
+                        app:tint="@color/colorPrimary"
+                        android:layout_marginEnd="14dp" />
+
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="위치권한설정"
+                        android:textColor="@color/textPrimary"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+
+                </LinearLayout>
+
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
@@ -146,12 +246,16 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
             android:background="@drawable/bg_card_round"
-            android:elevation="4dp"
+            android:elevation="8dp"
+            android:padding="4dp"
+            android:clipToPadding="false"
             android:visibility="gone"
             app:layout_constrainedHeight="true"
-            app:layout_constraintEnd_toEndOf="@id/search_card"
-            app:layout_constraintStart_toStartOf="@id/search_card"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/search_card"
             tools:listitem="@layout/item_search_result" />
 
@@ -164,8 +268,9 @@
             android:layout_marginBottom="16dp"
             android:clickable="true"
             android:focusable="true"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="4dp"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="6dp"
+            app:cardBackgroundColor="@color/white"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent">
 
@@ -174,13 +279,14 @@
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:padding="12dp">
+                android:padding="14dp"
+                android:background="@drawable/weather_card_background">
 
                 <ImageView
                     android:id="@+id/iv_weather_icon"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:layout_marginEnd="8dp"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:layout_marginEnd="10dp"
                     android:contentDescription="@string/desc_weather_icon"
                     tools:src="@drawable/ic_weather_clear" />
 
@@ -189,7 +295,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textColor="@color/colorPrimary"
-                    android:textSize="16sp"
+                    android:textSize="18sp"
                     android:textStyle="bold"
                     tools:text="23°" />
             </LinearLayout>
@@ -205,6 +311,8 @@
             android:src="@drawable/ic_my_location"
             app:backgroundTint="@android:color/white"
             app:fabSize="normal"
+            app:elevation="8dp"
+            app:borderWidth="0dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:tint="@color/colorPrimary" />
@@ -216,33 +324,64 @@
             android:layout_marginEnd="16dp"
             android:layout_marginBottom="16dp"
             android:src="@android:drawable/ic_menu_send"
+            app:backgroundTint="@color/white"
+            app:tint="@color/colorPrimary"
+            app:borderWidth="0dp"
+            app:elevation="6dp"
+            app:fabSize="mini"
             app:layout_constraintBottom_toTopOf="@id/btnMyLocation"
             app:layout_constraintEnd_toEndOf="parent"
             android:contentDescription="테스트 이동 버튼" />
 
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
+        <!-- 중앙 메뉴 배경 (메뉴가 열릴 때 표시) -->
+        <View
+            android:id="@+id/menu_background"
+            android:layout_width="200dp"
+            android:layout_height="200dp"
+            android:background="@drawable/menu_background_circle"
+            android:alpha="0.8"
+            android:elevation="4dp"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="@id/btnMainMenu"
+            app:layout_constraintEnd_toEndOf="@id/btnMainMenu"
+            app:layout_constraintStart_toStartOf="@id/btnMainMenu"
+            app:layout_constraintTop_toTopOf="@id/btnMainMenu" />
+
+        <!-- 메인 메뉴 버튼 -->
+        <RelativeLayout
             android:id="@+id/btnMainMenu"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="32dp"
-            android:src="@drawable/ic_menu"
-            app:backgroundTint="@color/colorPrimary"
-            app:fabSize="normal"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_marginBottom="24dp"
+            android:background="@drawable/fab_gradient_background"
+            android:clickable="true"
+            android:focusable="true"
+            android:elevation="12dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:tint="@color/white" />
+            app:layout_constraintStart_toStartOf="parent">
+
+            <ImageView
+                android:id="@+id/main_menu_icon"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_centerInParent="true"
+                android:src="@drawable/ic_menu"
+                android:tint="@color/white"
+                android:contentDescription="메뉴" />
+        </RelativeLayout>
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/btnFriends"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:src="@drawable/ic_person"
+            android:src="@drawable/ic_person_add"
             android:visibility="gone"
             app:backgroundTint="@color/white"
             app:fabSize="mini"
             app:tint="@color/colorPrimary"
-
+            app:borderWidth="0dp"
+            app:elevation="6dp"
             app:layout_constraintTop_toTopOf="@id/btnMainMenu"
             app:layout_constraintBottom_toBottomOf="@id/btnMainMenu"
             app:layout_constraintStart_toStartOf="@id/btnMainMenu"
@@ -252,12 +391,13 @@
             android:id="@+id/btnCreateGroup"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:src="@drawable/ic_person_add"
+            android:src="@drawable/ic_add_circle"
             android:visibility="gone"
             app:backgroundTint="@color/white"
             app:fabSize="mini"
             app:tint="@color/colorPrimary"
-
+            app:borderWidth="0dp"
+            app:elevation="6dp"
             app:layout_constraintTop_toTopOf="@id/btnMainMenu"
             app:layout_constraintBottom_toBottomOf="@id/btnMainMenu"
             app:layout_constraintStart_toStartOf="@id/btnMainMenu"
@@ -272,7 +412,8 @@
             app:backgroundTint="@color/white"
             app:fabSize="mini"
             app:tint="@color/colorPrimary"
-
+            app:borderWidth="0dp"
+            app:elevation="6dp"
             app:layout_constraintTop_toTopOf="@id/btnMainMenu"
             app:layout_constraintBottom_toBottomOf="@id/btnMainMenu"
             app:layout_constraintStart_toStartOf="@id/btnMainMenu"
@@ -287,6 +428,8 @@
             app:backgroundTint="@color/white"
             app:fabSize="mini"
             app:tint="@color/colorPrimary"
+            app:borderWidth="0dp"
+            app:elevation="6dp"
             app:layout_constraintTop_toTopOf="@id/btnMainMenu"
             app:layout_constraintBottom_toBottomOf="@id/btnMainMenu"
             app:layout_constraintStart_toStartOf="@id/btnMainMenu"
@@ -301,6 +444,8 @@
             app:backgroundTint="@color/white"
             app:fabSize="mini"
             app:tint="@color/colorPrimary"
+            app:borderWidth="0dp"
+            app:elevation="6dp"
             app:layout_constraintTop_toTopOf="@id/btnMainMenu"
             app:layout_constraintBottom_toBottomOf="@id/btnMainMenu"
             app:layout_constraintStart_toStartOf="@id/btnMainMenu"

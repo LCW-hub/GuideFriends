@@ -10,6 +10,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 
 import com.example.gps.R;
 import com.example.gps.api.ApiClient;
@@ -33,6 +34,14 @@ public class FindIdActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_find_id);
 
+        // Toolbar 설정
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setTitle("아이디 찾기");
+        }
+
         etEmail = findViewById(R.id.etEmail);
         btnFindId = findViewById(R.id.btnFindId);
         tvResult = findViewById(R.id.tvResult); // XML 레이아웃에 해당 ID의 TextView가 있어야 합니다.
@@ -53,6 +62,12 @@ public class FindIdActivity extends AppCompatActivity {
                 findId(email);
             }
         });
+    }
+
+    @Override
+    public boolean onSupportNavigateUp() {
+        onBackPressed();
+        return true;
     }
 
     // ✅ 기존 findId 메서드를 아래 코드로 전체 교체해주세요.

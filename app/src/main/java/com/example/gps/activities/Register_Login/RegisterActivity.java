@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -29,6 +30,7 @@ public class RegisterActivity extends AppCompatActivity {
     // 변수 선언 (두 번째 코드 기준)
     private EditText etUsername, etPassword, etEmail, etConfirmPassword, etPhone;
     private Button btnSignup;
+    private TextView tvLoginLink;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,8 +52,16 @@ public class RegisterActivity extends AppCompatActivity {
         btnSignup = findViewById(R.id.btn_register);         // 회원가입 버튼
         etConfirmPassword = findViewById(R.id.etConfirmPassword); // 비밀번호 확인
         etPhone = findViewById(R.id.et_Phone);               // 전화번호
+        tvLoginLink = findViewById(R.id.tv_login_link);      // 로그인 링크
 
         btnSignup.setOnClickListener(v -> registerUser());
+        
+        // 로그인 링크 클릭 시 로그인 페이지로 이동
+        tvLoginLink.setOnClickListener(v -> {
+            Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
+            startActivity(intent);
+            finish(); // 현재 액티비티 종료
+        });
     }
 
     private void registerUser() {
@@ -102,7 +112,6 @@ public class RegisterActivity extends AppCompatActivity {
                 // 성공 응답 (2xx)
                 if (response.isSuccessful()) {
                     String message = (response.body() != null) ? (String) response.body().get("message") : "회원가입 성공!";
-                    Toast.makeText(RegisterActivity.this, message, Toast.LENGTH_LONG).show();
 
                     if (message != null && message.contains("성공")) {
 

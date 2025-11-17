@@ -6,10 +6,12 @@ import android.view.ViewGroup;
 import android.widget.CheckBox;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.example.gps.R;
-// ❌ FriendResponse 대신 서버 모델인 User를 사용합니다.
-// import com.example.gps.dto.FriendResponse;
-import com.example.gps.model.User; // ✅ User 모델 import
+import com.example.gps.api.ApiClient;
+import com.example.gps.model.User;
+import de.hdodenhof.circleimageview.CircleImageView;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,6 +41,32 @@ public class FriendSelectAdapter extends RecyclerView.Adapter<FriendSelectAdapte
         // ⭐ [수정] User 객체의 Getter 메서드를 사용 (setUsername, getId가 있다고 가정)
         holder.checkBox.setText(friend.getUsername());
 
+        // 프로필 이미지 로드
+        String imageUrl = friend.getProfileImageUrl();
+        String loadTarget = null;
+        
+        if (imageUrl != null && !imageUrl.isEmpty()) {
+            String baseUrl = ApiClient.getBaseUrl();
+            if (baseUrl.endsWith("/")) {
+                baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+            }
+            if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+                loadTarget = imageUrl;
+            } else if (imageUrl.startsWith("/")) {
+                loadTarget = baseUrl + imageUrl;
+            } else {
+                loadTarget = baseUrl + "/" + imageUrl;
+            }
+        }
+        
+        Glide.with(holder.itemView.getContext())
+                .load(loadTarget)
+                .placeholder(R.drawable.ic_person)
+                .error(R.drawable.ic_person)
+                .diskCacheStrategy(DiskCacheStrategy.NONE)
+                .skipMemoryCache(true)
+                .into(holder.ivFriendProfile);
+
         holder.checkBox.setOnCheckedChangeListener(null); // 리스너 초기화
         holder.checkBox.setChecked(selectedFriendIds.contains(friend.getId())); // ID 비교
 
@@ -65,10 +93,12 @@ public class FriendSelectAdapter extends RecyclerView.Adapter<FriendSelectAdapte
 
     static class FriendViewHolder extends RecyclerView.ViewHolder {
         CheckBox checkBox;
+        CircleImageView ivFriendProfile;
 
         public FriendViewHolder(@NonNull View itemView) {
             super(itemView);
             checkBox = itemView.findViewById(R.id.cbFriend);
+            ivFriendProfile = itemView.findViewById(R.id.iv_friend_profile);
         }
     }
 }

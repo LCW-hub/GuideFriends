@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/splash_background">
+
+    <!-- 중앙 컨텐츠 -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <!-- 로고 컨테이너 (펄스 효과) -->
+        <RelativeLayout
+            android:layout_width="160dp"
+            android:layout_height="160dp"
+            android:layout_marginBottom="40dp">
+
+            <!-- 외부 펄스 링 1 -->
+            <View
+                android:layout_width="160dp"
+                android:layout_height="160dp"
+                android:layout_centerInParent="true"
+                android:background="@drawable/splash_logo_background"
+                android:alpha="0.3" />
+
+            <!-- 외부 펄스 링 2 -->
+            <View
+                android:layout_width="140dp"
+                android:layout_height="140dp"
+                android:layout_centerInParent="true"
+                android:background="@drawable/splash_logo_background"
+                android:alpha="0.5" />
+
+            <!-- 메인 로고 배경 -->
+            <View
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:layout_centerInParent="true"
+                android:background="@drawable/logo_circle_gradient" />
+
+            <!-- 로고 아이콘 -->
+            <ImageView
+                android:id="@+id/ivLogo"
+                android:layout_width="60dp"
+                android:layout_height="60dp"
+                android:layout_centerInParent="true"
+                android:src="@drawable/ic_trail_logo_modern"
+                android:tint="@color/white"
+                android:contentDescription="WICHIN Logo" />
+        </RelativeLayout>
+
+        <!-- 앱 이름 (그라데이션 배경) -->
+        <TextView
+            android:id="@+id/tvAppName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="WICHIN"
+            android:textSize="48sp"
+            android:textStyle="bold"
+            android:textColor="@color/white"
+            android:letterSpacing="0.12"
+            android:shadowColor="#80000000"
+            android:shadowDx="0"
+            android:shadowDy="4"
+            android:shadowRadius="12"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 슬로건 -->
+        <TextView
+            android:id="@+id/tvSlogan"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="위치를 공유하는 친구들"
+            android:textSize="17sp"
+            android:textColor="@color/white"
+            android:letterSpacing="0.05"
+            android:alpha="0.95" />
+
+        <!-- 버전 정보 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="v1.0.0"
+            android:textSize="12sp"
+            android:textColor="@color/white"
+            android:alpha="0.6" />
+
+    </LinearLayout>
+
+    <!-- 하단 로딩 표시 -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="56dp"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <ProgressBar
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:indeterminateTint="@color/white"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Loading..."
+            android:textSize="14sp"
+            android:textColor="@color/white"
+            android:alpha="0.8"
+            android:letterSpacing="0.1" />
+    </LinearLayout>
+
+</RelativeLayout>
+

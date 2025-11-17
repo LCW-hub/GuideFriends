@@ -6,8 +6,8 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -74,7 +74,7 @@ public class ChatRoomActivity extends AppCompatActivity {
         // UI 요소 초기화
         rvMessages = findViewById(R.id.rvMessages);
         etMessageInput = findViewById(R.id.etMessageInput);
-        Button btnSend = findViewById(R.id.btnSend);
+        ImageView btnSend = findViewById(R.id.btnSend);
 
         // Adapter 및 RecyclerView 초기화
         messageList = new ArrayList<>();
@@ -101,32 +101,14 @@ public class ChatRoomActivity extends AppCompatActivity {
     // 1. 메뉴 XML 파일을 로드하여 Toolbar에 표시합니다.
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.menu_chatroom, menu);
-        return true;
+        // 메뉴를 표시하지 않음
+        return false;
     }
 
     // 2. 메뉴 항목이 클릭되었을 때의 동작을 정의합니다.
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-        if (item.getItemId() == R.id.menu_details) {
-            // "상세 보기" 클릭 시 위치 설정 화면으로 이동
-            openSharingSettings();
-            return true;
-        }
         return super.onOptionsItemSelected(item);
-    }
-
-    // 3. GroupSharingSettingsActivity로 이동하는 메서드
-    private void openSharingSettings() {
-        Intent intent = new Intent(this, GroupSharingSettingsActivity.class);
-
-        // 필수 정보 전달
-        intent.putExtra("groupId", groupId);
-        intent.putExtra("username", loggedInUsername);
-        intent.putExtra("groupName", groupName);
-
-        startActivity(intent);
-        Toast.makeText(this, "위치 공유 설정 화면으로 이동합니다.", Toast.LENGTH_SHORT).show();
     }
 
     // =========================================================================

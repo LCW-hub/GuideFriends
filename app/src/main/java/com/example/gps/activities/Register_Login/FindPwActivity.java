@@ -9,6 +9,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 
 import com.example.gps.R;
 import com.example.gps.api.ApiClient;
@@ -32,6 +33,14 @@ public class FindPwActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_find_pw);
 
+        // Toolbar 설정
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setTitle("비밀번호 찾기");
+        }
+
         etUsername = findViewById(R.id.etUsername);
         etEmail = findViewById(R.id.etEmail);
         btnRequestReset = findViewById(R.id.btnRequestReset);
@@ -52,6 +61,12 @@ public class FindPwActivity extends AppCompatActivity {
                 requestPasswordReset(username, email);
             }
         });
+    }
+
+    @Override
+    public boolean onSupportNavigateUp() {
+        onBackPressed();
+        return true;
     }
 
     private void requestPasswordReset(String username, String email) {

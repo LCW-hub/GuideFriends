@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 베이스 그라데이션 -->
+    <item>
+        <shape>
+            <gradient
+                android:angle="135"
+                android:startColor="#5B21B6"
+                android:centerColor="#7C3AED"
+                android:endColor="#8B5CF6"
+                android:type="linear" />
+        </shape>
+    </item>
+    
+    <!-- 상단 밝은 효과 -->
+    <item>
+        <shape>
+            <gradient
+                android:angle="180"
+                android:startColor="#40FFFFFF"
+                android:centerColor="#15FFFFFF"
+                android:endColor="#00FFFFFF"
+                android:type="linear" />
+        </shape>
+    </item>
+    
+    <!-- 핑크 오버레이 -->
+    <item>
+        <shape>
+            <gradient
+                android:angle="45"
+                android:startColor="#00EC4899"
+                android:centerColor="#30EC4899"
+                android:endColor="#00EC4899"
+                android:type="linear" />
+        </shape>
+    </item>
+    
+    <!-- 하단 어두운 그라데이션 -->
+    <item>
+        <shape>
+            <gradient
+                android:angle="0"
+                android:startColor="#00000000"
+                android:endColor="#20000000"
+                android:type="linear" />
+        </shape>
+    </item>
+</layer-list>
+

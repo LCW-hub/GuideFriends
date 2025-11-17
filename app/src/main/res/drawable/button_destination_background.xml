@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 그림자 효과 -->
+    <item
+        android:left="0dp"
+        android:top="2dp"
+        android:right="0dp"
+        android:bottom="0dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/shadowLight" />
+            <corners android:radius="16dp" />
+        </shape>
+    </item>
+    
+    <!-- 메인 그라데이션 배경 -->
+    <item
+        android:left="0dp"
+        android:top="0dp"
+        android:right="0dp"
+        android:bottom="2dp">
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#F8F4FF"
+                android:centerColor="#FAF7FF"
+                android:endColor="#FDFAFF"
+                android:angle="135"
+                android:type="linear" />
+            <corners android:radius="16dp" />
+        </shape>
+    </item>
+</layer-list>
+

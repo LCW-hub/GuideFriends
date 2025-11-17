@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 외부 글로우 -->
+    <item>
+        <shape android:shape="oval">
+            <gradient
+                android:startColor="#40A78BFA"
+                android:endColor="#40EC4899"
+                android:angle="135" />
+            <size android:width="120dp" android:height="120dp" />
+        </shape>
+    </item>
+    
+    <!-- 메인 원 -->
+    <item android:top="10dp" android:left="10dp" android:right="10dp" android:bottom="10dp">
+        <shape android:shape="oval">
+            <gradient
+                android:startColor="@color/colorPrimary"
+                android:endColor="@color/wichinPink"
+                android:angle="135" />
+        </shape>
+    </item>
+    
+    <!-- 상단 하이라이트 -->
+    <item android:top="15dp" android:left="15dp" android:right="50dp" android:bottom="50dp">
+        <shape android:shape="oval">
+            <solid android:color="#40FFFFFF" />
+        </shape>
+    </item>
+</layer-list>
+
