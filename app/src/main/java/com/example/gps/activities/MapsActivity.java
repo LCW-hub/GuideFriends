@@ -1692,6 +1692,24 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 Log.d(TAG, "onPause: 내 마커 상태 리스너 제거 완료.");
             }
             stopDestinationListener();
+
+            // ▼▼▼ [ 2. 이 코드를 새로 추가합니다 ] ▼▼▼
+            // 리스너뿐만 아니라 맵에 그려진 마커 UI도 즉시 제거합니다.
+
+            // 2-1. 목적지 마커(🚩) 제거
+            removeDestinationMarker();
+            Log.d(TAG, "onPause: 목적지 마커 UI 제거 완료.");
+
+            // 2-2. 모든 멤버 마커 제거 및 캐시 초기화
+            if (memberMarkers != null) {
+                for (Marker marker : memberMarkers.values()) {
+                    marker.setMap(null); // 지도에서 마커 UI 제거
+                }
+                memberMarkers.clear(); // 마커 관리 맵 초기화
+                Log.d(TAG, "onPause: 모든 멤버 마커 UI 및 캐시 제거 완료.");
+            }
+            // ▲▲▲ [ 여기까지 추가 ] ▲▲▲
+
         }
         stopActiveSessionListener();
 
