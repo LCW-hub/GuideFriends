@@ -1,6 +1,7 @@
 package com.example.gps.dto;
 
 import com.google.gson.annotations.SerializedName;
+import java.util.List; // [필수] List 사용을 위해 import 추가
 
 public class GroupListResponse {
 
@@ -13,15 +14,12 @@ public class GroupListResponse {
     @SerializedName("destinationName")
     private String destinationName;
 
-    // startTime, endTime은 지금 당장 화면에 표시할 필요는 없지만,
-    // 나중에 필요할 수 있으니 일단 만들어 둡니다.
     @SerializedName("startTime")
     private String startTime;
 
     @SerializedName("endTime")
     private String endTime;
 
-    // ▼▼▼ [ 1. 이 4개의 필드를 추가합니다 ] ▼▼▼
     @SerializedName("destinationLat")
     private Double destinationLat;
 
@@ -33,16 +31,29 @@ public class GroupListResponse {
 
     @SerializedName("createdByUsername")
     private String createdByUsername;
+
+    // ▼▼▼ [ ★ 여기 추가 ] 참여자 아이디 목록 리스트 ▼▼▼
+    // (서버에서 보내주는 JSON 키 값이 "memberIds"라고 가정합니다.
+    // 만약 "members"나 "participants"라면 그에 맞춰 수정해야 합니다.)
+    @SerializedName("memberIds")
+    private List<String> memberIds;
     // ▲▲▲ [ 여기까지 추가 ] ▲▲▲
 
-    // Getter 메소드
+
+    // --- Getter 메소드들 ---
+
     public Long getGroupId() { return groupId; }
     public String getGroupName() { return groupName; }
     public String getDestinationName() { return destinationName; }
-    // ▼▼▼ [ 2. 새로 추가한 필드의 Getter 4개를 추가합니다 ] ▼▼▼
+
     public Double getDestinationLat() { return destinationLat; }
     public Double getDestinationLng() { return destinationLng; }
     public int getMemberCount() { return memberCount; }
     public String getCreatedByUsername() { return createdByUsername; }
+
+    // ▼▼▼ [ ★ Getter 추가 ] ▼▼▼
+    public List<String> getMemberIds() {
+        return memberIds;
+    }
     // ▲▲▲ [ 여기까지 추가 ] ▲▲▲
 }
