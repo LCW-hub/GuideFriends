@@ -245,7 +245,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private ValueEventListener presenceListener; // 5단계: 온라인 상태 감지 리스너
     private List<User> myPageFriendsList = new ArrayList<>(); // 5단계: ⭐️ 어댑터가 공유할 리스트
     private final Set<Long> onlineUserIds = new HashSet<>(); // 5단계: ⭐️ 온라인 상태인 유저 ID 캐시
+
     // --- ⭐️ [추가 끝] ---
+
+    // 🟢 [추가] 주기적 세션 체크를 위한 변수
+    private final Handler sessionCheckHandler = new Handler(Looper.getMainLooper());
+    private Runnable sessionCheckRunnable;
+    private static final int SESSION_CHECK_INTERVAL = 10000; // 10초 간격으로 검사
 
 
     //==============================================================================================
@@ -791,6 +797,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         setupFirebasePresence();
                         // --- ⭐️ [추가 끝] ---
 
+                        startSessionCheckTimer();
+
                         // --- ⭐️ [MERGE] 동시접속 제어 리스너 시작 ---
                         startActiveSessionListener();
                         // --- ⭐️ [MERGE] 끝 ---
@@ -857,6 +865,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 locationUpdateHandler.postDelayed(locationUpdateRunnable, LOCATION_UPDATE_INTERVAL);
                 return;
             }
+
 
             // ⭐️ [TMap 수정] TMap 시뮬레이션 중이 아닐 때만 실제 위치 업데이트
             if (locationSource != null && animationHandler == null && !isSimulationRunning) {
@@ -972,6 +981,31 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             CameraUpdate cameraUpdate = CameraUpdate.scrollTo(naverMap.getCameraPosition().target);
             naverMap.moveCamera(cameraUpdate);
             Log.d(TAG, "updateMemberMarkers: 마커 제거 완료 후 지도 뷰 강제 갱신 시도 완료.");
+        }
+    }
+
+    // 🟢 [추가] 주기적 세션 유효성 검사 타이머 시작
+    private void startSessionCheckTimer() {
+        if (sessionCheckRunnable != null) {
+            sessionCheckHandler.removeCallbacks(sessionCheckRunnable);
+        }
+        sessionCheckRunnable = new Runnable() {
+            @Override
+            public void run() {
+                checkSessionValidity();
+                sessionCheckHandler.postDelayed(this, SESSION_CHECK_INTERVAL);
+            }
+        };
+        sessionCheckHandler.post(sessionCheckRunnable);
+        Log.d(TAG, "startSessionCheckTimer: 주기적 세션 유효성 검사 타이머 시작.");
+    }
+
+    // 🟢 [추가] 주기적 세션 유효성 검사 타이머 중단
+    private void stopSessionCheckTimer() {
+        if (sessionCheckRunnable != null) {
+            sessionCheckHandler.removeCallbacks(sessionCheckRunnable);
+            sessionCheckRunnable = null;
+            Log.d(TAG, "stopSessionCheckTimer: 주기적 세션 유효성 검사 타이머 중단.");
         }
     }
 
@@ -1377,6 +1411,30 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
     }
 
+    // 🟢 [추가] 주기적인 세션 유효성 검사 메서드
+    private void checkSessionValidity() {
+        // 가장 가볍고 인증이 필요한 API를 호출합니다. (예: 내 이메일 가져오기)
+        Call<Map<String, String>> call = userApiService.getMyEmail();
+
+        call.enqueue(new Callback<Map<String, String>>() {
+            @Override
+            public void onResponse(@NonNull Call<Map<String, String>> call, @NonNull Response<Map<String, String>> response) {
+                // 401 또는 403을 받으면 토큰 무효화로 간주합니다.
+                if (response.code() == 401 || response.code() == 403) {
+                    Log.w(TAG, "🚨 주기적 검사: 세션 만료(" + response.code() + ") 감지. 강제 로그아웃을 실행합니다.");
+                    // 토스트 메시지는 UI 스레드에서만 가능하므로 runOnUiThread 사용
+                    runOnUiThread(() -> Toast.makeText(MapsActivity.this, "다른 기기에서 로그인하여 로그아웃됩니다.", Toast.LENGTH_LONG).show());
+                    performClientLogout();
+                }
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<Map<String, String>> call, @NonNull Throwable t) {
+                Log.e(TAG, "주기적 검사: 네트워크 오류", t);
+            }
+        });
+    }
+
     // ... (fetchUserEmailAndBindHeader 부터 onResume 직전까지 원본과 동일) ...
     private void fetchUserEmailAndBindHeader() {
         if (userApiService == null) {
@@ -1659,6 +1717,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         mapView.onPause();
         locationUpdateHandler.removeCallbacksAndMessages(null);
         Log.d(TAG, "onPause: 주기적인 위치 업데이트 (Handler) 중단.");
+
+        stopSessionCheckTimer();
 
         // ⭐️ [TMap 수정] TMap 시뮬레이션 중지 로직 추가
         if (isSimulationRunning) {
