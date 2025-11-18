@@ -17,6 +17,7 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="@drawable/toolbar_gradient"
+            android:elevation="4dp"
             android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
             app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
 
@@ -43,7 +44,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="가이드프렌드"
+                android:text="WICHIN 📍"
                 android:textSize="32sp"
                 android:textStyle="bold"
                 android:textColor="@color/textColorPrimary"
@@ -52,7 +53,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="트레일 가이드에 오신 것을 환영합니다"
+                android:text="위치를 공유하는 친구들"
                 android:textSize="16sp"
                 android:textColor="@color/textColorSecondary"
                 android:gravity="center"
@@ -61,7 +62,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="계정을 만들어 산책을 시작해보세요"
+                android:text="계정을 만들어 친구들과 연결하세요 ✨"
                 android:textSize="14sp"
                 android:textColor="@color/textColorSecondary"
                 android:gravity="center" />
@@ -74,8 +75,8 @@
             android:layout_height="wrap_content"
             android:layout_marginHorizontal="24dp"
             android:layout_marginBottom="24dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="8dp"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="12dp"
             app:cardBackgroundColor="@android:color/white">
 
             <LinearLayout
@@ -243,14 +244,14 @@
                 android:id="@+id/tv_login_link"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="로그인"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:textColor="@color/colorPrimary"
+                android:background="?attr/selectableItemBackground"
                 android:clickable="true"
                 android:focusable="true"
-                android:background="?attr/selectableItemBackground"
-                android:padding="4dp" />
+                android:padding="4dp"
+                android:text="로그인"
+                android:textColor="@color/colorPrimary"
+                android:textSize="14sp"
+                android:textStyle="bold" />
 
         </LinearLayout>
 

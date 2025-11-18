@@ -1,5 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="@color/colorPrimary" />
-    <corners android:radius="24dp" />
-</shape>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 그림자 -->
+    <item android:top="0dp" android:left="0dp" android:right="2dp" android:bottom="3dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#30000000" />
+            <corners android:radius="28dp" />
+        </shape>
+    </item>
+    
+    <!-- 메인 그라데이션 -->
+    <item android:top="0dp" android:left="0dp" android:right="2dp" android:bottom="3dp">
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#F8F4FF"
+                android:centerColor="#FAF7FF"
+                android:endColor="#FDFAFF"
+                android:angle="135" />
+            <corners android:radius="28dp" />
+        </shape>
+    </item>
+    
+    <!-- 상단 하이라이트 -->
+    <item android:top="0dp" android:left="0dp" android:right="2dp" android:bottom="42dp">
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="90"
+                android:startColor="#30FFFFFF"
+                android:endColor="#00FFFFFF"
+                android:type="linear" />
+            <corners android:topLeftRadius="28dp" android:topRightRadius="28dp" />
+        </shape>
+    </item>
+</layer-list>

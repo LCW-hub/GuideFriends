@@ -1,27 +1,83 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Background circle -->
-    <item>
+    
+    <!-- 그림자 -->
+    <item android:top="4dp" android:left="2dp">
         <shape android:shape="oval">
-            <solid android:color="#607D8B" />
-            <size android:width="50dp" android:height="50dp" />
+            <solid android:color="#20000000" />
+            <size android:width="60dp" android:height="60dp" />
         </shape>
     </item>
     
-    <!-- White border -->
-    <item android:top="3dp" android:bottom="3dp" 
-          android:left="3dp" android:right="3dp">
+    <!-- 핀 하단 원형 부분 (어두운 보라색) -->
+    <item android:top="50dp" android:left="16dp">
+        <shape android:shape="oval">
+            <solid android:color="#5B21B6" />
+            <size android:width="32dp" android:height="32dp" />
+        </shape>
+    </item>
+    
+    <!-- 핀 하단 원형 부분 (밝은 보라색) -->
+    <item android:top="52dp" android:left="18dp">
+        <shape android:shape="oval">
+            <solid android:color="#7C3AED" />
+            <size android:width="28dp" android:height="28dp" />
+        </shape>
+    </item>
+    
+    <!-- 핀 하단 하이라이트 -->
+    <item android:top="54dp" android:left="20dp">
+        <shape android:shape="oval">
+            <solid android:color="#A78BFA" />
+            <size android:width="24dp" android:height="24dp" />
+        </shape>
+    </item>
+    
+    <!-- 핀 몸체 (역삼각형 모양) - 어두운 보라색 -->
+    <item android:top="8dp" android:left="20dp" android:bottom="54dp" android:right="20dp">
+        <rotate android:fromDegrees="0">
+            <shape android:shape="rectangle">
+                <solid android:color="#5B21B6" />
+            </shape>
+        </rotate>
+    </item>
+    
+    <!-- 핀 몸체 그라데이션 효과를 위한 마스크 -->
+    <item android:top="10dp" android:left="22dp" android:bottom="56dp" android:right="22dp">
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#7C3AED"
+                android:centerColor="#A78BFA"
+                android:endColor="#7C3AED"
+                android:angle="90" />
+        </shape>
+    </item>
+    
+    <!-- 핀 중심 하이라이트 (흰색 원) -->
+    <item android:top="20dp" android:left="26dp">
         <shape android:shape="oval">
             <solid android:color="#FFFFFF" />
+            <size android:width="12dp" android:height="12dp" />
         </shape>
     </item>
     
-    <!-- Center building icon -->
-    <item android:top="10dp" android:bottom="10dp" 
-          android:left="10dp" android:right="10dp">
-        <shape android:shape="rectangle">
-            <solid android:color="#607D8B" />
-            <corners android:radius="5dp" />
+    <!-- 핀 상단 원형 부분 -->
+    <item android:top="8dp" android:left="20dp">
+        <shape android:shape="oval">
+            <gradient
+                android:startColor="#A78BFA"
+                android:endColor="#7C3AED"
+                android:angle="135" />
+            <size android:width="24dp" android:height="24dp" />
         </shape>
     </item>
+    
+    <!-- 핀 상단 하이라이트 -->
+    <item android:top="10dp" android:left="22dp">
+        <shape android:shape="oval">
+            <solid android:color="#FFFFFF" />
+            <size android:width="20dp" android:height="20dp" />
+        </shape>
+    </item>
+    
 </layer-list> 

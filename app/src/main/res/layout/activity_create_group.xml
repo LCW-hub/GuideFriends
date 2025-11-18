@@ -1,64 +1,219 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
+    android:background="@color/colorBackground">
+
+    <!-- Toolbar -->
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@drawable/toolbar_gradient"
+        android:elevation="4dp"
+        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
+        app:title="그룹 만들기"
+        app:titleTextColor="@color/white" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+    android:orientation="vertical"
     android:padding="16dp">
 
-    <EditText
+            <!-- 그룹 정보 카드 -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="20dp"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="8dp"
+                app:cardBackgroundColor="@color/white">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="📝 그룹 정보"
+                        android:textSize="20sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/textPrimary"
+                        android:layout_marginBottom="16dp" />
+
+                    <!-- 그룹 이름 -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        android:hint="그룹 이름"
+                        app:boxStrokeColor="@color/colorPrimary"
+                        app:hintTextColor="@color/colorPrimary"
+                        app:startIconDrawable="@drawable/ic_forum"
+                        app:startIconTint="@color/colorPrimary"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+
+                        <com.google.android.material.textfield.TextInputEditText
         android:id="@+id/etGroupName"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="그룹 이름" />
+                            android:inputType="text"
+                            android:maxLines="1" />
+                    </com.google.android.material.textfield.TextInputLayout>
 
-    <Button
-        android:id="@+id/etDestination"
-        android:layout_width="match_parent"
+                    <!-- 목적지 버튼 -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="📍 목적지"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/colorPrimary"
+                        android:layout_marginBottom="10dp" />
+
+                    <!-- 시간 선택 -->
+
+                    <Button
+                        android:id="@+id/etDestination"
+                        android:layout_width="match_parent"
+                        android:layout_height="64dp"
+                        android:layout_marginBottom="16dp"
+                        android:background="@drawable/button_destination_ripple"
+                        android:elevation="6dp"
+                        android:gravity="center"
+                        android:paddingStart="16dp"
+                        android:paddingTop="16dp"
+                        android:paddingEnd="16dp"
+                        android:paddingBottom="16dp"
+                        android:stateListAnimator="@null"
+                        android:text="목적지를 선택해주세요"
+                        android:textAllCaps="false"
+                        android:textColor="@color/white"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:hint="목적지" />
-
+                        android:text="⏰ 일정"
+                        android:textSize="14sp"
+                        android:textColor="@color/textSecondary"
+                        android:layout_marginBottom="12dp" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginTop="8dp">
+                        android:baselineAligned="false">
 
-        <Button
-            android:id="@+id/etStartTime"
+                        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:hint="시작 시간 (예: 2025-10-04T19:00:00)" />
+                            android:layout_marginEnd="8dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="🌅 시작 시간"
+                                android:textSize="13sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/colorPrimary"
+                                android:layout_marginBottom="8dp" />
 
         <Button
-            android:id="@+id/etEndTime"
+                                android:id="@+id/etStartTime"
+                                android:layout_width="match_parent"
+                                android:layout_height="64dp"
+                                android:text="선택하기"
+                                android:textSize="15sp"
+                                android:textStyle="bold"
+                                android:background="@drawable/time_button_start_ripple"
+                                android:textColor="@color/white"
+                                android:elevation="6dp"
+                                android:stateListAnimator="@null" />
+                        </LinearLayout>
+
+                        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:hint="종료 시간 (예: 2025-10-04T21:00:00)" />
-    </LinearLayout>
+                            android:layout_marginStart="8dp"
+                            android:orientation="vertical">
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+                                android:text="🌙 종료 시간"
+                                android:textSize="13sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/wichinPink"
+                                android:layout_marginBottom="8dp" />
+
+                            <Button
+                                android:id="@+id/etEndTime"
+                                android:layout_width="match_parent"
+                                android:layout_height="64dp"
+                                android:text="선택하기"
+                                android:textSize="15sp"
+                                android:textStyle="bold"
+                                android:background="@drawable/time_button_end_ripple"
+                                android:textColor="@color/white"
+                                android:elevation="6dp"
+                                android:stateListAnimator="@null" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- 친구 초대 섹션 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
         android:text="친구 초대"
-        android:textStyle="bold" />
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/colorPrimary"
+                android:drawableStart="@drawable/ic_person_add"
+                android:drawablePadding="6dp"
+                android:drawableTint="@color/colorPrimary" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvFriends"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="8dp" />
+                android:minHeight="200dp"
+                android:clipToPadding="false"
+                android:paddingBottom="8dp" />
 
+            <!-- 생성 버튼 -->
     <Button
         android:id="@+id/btnCreate"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+                android:layout_height="56dp"
         android:layout_marginTop="16dp"
-        android:text="생성하기" />
+                android:text="그룹 생성하기 ✨"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/white"
+                android:background="@drawable/button_primary_background"
+                android:elevation="4dp" />
+
+        </LinearLayout>
+    </ScrollView>
 
 </LinearLayout>

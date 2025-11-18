@@ -6,9 +6,13 @@ import android.app.TimePickerDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.TimePicker;
 import android.widget.Toast;
+import androidx.appcompat.app.AlertDialog;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -114,7 +118,21 @@ public class CreateGroupActivity extends AppCompatActivity {
                         destinationLng = data.getDoubleExtra("PLACE_LNG", 0.0);
 
                         if (destinationName != null && !destinationName.isEmpty()) {
-                            etDestination.setText(destinationName); // 버튼 텍스트를 장소 이름으로 변경
+                            // 목적지 이름 표시 (📍 아이콘 추가)
+                            etDestination.setText("📍 " + destinationName);
+                            
+                            // 선택되었음을 표시하기 위해 스타일 변경 (초록색 배경)
+                            etDestination.setTextColor(getResources().getColor(R.color.white, null));
+                            etDestination.setBackgroundResource(R.drawable.button_destination_selected);
+                            etDestination.setTextSize(17); // 텍스트 크기 증가
+                            
+                            // 좌표 정보도 로그로 출력
+                            Log.d("CreateGroupActivity", 
+                                String.format("목적지 선택됨: %s (%.6f, %.6f)", 
+                                    destinationName, destinationLat, destinationLng));
+                            
+                            // 사용자에게 피드백
+                            Toast.makeText(this, "📍 목적지가 설정되었어요!", Toast.LENGTH_SHORT).show();
                         }
                     }
                 }
@@ -133,12 +151,54 @@ public class CreateGroupActivity extends AppCompatActivity {
     }
 
     /**
-     * 날짜와 시간을 선택할 수 있는 다이얼로그 표시
+     * 날짜와 시간을 선택할 수 있는 다이얼로그 표시 (시간은 스피너 스타일)
      */
     private void showDateTimePicker(final boolean isStart) {
         final Calendar currentCalendar = Calendar.getInstance();
         new DatePickerDialog(this, (view, year, month, dayOfMonth) -> {
-            new TimePickerDialog(this, (timeView, hourOfDay, minute) -> {
+            // 아이폰 스타일의 스크롤/드래그 방식 시간 선택 다이얼로그
+            showSpinnerTimePicker(isStart, year, month, dayOfMonth, currentCalendar);
+        }, currentCalendar.get(Calendar.YEAR), currentCalendar.get(Calendar.MONTH), currentCalendar.get(Calendar.DAY_OF_MONTH)).show();
+    }
+
+    /**
+     * 아이폰 스타일의 스피너(드래그) 방식 시간 선택 다이얼로그
+     */
+    private void showSpinnerTimePicker(final boolean isStart, int year, int month, int dayOfMonth, Calendar currentCalendar) {
+        // 커스텀 레이아웃 inflate
+        LayoutInflater inflater = LayoutInflater.from(this);
+        View dialogView = inflater.inflate(R.layout.dialog_time_picker_spinner, null);
+
+        // TimePicker 찾기
+        TimePicker timePicker = dialogView.findViewById(R.id.time_picker_spinner);
+        
+        // 24시간 형식으로 설정
+        timePicker.setIs24HourView(true);
+        
+        // 현재 시간으로 초기화
+        timePicker.setHour(currentCalendar.get(Calendar.HOUR_OF_DAY));
+        timePicker.setMinute(currentCalendar.get(Calendar.MINUTE));
+
+        // AlertDialog 생성
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setView(dialogView);
+        AlertDialog dialog = builder.create();
+
+        // 다이얼로그 배경 투명하게
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+
+        // 취소 버튼
+        Button btnCancel = dialogView.findViewById(R.id.btn_cancel);
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+
+        // 확인 버튼
+        Button btnConfirm = dialogView.findViewById(R.id.btn_confirm);
+        btnConfirm.setOnClickListener(v -> {
+            int hourOfDay = timePicker.getHour();
+            int minute = timePicker.getMinute();
+
                 Calendar selectedCalendar = Calendar.getInstance();
                 selectedCalendar.set(year, month, dayOfMonth, hourOfDay, minute);
 
@@ -150,8 +210,11 @@ public class CreateGroupActivity extends AppCompatActivity {
                     endTimeCalendar = selectedCalendar;
                     etEndTime.setText(displayFormat.format(endTimeCalendar.getTime()));
                 }
-            }, currentCalendar.get(Calendar.HOUR_OF_DAY), currentCalendar.get(Calendar.MINUTE), true).show();
-        }, currentCalendar.get(Calendar.YEAR), currentCalendar.get(Calendar.MONTH), currentCalendar.get(Calendar.DAY_OF_MONTH)).show();
+
+            dialog.dismiss();
+        });
+
+        dialog.show();
     }
 
     /**
@@ -171,14 +234,14 @@ public class CreateGroupActivity extends AppCompatActivity {
                     adapter.notifyDataSetChanged();
                     Log.d("CreateGroupActivity", "초대 가능 멤버 로드 성공. 수: " + response.body().size());
                 } else {
-                    Toast.makeText(CreateGroupActivity.this, "멤버 목록을 불러오는데 실패했습니다.", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(CreateGroupActivity.this, "😥 친구 목록을 불러올 수 없어요", Toast.LENGTH_SHORT).show();
                     Log.e("CreateGroupActivity", "멤버 로드 실패. 코드: " + response.code());
                 }
             }
 
             @Override
             public void onFailure(Call<List<User>> call, Throwable t) {
-                Toast.makeText(CreateGroupActivity.this, "네트워크 오류: " + t.getMessage(), Toast.LENGTH_LONG).show();
+                Toast.makeText(CreateGroupActivity.this, "🌐 인터넷 연결을 확인해주세요", Toast.LENGTH_LONG).show();
                 Log.e("CreateGroupActivity", "네트워크 오류", t);
             }
         });
@@ -191,7 +254,7 @@ public class CreateGroupActivity extends AppCompatActivity {
         List<Long> selectedMemberIds = adapter.getSelectedFriendIds();
 
         if (groupName.isEmpty() || destinationName == null || destinationLat == 0.0 || selectedMemberIds.isEmpty()) {
-            Toast.makeText(this, "그룹 이름, 목적지, 최소 한 명의 친구를 선택해야 합니다.", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "📝 그룹 이름, 목적지, 친구를 모두 입력해주세요", Toast.LENGTH_LONG).show();
             return;
         }
 
@@ -243,7 +306,7 @@ public class CreateGroupActivity extends AppCompatActivity {
                             }
                             // 🚀 --- [1.2 끝] ---
 
-                            Toast.makeText(CreateGroupActivity.this, "그룹이 생성되었습니다! 위치 공유를 시작합니다.", Toast.LENGTH_LONG).show();
+                            Toast.makeText(CreateGroupActivity.this, "그룹이 만들어졌어요! 위치 공유를 시작할게요", Toast.LENGTH_LONG).show();
 
                             // ⭐ [핵심 수정] MapsActivity로 ID 및 username 전달하여 위치 공유 시작
                             Intent intent = new Intent(CreateGroupActivity.this, MapsActivity.class);
@@ -257,11 +320,11 @@ public class CreateGroupActivity extends AppCompatActivity {
 
                         } catch (NumberFormatException e) {
                             Log.e("CreateGroupActivity", "그룹 ID를 파싱할 수 없습니다: " + groupIdStr, e);
-                            Toast.makeText(CreateGroupActivity.this, "그룹은 생성되었으나 ID 오류로 맵 이동 실패.", Toast.LENGTH_LONG).show();
+                            Toast.makeText(CreateGroupActivity.this, "⚠️ 그룹은 만들어졌지만 지도를 열 수 없어요", Toast.LENGTH_LONG).show();
                             finish();
                         }
                     } else {
-                        Toast.makeText(CreateGroupActivity.this, "그룹 생성은 성공했으나, 그룹 ID를 받지 못했습니다. 맵 이동 실패.", Toast.LENGTH_LONG).show();
+                        Toast.makeText(CreateGroupActivity.this, "⚠️ 그룹은 만들어졌지만 지도를 열 수 없어요", Toast.LENGTH_LONG).show();
                         finish();
                     }
                 } else {
@@ -276,14 +339,14 @@ public class CreateGroupActivity extends AppCompatActivity {
                     if (response.code() == 403 || response.code() == 401) {
                         handleAuthErrorAndRedirect();
                     } else {
-                        Toast.makeText(CreateGroupActivity.this, "그룹 생성 실패 (코드: " + response.code() + ")", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(CreateGroupActivity.this, "😥 그룹을 만들 수 없어요. 다시 시도해주세요", Toast.LENGTH_SHORT).show();
                     }
                 }
             }
 
             @Override
             public void onFailure(Call<Map<String, String>> call, Throwable t) {
-                Toast.makeText(CreateGroupActivity.this, "네트워크 오류: " + t.getMessage(), Toast.LENGTH_LONG).show();
+                Toast.makeText(CreateGroupActivity.this, "🌐 인터넷 연결을 확인해주세요", Toast.LENGTH_LONG).show();
             }
         });
     }
@@ -292,7 +355,7 @@ public class CreateGroupActivity extends AppCompatActivity {
      * 인증 오류(401/403) 발생 시 토큰 삭제 및 로그인 화면으로 이동
      */
     private void handleAuthErrorAndRedirect() {
-        Toast.makeText(this, "세션이 만료되었습니다. 다시 로그인해주세요.", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, "⏰ 로그인 시간이 만료되었어요. 다시 로그인해주세요", Toast.LENGTH_LONG).show();
 
         // [수정] TokenManager 생성자는 인자가 없습니다.
         TokenManager tokenManager = new TokenManager();

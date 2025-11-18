@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    
+    <!-- 가장 바깥쪽 반투명 링 (가장 밝고 반투명한 보라색 - 빛나는 효과) -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#30A78BFA" />
+            <size android:width="64dp" android:height="64dp" />
+        </shape>
+    </item>
+    
+    <!-- 두 번째 반투명 링 (밝은 반투명 보라색) -->
+    <item android:top="4dp" android:left="4dp" android:bottom="4dp" android:right="4dp">
+        <shape android:shape="oval">
+            <solid android:color="#50A78BFA" />
+        </shape>
+    </item>
+    
+    <!-- 세 번째 반투명 링 (중간 밝기 반투명 보라색) -->
+    <item android:top="8dp" android:left="8dp" android:bottom="8dp" android:right="8dp">
+        <shape android:shape="oval">
+            <solid android:color="#70A78BFA" />
+        </shape>
+    </item>
+    
+    <!-- 네 번째 반투명 링 (더 밝은 반투명 보라색) -->
+    <item android:top="12dp" android:left="12dp" android:bottom="12dp" android:right="12dp">
+        <shape android:shape="oval">
+            <solid android:color="#90A78BFA" />
+        </shape>
+    </item>
+    
+    <!-- 다섯 번째 반투명 링 (밝은 반투명 보라색) -->
+    <item android:top="16dp" android:left="16dp" android:bottom="16dp" android:right="16dp">
+        <shape android:shape="oval">
+            <solid android:color="#B0A78BFA" />
+        </shape>
+    </item>
+    
+    <!-- 여섯 번째 반투명 링 (더 밝은 반투명 보라색) -->
+    <item android:top="20dp" android:left="20dp" android:bottom="20dp" android:right="20dp">
+        <shape android:shape="oval">
+            <solid android:color="#D0A78BFA" />
+        </shape>
+    </item>
+    
+    <!-- 중심 원 (진한 보라색 - 가장 진하게) -->
+    <item android:top="24dp" android:left="24dp" android:bottom="24dp" android:right="24dp">
+        <shape android:shape="oval">
+            <solid android:color="#FF7C3AED" />
+        </shape>
+    </item>
+    
+    <!-- 중심 점 (더 진한 보라색) -->
+    <item android:top="28dp" android:left="28dp" android:bottom="28dp" android:right="28dp">
+        <shape android:shape="oval">
+            <solid android:color="#FF5B21B6" />
+        </shape>
+    </item>
+    
+</layer-list>
+

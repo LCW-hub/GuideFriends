@@ -10,7 +10,7 @@
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="@color/colorPrimary"
+        android:background="@drawable/toolbar_gradient"
         android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
         app:title="설정"
         app:titleTextColor="@color/white" />
@@ -18,7 +18,8 @@
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:fillViewport="true">
+        android:fillViewport="true"
+        android:background="@color/colorBackground">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -26,95 +27,286 @@
             android:orientation="vertical"
             android:padding="16dp">
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="지도 설정"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:textColor="@color/colorPrimary"
-                android:layout_marginBottom="16dp" />
-
-            <RadioGroup
-                android:id="@+id/rgMapType"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:layout_marginBottom="16dp"
-                android:paddingLeft="8dp"> <RadioButton
-                android:id="@+id/rbMapTypeNormal"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="일반 지도"
-                android:textSize="16sp" />
-
-                <RadioButton
-                    android:id="@+id/rbMapTypeSatellite"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="위성 지도"
-                    android:textSize="16sp" />
-
-                <RadioButton
-                    android:id="@+id/rbMapTypeTerrain"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="지형 지도"
-                    android:textSize="16sp" />
-            </RadioGroup>
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="기타 설정"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:textColor="@color/colorPrimary"
-                android:layout_marginTop="16dp"
-                android:layout_marginBottom="16dp" />
-
+            <!-- 지도 설정 카드 -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardCornerRadius="8dp"
-                app:cardElevation="2dp">
+                android:layout_marginBottom="20dp"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="8dp"
+                app:cardBackgroundColor="@color/white">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:padding="16dp"
-                    android:gravity="center_vertical">
+                    android:orientation="vertical"
+                    android:padding="20dp">
 
-                    <LinearLayout
-                        android:layout_width="0dp"
+                    <TextView
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
+                        android:text="🗺️ 지도 설정"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/textPrimary"
+                        android:layout_marginBottom="16dp" />
+
+                    <RadioGroup
+                        android:id="@+id/rgMapType"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
                         android:orientation="vertical">
 
-                        <TextView
-                            android:layout_width="wrap_content"
+                        <RadioButton
+                            android:id="@+id/rbMapTypeNormal"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="알림"
-                            android:textSize="16sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/black" />
+                            android:text="일반 지도"
+                            android:textSize="15sp"
+                            android:textColor="@color/textPrimary"
+                            android:paddingVertical="8dp"
+                            android:buttonTint="@color/colorPrimary" />
 
-                        <TextView
+                        <RadioButton
+                            android:id="@+id/rbMapTypeSatellite"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="위성 지도"
+                            android:textSize="15sp"
+                            android:textColor="@color/textPrimary"
+                            android:paddingVertical="8dp"
+                            android:buttonTint="@color/colorPrimary" />
+
+                        <RadioButton
+                            android:id="@+id/rbMapTypeTerrain"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="지형 지도"
+                            android:textSize="15sp"
+                            android:textColor="@color/textPrimary"
+                            android:paddingVertical="8dp"
+                            android:buttonTint="@color/colorPrimary" />
+                    </RadioGroup>
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- 알림 설정 카드 -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="20dp"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="8dp"
+                app:cardBackgroundColor="@color/white">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="🔔 알림 설정"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/textPrimary"
+                        android:layout_marginBottom="16dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="푸시 알림"
+                                android:textSize="16sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/textPrimary" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="새로운 메시지와 위치 업데이트를 알려드립니다"
+                                android:textSize="13sp"
+                                android:textColor="@color/textSecondary"
+                                android:layout_marginTop="4dp" />
+
+                        </LinearLayout>
+
+                        <Switch
+                            android:id="@+id/switch_notifications"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="푸시 알림 받기"
-                            android:textSize="14sp"
-                            android:textColor="@color/gray"
-                            android:layout_marginTop="4dp" />
+                            android:checked="true"
+                            android:thumbTint="@color/white"
+                            android:trackTint="@color/colorPrimary" />
 
                     </LinearLayout>
 
-                    <Switch
-                        android:id="@+id/switch_notifications"
-                        android:layout_width="wrap_content"
+                </LinearLayout>
+
+            </androidx.cardview.widget.CardView>
+
+            <!-- 약관 및 정책 카드 -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="20dp"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="8dp"
+                app:cardBackgroundColor="@color/white">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:checked="true" />
+                        android:text="📄 약관 및 정책"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/textPrimary"
+                        android:layout_marginBottom="16dp" />
+
+                    <!-- 이용약관 -->
+                    <LinearLayout
+                        android:id="@+id/layout_terms_of_service"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:paddingVertical="12dp"
+                        android:gravity="center_vertical"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="이용약관"
+                            android:textSize="15sp"
+                            android:textColor="@color/textPrimary" />
+
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:src="@drawable/ic_arrow_forward"
+                            app:tint="@color/textSecondary" />
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="@color/colorDivider"
+                        android:layout_marginVertical="4dp" />
+
+                    <!-- 개인정보처리방침 -->
+                    <LinearLayout
+                        android:id="@+id/layout_privacy_policy"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:paddingVertical="12dp"
+                        android:gravity="center_vertical"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="개인정보처리방침"
+                            android:textSize="15sp"
+                            android:textColor="@color/textPrimary" />
+
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:src="@drawable/ic_arrow_forward"
+                            app:tint="@color/textSecondary" />
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="@color/colorDivider"
+                        android:layout_marginVertical="4dp" />
+
+                    <!-- 위치정보 이용약관 -->
+                    <LinearLayout
+                        android:id="@+id/layout_location_terms"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:paddingVertical="12dp"
+                        android:gravity="center_vertical"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="위치정보 이용약관"
+                            android:textSize="15sp"
+                            android:textColor="@color/textPrimary" />
+
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:src="@drawable/ic_arrow_forward"
+                            app:tint="@color/textSecondary" />
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="@color/colorDivider"
+                        android:layout_marginVertical="4dp" />
+
+                    <!-- 오픈소스 라이선스 -->
+                    <LinearLayout
+                        android:id="@+id/layout_open_source_license"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:paddingVertical="12dp"
+                        android:gravity="center_vertical"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="오픈소스 라이선스"
+                            android:textSize="15sp"
+                            android:textColor="@color/textPrimary" />
+
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:src="@drawable/ic_arrow_forward"
+                            app:tint="@color/textSecondary" />
+                    </LinearLayout>
 
                 </LinearLayout>
 

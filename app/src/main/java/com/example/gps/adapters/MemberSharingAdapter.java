@@ -8,6 +8,10 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import de.hdodenhof.circleimageview.CircleImageView;
+import com.example.gps.api.ApiClient;
 import com.example.gps.R;
 import com.example.gps.model.User;
 
@@ -96,6 +100,31 @@ public class MemberSharingAdapter extends RecyclerView.Adapter<MemberSharingAdap
 
         holder.tvUsername.setText(member.getUsername());
 
+        // 프로필 이미지 로드
+        String imageUrl = member.getProfileImageUrl();
+        Object loadTarget = null;
+        if (imageUrl != null && !imageUrl.isEmpty()) {
+            String baseUrl = ApiClient.getBaseUrl();
+            if (baseUrl.endsWith("/")) {
+                baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+            }
+            if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+                loadTarget = imageUrl;
+            } else if (imageUrl.startsWith("/")) {
+                loadTarget = baseUrl + imageUrl;
+            } else {
+                loadTarget = baseUrl + "/" + imageUrl;
+            }
+        }
+        
+        Glide.with(holder.itemView.getContext())
+                .load(loadTarget)
+                .placeholder(R.drawable.ic_person)
+                .error(R.drawable.ic_person)
+                .diskCacheStrategy(DiskCacheStrategy.NONE)
+                .skipMemoryCache(true)
+                .into(holder.ivMemberProfile);
+
         // ⭐️ [핵심] checkStates 맵에서 현재 상태를 가져와 체크박스를 설정합니다.
         // checkStates는 setInitialSharingRules에서 서버 규칙으로 초기화됩니다.
         Boolean isAllowed = checkStates.getOrDefault(member.getId(), true);
@@ -118,11 +147,13 @@ public class MemberSharingAdapter extends RecyclerView.Adapter<MemberSharingAdap
     }
 
     static class MemberViewHolder extends RecyclerView.ViewHolder {
+        final CircleImageView ivMemberProfile;
         final TextView tvUsername;
         final CheckBox checkBox;
 
         MemberViewHolder(@NonNull View itemView) {
             super(itemView);
+            ivMemberProfile = itemView.findViewById(R.id.iv_member_profile);
             tvUsername = itemView.findViewById(R.id.tv_member_username);
             checkBox = itemView.findViewById(R.id.cb_sharing_allowed);
         }

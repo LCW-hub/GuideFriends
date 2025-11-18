@@ -31,15 +31,20 @@
             android:name="com.naver.maps.map.NCP_KEY_ID"
             android:value="iaxrf6bmtc" />
 
+        <!-- Splash Screen as Launcher -->
         <activity
-            android:name=".activities.Register_Login.LoginActivity"
-            android:exported="true">
+            android:name=".activities.SplashActivity"
+            android:exported="true"
+            android:theme="@style/Theme.GPS">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".activities.Register_Login.LoginActivity"
+            android:exported="false" />
 
         <activity
             android:name=".activities.MapsActivity"
@@ -71,6 +76,8 @@
 
         <activity android:name=".activities.CreateGroupActivity" />
         <activity android:name=".activities.SettingsActivity" />
+        <activity android:name=".activities.TermsViewerActivity"
+            android:exported="false" />
         <activity
             android:name=".activities.GroupSharingSettingsActivity"
             android:exported="false"

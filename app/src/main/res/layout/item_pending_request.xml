@@ -1,31 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:padding="12dp"
-    android:gravity="center_vertical">
+    android:layout_margin="6dp"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="4dp"
+    app:cardBackgroundColor="@color/white">
 
-    <TextView
-        android:id="@+id/tvRequestUsername"
-        android:layout_width="0dp"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:text="Request Username"
-        android:textSize="16sp"/>
+        android:orientation="horizontal"
+        android:padding="14dp"
+        android:gravity="center_vertical">
 
-    <Button
-        android:id="@+id/btnAccept"
-        android:layout_width="wrap_content"
-        android:layout_height="40dp"
-        android:text="수락"
-        android:layout_marginEnd="8dp"/>
+        <!-- 프로필 이미지 -->
+        <de.hdodenhof.circleimageview.CircleImageView
+            android:id="@+id/iv_request_profile"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginEnd="12dp"
+            android:src="@drawable/ic_person"
+            app:civ_border_width="2dp"
+            app:civ_border_color="@color/colorPrimaryLight" />
 
-    <Button
-        android:id="@+id/btnDecline"
-        android:layout_width="wrap_content"
-        android:layout_height="40dp"
-        android:text="거절"
-        style="?android:attr/borderlessButtonStyle"
-        android:textColor="@color/colorAccent"/>
-</LinearLayout>
+        <!-- 사용자명 -->
+        <TextView
+            android:id="@+id/tvRequestUsername"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Request Username"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/textPrimary"/>
+
+        <!-- 수락 버튼 -->
+        <Button
+            android:id="@+id/btnAccept"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:minWidth="70dp"
+            android:text="수락"
+            android:textSize="14sp"
+            android:textColor="@color/white"
+            android:background="@drawable/button_primary_background"
+            android:layout_marginEnd="6dp"/>
+
+        <!-- 거절 버튼 -->
+        <Button
+            android:id="@+id/btnDecline"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:minWidth="70dp"
+            android:text="거절"
+            android:textSize="14sp"
+            android:background="@drawable/button_secondary_background"
+            android:textColor="@color/colorPrimary"/>
+    </LinearLayout>
+
+</androidx.cardview.widget.CardView>

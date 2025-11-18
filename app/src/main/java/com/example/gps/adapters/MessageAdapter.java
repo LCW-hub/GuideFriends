@@ -37,6 +37,10 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
     @Override
     public int getItemViewType(int position) {
         Message message = messageList.get(position);
+        // null 체크 추가
+        if (message == null || message.getSenderUsername() == null || currentUsername == null) {
+            return VIEW_TYPE_RECEIVED; // 기본값: 받은 메시지
+        }
         if (message.getSenderUsername().equals(currentUsername)) {
             return VIEW_TYPE_SENT; // 내가 보낸 메시지
         } else {
@@ -99,12 +103,23 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
         }
 
         public void bind(Message message) {
-            tvContent.setText(message.getContent());
-            tvTimestamp.setText(timeFormatter.format(message.getTimestamp()));
+            // null 체크 추가
+            if (message == null) return;
+            
+            // 메시지 내용 설정
+            if (tvContent != null && message.getContent() != null) {
+                tvContent.setText(message.getContent());
+            }
+            
+            // 시간 설정 (long은 primitive type이므로 null 체크 불필요)
+            if (tvTimestamp != null) {
+                tvTimestamp.setText(timeFormatter.format(message.getTimestamp()));
+            }
 
-            // 받은 메시지 타입일 경우에만 이름을 표시 (VIEW_TYPE_SENT 레이아웃에는 이 TextView가 없을 수 있음)
+            // 받은 메시지 타입일 경우에만 이름을 표시
             if (getItemViewType() == VIEW_TYPE_RECEIVED && tvSenderName != null) {
-                tvSenderName.setText(message.getSenderUsername());
+                String senderName = message.getSenderUsername();
+                tvSenderName.setText(senderName != null ? senderName : "익명");
             }
         }
     }

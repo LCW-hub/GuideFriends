@@ -8,6 +8,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
+import android.graphics.PointF;
 import android.location.Location;
 import android.os.Bundle;
 import android.os.Handler;
@@ -19,6 +20,7 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.PopupMenu;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.util.Iterator;
@@ -118,6 +120,7 @@ import android.graphics.Bitmap.Config;
 
 import androidx.cardview.widget.CardView;
 import android.widget.Button;
+import android.widget.RelativeLayout;
 import com.example.gps.activities.ChatRoomActivity;
 import com.example.gps.activities.GroupSharingSettingsActivity;
 
@@ -212,7 +215,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // --- ⭐️ [MERGE] 프로필 사진용 멤버 변수 ---
     private CircleImageView ivProfile;
     private ActivityResultLauncher<Intent> galleryLauncher;
-    private static final int MARKER_BORDER_WIDTH_PX = 6;
+    private static final int MARKER_BORDER_WIDTH_PX = 8;
     private static final int MARKER_BORDER_COLOR = Color.WHITE;
     // --- ⭐️ [MERGE] 끝 ---
 
@@ -234,6 +237,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private RecyclerView rvMyPageFriends; // 마이페이지 드로어의 RecyclerView (ID: rv_mypage_friends_list)
     private FriendAdapter friendAdapter; // FriendAdapter 인스턴스
     private FriendApiService friendApiService; // ⭐️ [수정] FriendApiService 사용
+    private TextView tvFriendsCount; // 친구 목록 카운트 표시 TextView
     // --- ⭐️ [추가 끝] ---
 
 
@@ -330,6 +334,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         } else {
             // 메뉴 열기
             setupGroupMenuListeners(); // 리스너를 설정하고 버튼이 준비되었는지 확인합니다.
+            updateLocationShareSwitch(); // Switch 상태 업데이트
             groupMenuContainer.setVisibility(View.VISIBLE); // 핵심: 컨테이너를 보이게 합니다.
             groupMenuContainer.setAlpha(0f);
             groupMenuContainer.animate()
@@ -339,38 +344,95 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             fabGroupMenu.setImageResource(R.drawable.ic_close); // 닫기 아이콘으로 변경
         }
     }
+    /**
+     * 스위치 색상 설정 (ON/OFF 구분 명확하게)
+     */
+    private void setupSwitchColors(Switch switchView) {
+        // Track 색상 (배경)
+        int[][] trackStates = new int[][]{
+            new int[]{android.R.attr.state_checked}, // ON 상태
+            new int[]{} // OFF 상태
+        };
+        int[] trackColors = new int[]{
+            ContextCompat.getColor(this, R.color.colorPrimary), // ON: 보라색
+            ContextCompat.getColor(this, R.color.gray) // OFF: 회색
+        };
+        switchView.setTrackTintList(new ColorStateList(trackStates, trackColors));
+
+        // Thumb 색상 (움직이는 원형 버튼)
+        int[][] thumbStates = new int[][]{
+            new int[]{android.R.attr.state_checked}, // ON 상태
+            new int[]{} // OFF 상태
+        };
+        int[] thumbColors = new int[]{
+            ContextCompat.getColor(this, R.color.white), // ON: 흰색
+            ContextCompat.getColor(this, R.color.textColorSecondary) // OFF: 어두운 회색
+        };
+        switchView.setThumbTintList(new ColorStateList(thumbStates, thumbColors));
+    }
+
+    /**
+     * 위치 공유 Switch 상태 업데이트
+     */
+    private void updateLocationShareSwitch() {
+        if (groupMenuContainer == null) return;
+        Switch switchLocationShare = groupMenuContainer.findViewById(R.id.switch_location_share);
+        if (switchLocationShare != null) {
+            // 리스너를 일시적으로 제거하여 무한 루프 방지
+            switchLocationShare.setOnCheckedChangeListener(null);
+            switchLocationShare.setChecked(isMyMarkerVisibleGlobally);
+            // 리스너 다시 설정
+            switchLocationShare.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                if (isChecked != isMyMarkerVisibleGlobally) {
+                    toggleMyLocationMarkerStatus();
+                }
+            });
+        }
+    }
+
     private void setupGroupMenuListeners() {
         if (groupMenuContainer == null) return;
 
-        // ⭐️ XML에 정의된 Button ID와 타입을 정확히 사용합니다.
-        Button btnChat = groupMenuContainer.findViewById(R.id.btn_menu_chat);
-        // ⭐️ [수정] 위치 권한 설정 버튼
-        Button btnSettings = groupMenuContainer.findViewById(R.id.btn_menu_settings);
-        Button btnToggle = groupMenuContainer.findViewById(R.id.btn_menu_toggle); // (위치 공유 on/off)
+        // ⭐️ XML에 LinearLayout으로 변경됨
+        View btnChat = groupMenuContainer.findViewById(R.id.btn_menu_chat);
+        // ⭐️ [수정] 위치 공유 Switch
+        Switch switchLocationShare = groupMenuContainer.findViewById(R.id.switch_location_share);
+        View btnToggle = groupMenuContainer.findViewById(R.id.btn_menu_toggle); // (위치권한설정)
+
+        // 위치 공유 Switch 초기 상태 설정
+        if (switchLocationShare != null) {
+            // 스위치 색상 동적 설정
+            setupSwitchColors(switchLocationShare);
+            updateLocationShareSwitch();
+            
+            // Switch 변경 리스너
+            switchLocationShare.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                // 사용자가 직접 Switch를 변경한 경우에만 토글
+                if (isChecked != isMyMarkerVisibleGlobally) {
+                    toggleMyLocationMarkerStatus();
+                }
+            });
+        }
 
         if (btnChat != null) {
             btnChat.setOnClickListener(v -> {
-                Toast.makeText(this, "그룹 채팅방으로 이동합니다.", Toast.LENGTH_SHORT).show();
                 Intent intent = new Intent(this, ChatRoomActivity.class);
                 intent.putExtra("groupId", currentGroupId);
                 intent.putExtra("groupName", currentGroupName);
+                intent.putExtra("username", loggedInUsername); // username 추가
                 startActivity(intent);
                 toggleGroupMenu();
             });
         }
 
-        if (btnSettings != null) {
-            // ⭐️ [핵심 수정] 위치권한설정 버튼을 클릭하면 내 위치 공유 상태를 토글합니다.
-            btnSettings.setOnClickListener(v -> {
-                toggleMyLocationMarkerStatus(); // 이 메서드만 호출하도록 수정
-                toggleGroupMenu(); // 메뉴 닫기
-            });
-        }
-
         if (btnToggle != null) {
             btnToggle.setOnClickListener(v -> {
-                // 위치 공유 on/off 로직 (이 버튼은 그룹 전체 공유/미공유 설정용으로 유지)
-                Toast.makeText(this, "위치 공유 상태를 토글합니다. (로직 구현 필요)", Toast.LENGTH_SHORT).show();
+                // 위치권한설정 버튼 클릭
+                Intent intent = new Intent(this, GroupSharingSettingsActivity.class);
+                intent.putExtra("groupId", currentGroupId);
+                intent.putExtra("username", loggedInUsername);
+                intent.putExtra("groupName", currentGroupName);
+                startActivity(intent);
                 toggleGroupMenu();
             });
         }
@@ -485,9 +547,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 // 3. Firebase에 새 상태를 기록합니다.
                 statusRef.setValue(newState)
                         .addOnSuccessListener(aVoid -> {
+                            // Switch 상태 업데이트
+                            updateLocationShareSwitch();
+                            
                             String statusText = newState ? "켜짐" : "꺼짐";
                             Toast.makeText(MapsActivity.this,
-                                    "내 위치 공유를 **" + statusText + "**으로 설정했습니다.",
+                                    newState ? "✅ 위치 공유가 켜졌어요" : "⏸️ 위치 공유가 꺼졌어요",
                                     Toast.LENGTH_SHORT).show();
 
                             if (!newState) {
@@ -534,19 +599,41 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onMapReady(@NonNull NaverMap map) {
         this.naverMap = map;
         naverMap.setLocationSource(locationSource);
+        
+        // 위치 추적은 활성화하되, 기본 오버레이(파란 화살표)만 숨김
         naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
+        naverMap.getLocationOverlay().setVisible(false); // 기본 GPS 마커만 숨김
+        
+        // UI 설정 - 기본 위치 버튼 숨김
+        naverMap.getUiSettings().setLocationButtonEnabled(false);
+        
         LatLng initialPosition = new LatLng(37.5665, 126.9780);
         naverMap.moveCamera(CameraUpdate.scrollAndZoomTo(initialPosition, 11));
         if (myLocationMarker == null) {
             myLocationMarker = new Marker();
             myLocationMarker.setCaptionText("내 위치");
+            // 기본 아이콘 설정 (프로필 사진 로드 전)
+            myLocationMarker.setIcon(OverlayImage.fromResource(R.drawable.marker_my_location));
+            myLocationMarker.setWidth(80);
+            myLocationMarker.setHeight(80);
+            // 캡션 스타일 개선
+            myLocationMarker.setCaptionTextSize(14);
+            myLocationMarker.setCaptionColor(ContextCompat.getColor(this, R.color.colorPrimary));
+            myLocationMarker.setCaptionHaloColor(Color.WHITE);
         }
         myLocationMarker.setPosition(initialPosition);
         myLocationMarker.setMap(naverMap);
+        
+        // 기본 GPS 오버레이 완전히 숨김 (재확인)
+        naverMap.getLocationOverlay().setVisible(false);
+        
         Log.d(TAG, "onMapReady: NaverMap 위치 변경 리스너 등록 완료");
         naverMap.addOnLocationChangeListener(location -> {
             if (location != null && Double.isFinite(location.getLatitude()) && Double.isFinite(location.getLongitude())) {
                 LatLng currentLocation = new LatLng(location.getLatitude(), location.getLongitude());
+                
+                // 기본 GPS 마커가 다시 나타나지 않도록 계속 숨김
+                naverMap.getLocationOverlay().setVisible(false);
 
                 // ⭐️ [TMap 수정] TMap 시뮬레이션 중이 아닐 때만 실제 위치에 '내 위치' 마커 업데이트
                 if (animationHandler == null && !isSimulationRunning) {
@@ -615,7 +702,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         btnTestMovement.setOnClickListener(v -> startMockMovement());
 
         findViewById(R.id.weather_widget).setOnClickListener(v -> showWeatherBottomSheet());
-        FloatingActionButton btnMainMenu = findViewById(R.id.btnMainMenu);
+        RelativeLayout btnMainMenu = findViewById(R.id.btnMainMenu);
         FloatingActionButton btnFriends = findViewById(R.id.btnFriends);
         FloatingActionButton btnCreateGroup = findViewById(R.id.btnCreateGroup);
         FloatingActionButton btnMyGroups = findViewById(R.id.btnMyGroups);
@@ -957,6 +1044,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             if (marker == null) {
                 marker = new Marker();
                 marker.setCaptionText(username);
+                // 캡션 스타일 개선
+                marker.setCaptionTextSize(13);
+                marker.setCaptionColor(ContextCompat.getColor(this, R.color.textPrimary));
+                marker.setCaptionHaloColor(Color.WHITE);
                 memberMarkers.put(username, marker);
                 Log.d(TAG, "updateMemberMarkers: 새 멤버 마커 추가 -> " + username);
             }
@@ -1044,7 +1135,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         // ⭐️ [수정된 로직 시작] 현재 위치를 가져옵니다.
         Location lastKnownLocation = locationSource.getLastLocation();
         if (lastKnownLocation == null) {
-            Toast.makeText(this, "현재 위치 정보를 가져올 수 없습니다. GPS 신호를 확인해주세요.", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "📍 현재 위치를 찾을 수 없어요. GPS를 켜주세요", Toast.LENGTH_LONG).show();
             Log.e(TAG, "startMockMovement: FusedLocationSource에서 위치를 가져오지 못했습니다.");
             return;
         }
@@ -1087,9 +1178,39 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
     private void showSubMenu() {
         isSubMenuOpen = true;
-        FloatingActionButton btnMainMenu = findViewById(R.id.btnMainMenu);
-        btnMainMenu.setImageResource(R.drawable.ic_close);
-        btnMainMenu.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.red)));
+        RelativeLayout btnMainMenu = findViewById(R.id.btnMainMenu);
+        ImageView menuIcon = findViewById(R.id.main_menu_icon);
+        View menuBackground = findViewById(R.id.menu_background);
+        FloatingActionButton btnMyLocation = findViewById(R.id.btnMyLocation);
+        View weatherWidget = findViewById(R.id.weather_widget);
+        
+        if (menuIcon != null) {
+            menuIcon.setImageResource(R.drawable.ic_close);
+            // 아이콘을 약간 회전시켜 동적 효과
+            menuIcon.animate().rotation(90f).setDuration(200).start();
+        }
+        if (btnMainMenu != null) {
+            btnMainMenu.setBackgroundResource(R.drawable.fab_close_background);
+            // 크기를 약간 키워서 강조
+            btnMainMenu.animate().scaleX(1.1f).scaleY(1.1f).setDuration(200).start();
+        }
+        // 메뉴 배경 표시
+        if (menuBackground != null) {
+            menuBackground.setVisibility(View.VISIBLE);
+            menuBackground.setAlpha(0f);
+            menuBackground.animate().alpha(0.8f).setDuration(300).start();
+        }
+        // 양쪽 끝 버튼 비활성화 및 투명도 조절
+        if (btnMyLocation != null) {
+            btnMyLocation.setClickable(false);
+            btnMyLocation.setEnabled(false);
+            btnMyLocation.animate().alpha(0.3f).setDuration(200).start();
+        }
+        if (weatherWidget != null) {
+            weatherWidget.setClickable(false);
+            weatherWidget.setEnabled(false);
+            weatherWidget.animate().alpha(0.3f).setDuration(200).start();
+        }
         FloatingActionButton[] targets = {
                 findViewById(R.id.btnFriends), findViewById(R.id.btnCreateGroup),
                 findViewById(R.id.btnMyGroups), findViewById(R.id.btnMyPage), findViewById(R.id.btnSettings)
@@ -1107,9 +1228,38 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
     private void hideSubMenu() {
         isSubMenuOpen = false;
-        FloatingActionButton btnMainMenu = findViewById(R.id.btnMainMenu);
-        btnMainMenu.setImageResource(R.drawable.ic_menu);
-        btnMainMenu.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.colorPrimary)));
+        RelativeLayout btnMainMenu = findViewById(R.id.btnMainMenu);
+        ImageView menuIcon = findViewById(R.id.main_menu_icon);
+        View menuBackground = findViewById(R.id.menu_background);
+        FloatingActionButton btnMyLocation = findViewById(R.id.btnMyLocation);
+        View weatherWidget = findViewById(R.id.weather_widget);
+        
+        if (menuIcon != null) {
+            menuIcon.setImageResource(R.drawable.ic_menu);
+            // 원래 각도로 복귀
+            menuIcon.animate().rotation(0f).setDuration(200).start();
+        }
+        if (btnMainMenu != null) {
+            btnMainMenu.setBackgroundResource(R.drawable.fab_gradient_background);
+            // 원래 크기로 복귀
+            btnMainMenu.animate().scaleX(1.0f).scaleY(1.0f).setDuration(200).start();
+        }
+        // 메뉴 배경 숨김
+        if (menuBackground != null) {
+            menuBackground.animate().alpha(0f).setDuration(250)
+                    .withEndAction(() -> menuBackground.setVisibility(View.GONE)).start();
+        }
+        // 양쪽 끝 버튼 활성화 및 투명도 복원
+        if (btnMyLocation != null) {
+            btnMyLocation.setClickable(true);
+            btnMyLocation.setEnabled(true);
+            btnMyLocation.animate().alpha(1.0f).setDuration(200).start();
+        }
+        if (weatherWidget != null) {
+            weatherWidget.setClickable(true);
+            weatherWidget.setEnabled(true);
+            weatherWidget.animate().alpha(1.0f).setDuration(200).start();
+        }
         FloatingActionButton[] targets = {
                 findViewById(R.id.btnFriends), findViewById(R.id.btnCreateGroup),
                 findViewById(R.id.btnMyGroups), findViewById(R.id.btnMyPage), findViewById(R.id.btnSettings)
@@ -1246,7 +1396,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void uploadImageToServer(Uri imageUri) {
         File file = createCacheFileFromUri(imageUri);
         if (file == null) {
-            Toast.makeText(this, "파일을 변환하는 데 실패했습니다.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "😥 사진을 불러올 수 없어요", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -1263,7 +1413,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     Log.d(TAG, "Upload SUCCESS Response Body: " + response.body().toString());
                     String newImageUrl = (String) response.body().get("profileImageUrl");
                     if (newImageUrl != null && !newImageUrl.trim().isEmpty()) {
-                        Toast.makeText(MapsActivity.this, "프로필이 변경되었습니다.", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MapsActivity.this, "✅ 프로필 사진이 변경되었어요", Toast.LENGTH_SHORT).show();
                         SharedPreferences prefs = getSharedPreferences("user_info", MODE_PRIVATE);
                         prefs.edit().putString("profileImageUrl", newImageUrl).apply();
                         loadProfileImage();
@@ -1274,7 +1424,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     }
                 } else {
                     Log.e(TAG, "업로드 실패. HTTP 오류 코드: " + response.code());
-                    Toast.makeText(MapsActivity.this, "업로드에 실패했습니다. (HTTP " + response.code() + ")", Toast.LENGTH_LONG).show();
+                    Toast.makeText(MapsActivity.this, "😥 사진을 업로드할 수 없어요. 다시 시도해주세요", Toast.LENGTH_LONG).show();
                     loadProfileImage();
                 }
             }
@@ -1310,6 +1460,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         rvMyPageFriends = findViewById(R.id.rv_mypage_friends_list);
         rvMyPageFriends.setLayoutManager(new LinearLayoutManager(this));
 
+        // ⭐️ 친구 목록 카운트 TextView 초기화
+        tvFriendsCount = findViewById(R.id.tv_friends_count);
+
         // ⭐️ [5단계 수정] FriendAdapter 초기화 시 MapsActivity 자신을 OnDeleteClickListener로 전달
         // ⭐️ [5단계 수정] 멤버 변수인 myPageFriendsList를 어댑터에 전달
         friendAdapter = new FriendAdapter(myPageFriendsList, this);
@@ -1325,7 +1478,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         // 1. 친구 ID 유효성 검사
         if (friend.getId() == null || friend.getId() == -1L) {
-            Toast.makeText(this, "친구 ID를 찾을 수 없습니다.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "😥 친구 정보를 찾을 수 없어요", Toast.LENGTH_SHORT).show();
             Log.e(TAG, "onDeleteClick: 삭제할 친구의 ID가 유효하지 않습니다.");
             return;
         }
@@ -1338,14 +1491,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             public void onResponse(@NonNull Call<Void> call, @NonNull Response<Void> response) {
                 if (response.isSuccessful()) {
                     // HTTP 200 또는 204 (성공) 응답
-                    Toast.makeText(MapsActivity.this, friend.getUsername() + " 친구가 삭제되었습니다.", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MapsActivity.this, "✅ " + friend.getUsername() + " 님이 친구 목록에서 삭제되었어요", Toast.LENGTH_SHORT).show();
                     Log.d(TAG, "친구 삭제 성공. 응답 코드: " + response.code());
 
                     // 3. 삭제 성공 후, 친구 목록을 새로고침하여 화면을 갱신
                     fetchFriendsListForMyPage();
                 } else {
                     // 4xx 또는 5xx 오류 처리
-                    Toast.makeText(MapsActivity.this, "친구 삭제에 실패했습니다. (코드: " + response.code() + ")", Toast.LENGTH_LONG).show();
+                    Toast.makeText(MapsActivity.this, "😥 친구를 삭제할 수 없어요. 다시 시도해주세요", Toast.LENGTH_LONG).show();
                     Log.e(TAG, "친구 삭제 실패. 응답 코드: " + response.code());
                 }
             }
@@ -1353,7 +1506,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             @Override
             public void onFailure(@NonNull Call<Void> call, @NonNull Throwable t) {
                 // 네트워크 연결 오류 처리
-                Toast.makeText(MapsActivity.this, "네트워크 오류로 삭제에 실패했습니다.", Toast.LENGTH_LONG).show();
+                Toast.makeText(MapsActivity.this, "🌐 인터넷 연결을 확인해주세요", Toast.LENGTH_LONG).show();
                 Log.e(TAG, "친구 삭제 네트워크 오류", t);
             }
         });
@@ -1395,6 +1548,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                     friendAdapter.notifyDataSetChanged(); // ⭐️ [5단계 수정] 어댑터 갱신
                     Log.d(TAG, "마이페이지 친구 목록 로드 성공. 개수: " + myPageFriendsList.size());
+
+                    // ⭐️ 친구 목록 카운트 업데이트
+                    if (tvFriendsCount != null) {
+                        tvFriendsCount.setText(String.valueOf(myPageFriendsList.size()));
+                    }
 
                     // ⭐️ [5단계 추가] 친구 목록 로드 성공 시, 온라인 상태 감지 리스너 시작
                     startPresenceListener();
@@ -1504,7 +1662,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void performSearch() {
         String query = etSearch.getText().toString().trim();
         if (query.isEmpty()) {
-            Toast.makeText(this, "검색어를 입력해주세요.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "🔍 검색어를 입력해주세요", Toast.LENGTH_SHORT).show();
             return;
         }
         hideKeyboard();
@@ -1531,15 +1689,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         result.setImageUrl(imageUrl);
                     }
                     handler.post(() -> {
-                        if (results.isEmpty()) Toast.makeText(this, "검색 결과가 없습니다.", Toast.LENGTH_SHORT).show();
+                        if (results.isEmpty()) Toast.makeText(this, "😥 검색 결과가 없어요. 다른 검색어를 입력해보세요", Toast.LENGTH_SHORT).show();
                         else showSearchResults(results);
                     });
                 } else {
-                    handler.post(() -> Toast.makeText(this, "API 오류 발생", Toast.LENGTH_SHORT).show());
+                    handler.post(() -> Toast.makeText(this, "😥 검색 중 문제가 발생했어요", Toast.LENGTH_SHORT).show());
                 }
             } catch (Exception e) {
                 Log.e("SearchAPI", "Search failed", e);
-                handler.post(() -> Toast.makeText(this, "검색 중 오류 발생", Toast.LENGTH_SHORT).show());
+                handler.post(() -> Toast.makeText(this, "😥 검색 중 문제가 발생했어요", Toast.LENGTH_SHORT).show());
             }
         });
     }
@@ -1651,7 +1809,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (locationSource.onRequestPermissionsResult(requestCode, permissions, grantResults)) {
-            if (naverMap != null) naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
+            if (naverMap != null) {
+                // 위치 추적은 활성화하되 기본 마커만 숨김
+                naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
+                naverMap.getLocationOverlay().setVisible(false);
+            }
         }
     }
     private void moveToCurrentLocation() {
@@ -1848,13 +2010,20 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
         if (destinationMarker == null) {
             destinationMarker = new Marker();
-            destinationMarker.setWidth(Marker.SIZE_AUTO);
-            destinationMarker.setHeight(Marker.SIZE_AUTO);
             destinationMarker.setZIndex(50);
+            // 목적지 마커 아이콘 설정
+            destinationMarker.setIcon(OverlayImage.fromResource(R.drawable.marker_destination_pin));
+            destinationMarker.setWidth(64);
+            destinationMarker.setHeight(64);
+            destinationMarker.setAnchor(new PointF(0.5f, 0.5f)); // 중앙을 앵커로 설정 (중심 점)
             Log.d(TAG, "새 목적지 마커 생성.");
         }
         destinationMarker.setPosition(position);
-        destinationMarker.setCaptionText("🚩 도착지: " + caption);
+        destinationMarker.setCaptionText(caption);
+        // 캡션 스타일 개선
+        destinationMarker.setCaptionTextSize(15);
+        destinationMarker.setCaptionColor(ContextCompat.getColor(this, R.color.colorPrimary));
+        destinationMarker.setCaptionHaloColor(Color.WHITE);
         destinationMarker.setMap(naverMap);
     }
     private void stopDestinationListener() {
@@ -1891,7 +2060,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                             .circleCrop()
                             .diskCacheStrategy(DiskCacheStrategy.NONE)
                             .skipMemoryCache(true)
-                            .override(100, 100)
+                            .override(84, 84) // 테두리 8px*2=16px 추가하면 100x100
                             .submit()
                             .get();
                 }
@@ -1901,9 +2070,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         if (finalBitmap != null) {
                             Bitmap borderedBitmap = addBorderToCircularBitmap(finalBitmap, MARKER_BORDER_WIDTH_PX, MARKER_BORDER_COLOR);
                             myLocationMarker.setIcon(OverlayImage.fromBitmap(borderedBitmap));
+                            myLocationMarker.setWidth(100);
+                            myLocationMarker.setHeight(100);
                             Log.d(TAG, "✅ 내 마커 아이콘이 프로필 사진(테두리 포함)으로 업데이트됨.");
                         } else {
-                            myLocationMarker.setIcon(OverlayImage.fromResource(R.drawable.ic_person));
+                            myLocationMarker.setIcon(OverlayImage.fromResource(R.drawable.marker_my_location));
+                            myLocationMarker.setWidth(80);
+                            myLocationMarker.setHeight(80);
                             Log.d(TAG, "✅ 내 마커 아이콘이 기본 아이콘으로 재설정됨.");
                         }
                     }
@@ -1912,7 +2085,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 Log.e(TAG, "마커 아이콘 업데이트 실패", e);
                 handler.post(() -> {
                     if (myLocationMarker != null) {
-                        myLocationMarker.setIcon(OverlayImage.fromResource(R.drawable.ic_person));
+                        myLocationMarker.setIcon(OverlayImage.fromResource(R.drawable.marker_my_location));
+                        myLocationMarker.setWidth(80);
+                        myLocationMarker.setHeight(80);
                     }
                 });
             }
@@ -1962,7 +2137,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                             .circleCrop()
                             .diskCacheStrategy(DiskCacheStrategy.NONE)
                             .skipMemoryCache(true)
-                            .override(100, 100)
+                            .override(84, 84) // 테두리 8px*2=16px 추가하면 100x100
                             .submit()
                             .get();
                 }
@@ -1972,8 +2147,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         if (finalBitmap != null) {
                             Bitmap borderedBitmap = addBorderToCircularBitmap(finalBitmap, MARKER_BORDER_WIDTH_PX, MARKER_BORDER_COLOR);
                             marker.setIcon(OverlayImage.fromBitmap(borderedBitmap));
+                            marker.setWidth(100);
+                            marker.setHeight(100);
                         } else {
                             marker.setIcon(OverlayImage.fromResource(R.drawable.marker_circle_red));
+                            marker.setWidth(48);
+                            marker.setHeight(48);
                         }
                     }
                 });
@@ -1982,6 +2161,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 handler.post(() -> {
                     if (marker.getMap() == naverMap) {
                         marker.setIcon(OverlayImage.fromResource(R.drawable.marker_circle_red));
+                        marker.setWidth(48);
+                        marker.setHeight(48);
                     }
                 });
             }
@@ -2095,16 +2276,32 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         Bitmap outputBitmap = Bitmap.createBitmap(newDiameter, newDiameter, Config.ARGB_8888);
         Canvas canvas = new Canvas(outputBitmap);
 
-        // 1. 테두리(바깥쪽 원)를 그립니다.
+        // 1. 테두리(바깥쪽 원)를 그라데이션으로 그립니다.
         Paint borderPaint = new Paint();
-        borderPaint.setColor(borderColor);
+        // 보라색 → 핑크 그라데이션 테두리
+        int[] gradientColors = {
+            ContextCompat.getColor(this, R.color.colorPrimary),     // #7C3AED
+            ContextCompat.getColor(this, R.color.wichinPink)        // #EC4899
+        };
+        android.graphics.LinearGradient gradient = new android.graphics.LinearGradient(
+            0, 0, newDiameter, newDiameter,
+            gradientColors,
+            null,
+            Shader.TileMode.CLAMP
+        );
+        borderPaint.setShader(gradient);
         borderPaint.setStyle(Paint.Style.FILL);
         borderPaint.setAntiAlias(true);
         canvas.drawCircle(center, center, newRadius, borderPaint);
 
-        // 2. 원본 비트맵(안쪽 원)을 그립니다.
+        // 2. 원본 비트맵(안쪽 원)을 중앙에 그립니다.
         Paint imagePaint = new Paint();
-        imagePaint.setShader(new BitmapShader(srcBitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP));
+        BitmapShader shader = new BitmapShader(srcBitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+        // 중앙 정렬을 위한 매트릭스 설정
+        android.graphics.Matrix matrix = new android.graphics.Matrix();
+        matrix.setTranslate(borderWidthPx, borderWidthPx);
+        shader.setLocalMatrix(matrix);
+        imagePaint.setShader(shader);
         imagePaint.setAntiAlias(true);
         canvas.drawCircle(center, center, radius, imagePaint);
 
@@ -2203,7 +2400,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         PathOverlay pathOverlay = new PathOverlay();
         pathOverlay.setCoords(path);
-        pathOverlay.setColor(0xFF00FF00); // TMap 시뮬레이션 경로는 초록색
+        pathOverlay.setColor(0xFF7C3AED); // TMap 시뮬레이션 경로는 보라색
         pathOverlay.setWidth(12);
         pathOverlay.setMap(naverMap);
         pathOverlays.add(pathOverlay);

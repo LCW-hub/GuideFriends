@@ -10,6 +10,7 @@ import android.widget.EditText;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 
 import com.example.gps.R;
 import com.example.gps.api.ApiClient;
@@ -33,6 +34,14 @@ public class ResetPasswordActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_reset_password);
+
+        // Toolbar 설정
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setTitle("비밀번호 재설정");
+        }
 
         etNewPassword = findViewById(R.id.etNewPassword);
         etConfirmPassword = findViewById(R.id.etConfirmPassword);
@@ -84,6 +93,12 @@ public class ResetPasswordActivity extends AppCompatActivity {
         });
     }
 
+    @Override
+    public boolean onSupportNavigateUp() {
+        onBackPressed();
+        return true;
+    }
+
     // ✅ 서버에 비밀번호 변경을 요청하는 메서드
     private void performPasswordReset(String token, String password) {
         // ⭐ [수정] ApiClient.getClient(this) -> ApiClient.getRetrofit(this)
@@ -100,9 +115,6 @@ public class ResetPasswordActivity extends AppCompatActivity {
             public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
                 // 성공 응답 (2xx)
                 if (response.isSuccessful() && response.body() != null) {
-                    String message = (String) response.body().get("message");
-                    Toast.makeText(ResetPasswordActivity.this, message, Toast.LENGTH_LONG).show();
-
                     // 성공 시 로그인 화면으로 이동
                     Intent intent = new Intent(ResetPasswordActivity.this, LoginActivity.class);
                     intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);

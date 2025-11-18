@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 텍스트 배경 그라데이션 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="@color/colorPrimary"
+                android:centerColor="#A855F7"
+                android:endColor="@color/wichinPink"
+                android:angle="0"
+                android:type="linear" />
+            <corners android:radius="8dp" />
+        </shape>
+    </item>
+</layer-list>
+

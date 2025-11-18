@@ -1,24 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">산책로 도우미</string>
+    <string name="app_name">WICHIN</string>
     <string name="nav_header_desc">Navigation header</string>
     <string name="action_settings">설정</string>
-    <string name="title_activity_maps">산책로 안내</string>
+    <string name="title_activity_maps">지도</string>
     <string name="title_activity_weather">날씨 정보</string>
     <string name="title_activity_login">로그인</string>
     <string name="title_activity_register">회원가입</string>
     <string name="title_activity_community">커뮤니티</string>
     <string name="title_activity_favorites">즐겨찾기</string>
-    <string name="title_activity_tips">산책로 팁</string>
-    <string name="slogan">자연과 함께하는 안전한 산책</string>
+    <string name="title_activity_tips">팁</string>
+    <string name="slogan">위치를 공유하는 친구들</string>
     <string name="btn_back_to_seoul">서울로 돌아가기</string>
     <string name="btn_close">닫기</string>
     <string name="btn_course_select">코스 선택</string>
 
 
-    <!-- 산책로 도우미 앱 전용 문자열 -->
-    <string name="welcome_message">산책로 도우미에 오신 것을 환영합니다!</string>
-    <string name="welcome_subtitle">자연과 함께하는 즐거운 산책을 시작해보세요</string>
+    <!-- WICHIN 앱 전용 문자열 -->
+    <string name="welcome_message">WICHIN에 오신 것을 환영합니다!</string>
+    <string name="welcome_subtitle">위치를 공유하고 친구들과 연결하세요</string>
     <string name="login_title">로그인</string>
     <string name="signup_title">회원가입</string>
     <string name="guest_mode">게스트 모드로 시작</string>
@@ -33,9 +33,9 @@
     <string name="weather_info">현재 위치의 날씨 정보를 확인하세요</string>
     <string name="my_location">내 위치</string>
     <string name="reset_position">원위치</string>
-    <string name="start_trail">자연과 함께하는 안전한 산책을 시작하세요</string>
-    <string name="trail_helper">산책로 도우미</string>
-    <string name="safe_trail">자연과 함께하는 안전한 산책</string>
+    <string name="start_trail">친구들과 함께 위치를 공유하세요</string>
+    <string name="trail_helper">WICHIN</string>
+    <string name="safe_trail">위치를 공유하는 친구들</string>
     <string name="desc_search_button">검색 버튼</string>
     <string name="desc_weather_icon">현재 날씨 아이콘</string>
     <string name="desc_map_type_button">지도 종류 변경 버튼</string>

@@ -1,50 +1,104 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="8dp"
+    app:cardCornerRadius="18dp"
+    app:cardElevation="6dp"
+    app:cardBackgroundColor="@color/white">
+
+    <RelativeLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:padding="16dp"
     android:background="?android:attr/selectableItemBackground">
 
+        <!-- 그룹 아이콘 -->
+        <ImageView
+            android:id="@+id/ivGroupIcon"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="12dp"
+            android:src="@drawable/ic_forum"
+            android:background="@drawable/profile_image_background"
+            android:padding="12dp"
+            android:tint="@color/colorPrimary" />
+
+        <!-- 삭제 버튼 -->
     <ImageView
         android:id="@+id/btnDeleteGroup"
         android:layout_width="40dp"
         android:layout_height="40dp"
         android:layout_alignParentEnd="true"
         android:layout_alignParentTop="true"
-        android:layout_marginStart="8dp"
         android:src="@drawable/ic_close"
         android:padding="8dp"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:visibility="gone"
-        android:contentDescription="그룹 삭제" />
+            android:contentDescription="그룹 삭제"
+            android:tint="@color/red" />
+
+        <!-- 그룹 정보 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_toEndOf="@id/ivGroupIcon"
+            android:layout_toStartOf="@id/btnDeleteGroup"
+            android:layout_centerVertical="true"
+            android:orientation="vertical">
 
     <TextView
         android:id="@+id/tvGroupName"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_toStartOf="@id/btnDeleteGroup"
         android:text="그룹 이름"
         android:textSize="18sp"
         android:textStyle="bold"
+                android:textColor="@color/textPrimary"
         android:maxLines="1"
         android:ellipsize="end" />
 
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
     <TextView
         android:id="@+id/tvDestination"
-        android:layout_width="wrap_content"
+                    android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_below="@id/tvGroupName"
-        android:text="목적지"
-        android:layout_marginTop="4dp" />
+                    android:layout_weight="1"
+                    android:text="📍 목적지"
+                    android:textSize="14sp"
+                    android:textColor="@color/textSecondary"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:gravity="center_vertical" />
 
     <TextView
         android:id="@+id/tvMemberCount"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@id/tvGroupName"
-        android:layout_alignParentEnd="true"
-        android:layout_marginTop="4dp"
         android:layout_marginStart="8dp"
+                    android:drawableStart="@drawable/ic_person"
+                    android:drawablePadding="4dp"
+                    android:drawableTint="@color/colorPrimary"
         android:text="N명"
-        android:drawablePadding="4dp"
-        android:drawableStart="@drawable/ic_person" /> </RelativeLayout>
+                    android:textColor="@color/colorPrimary"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:gravity="center_vertical"
+                    android:minHeight="24dp"
+                    android:paddingTop="2dp"
+                    android:paddingBottom="2dp" />
+            </LinearLayout>
+        </LinearLayout>
+
+    </RelativeLayout>
+
+</androidx.cardview.widget.CardView>

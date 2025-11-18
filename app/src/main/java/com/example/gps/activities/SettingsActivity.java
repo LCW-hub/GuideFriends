@@ -4,9 +4,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
-// import android.widget.CompoundButton; // 삭제
-// import android.widget.Switch; // 삭제
-// import android.widget.TextView; // 삭제
+import android.widget.LinearLayout;
 import android.widget.Toast;
 import android.widget.RadioGroup;
 import android.widget.RadioButton;
@@ -62,6 +60,42 @@ public class SettingsActivity extends AppCompatActivity {
             saveMapTypeSetting(mapType); // int 값을 저장하는 새 메서드 호출
         });
 
+        // 약관 및 정책 항목 클릭 리스너 설정
+        setupTermsClickListeners();
+    }
+
+    private void setupTermsClickListeners() {
+        // 이용약관
+        LinearLayout layoutTermsOfService = findViewById(R.id.layout_terms_of_service);
+        layoutTermsOfService.setOnClickListener(v -> {
+            Intent intent = new Intent(this, TermsViewerActivity.class);
+            intent.putExtra(TermsViewerActivity.EXTRA_TERMS_TYPE, TermsViewerActivity.TYPE_TERMS_OF_SERVICE);
+            startActivity(intent);
+        });
+
+        // 개인정보처리방침
+        LinearLayout layoutPrivacyPolicy = findViewById(R.id.layout_privacy_policy);
+        layoutPrivacyPolicy.setOnClickListener(v -> {
+            Intent intent = new Intent(this, TermsViewerActivity.class);
+            intent.putExtra(TermsViewerActivity.EXTRA_TERMS_TYPE, TermsViewerActivity.TYPE_PRIVACY_POLICY);
+            startActivity(intent);
+        });
+
+        // 위치정보 이용약관
+        LinearLayout layoutLocationTerms = findViewById(R.id.layout_location_terms);
+        layoutLocationTerms.setOnClickListener(v -> {
+            Intent intent = new Intent(this, TermsViewerActivity.class);
+            intent.putExtra(TermsViewerActivity.EXTRA_TERMS_TYPE, TermsViewerActivity.TYPE_LOCATION_TERMS);
+            startActivity(intent);
+        });
+
+        // 오픈소스 라이선스
+        LinearLayout layoutOpenSourceLicense = findViewById(R.id.layout_open_source_license);
+        layoutOpenSourceLicense.setOnClickListener(v -> {
+            Intent intent = new Intent(this, TermsViewerActivity.class);
+            intent.putExtra(TermsViewerActivity.EXTRA_TERMS_TYPE, TermsViewerActivity.TYPE_OPEN_SOURCE);
+            startActivity(intent);
+        });
     }
 
 

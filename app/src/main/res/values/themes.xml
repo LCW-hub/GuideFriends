@@ -20,12 +20,20 @@
         <item name="android:navigationBarColor">@color/colorPrimaryDark</item>
     </style>
     
-    <!-- 산책 카드 스타일 -->
+    <!-- WICHIN 프리미엄 카드 스타일 -->
     <style name="TrailCardStyle" parent="Widget.MaterialComponents.CardView">
-        <item name="cardElevation">4dp</item>
-        <item name="cardCornerRadius">12dp</item>
+        <item name="cardElevation">6dp</item>
+        <item name="cardCornerRadius">16dp</item>
         <item name="cardBackgroundColor">@color/colorCard</item>
-        <item name="contentPadding">16dp</item>
+        <item name="contentPadding">20dp</item>
+    </style>
+    
+    <!-- WICHIN 엘리베이티드 카드 스타일 -->
+    <style name="ElevatedCardStyle" parent="Widget.MaterialComponents.CardView">
+        <item name="cardElevation">8dp</item>
+        <item name="cardCornerRadius">20dp</item>
+        <item name="cardBackgroundColor">@color/white</item>
+        <item name="contentPadding">24dp</item>
     </style>
     
     <!-- 산책 버튼 스타일 -->

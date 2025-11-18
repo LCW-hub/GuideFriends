@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 외부 펄스 링 (큰 원) -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#30A78BFA" />
+            <size android:width="80dp" android:height="80dp" />
+        </shape>
+    </item>
+    
+    <!-- 중간 링 -->
+    <item android:top="10dp" android:left="10dp" android:right="10dp" android:bottom="10dp">
+        <shape android:shape="oval">
+            <solid android:color="#50C4B5FD" />
+            <size android:width="60dp" android:height="60dp" />
+        </shape>
+    </item>
+    
+    <!-- 외부 그림자 -->
+    <item android:top="22dp" android:left="22dp" android:right="20dp" android:bottom="20dp">
+        <shape android:shape="oval">
+            <solid android:color="#60000000" />
+        </shape>
+    </item>
+    
+    <!-- 메인 마커 (그라데이션) -->
+    <item android:top="20dp" android:left="20dp" android:right="22dp" android:bottom="22dp">
+        <shape android:shape="oval">
+            <gradient
+                android:startColor="@color/colorPrimary"
+                android:endColor="@color/wichinPink"
+                android:angle="135" />
+        </shape>
+    </item>
+    
+    <!-- 하얀 테두리 -->
+    <item android:top="24dp" android:left="24dp" android:right="26dp" android:bottom="26dp">
+        <shape android:shape="oval">
+            <solid android:color="#FFFFFF" />
+        </shape>
+    </item>
+    
+    <!-- 중심 점 (그라데이션) -->
+    <item android:top="32dp" android:left="32dp" android:right="34dp" android:bottom="34dp">
+        <shape android:shape="oval">
+            <gradient
+                android:startColor="@color/colorPrimary"
+                android:endColor="@color/wichinPink"
+                android:angle="135" />
+        </shape>
+    </item>
+</layer-list>
+

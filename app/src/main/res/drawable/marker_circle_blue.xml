@@ -1,15 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="oval">
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 외부 그림자 -->
+    <item android:top="2dp" android:left="2dp">
+        <shape android:shape="oval">
+            <solid android:color="#40000000" />
+            <size android:width="48dp" android:height="48dp" />
+        </shape>
+    </item>
     
-    <solid android:color="#2196F3" />
+    <!-- 그라데이션 배경 -->
+    <item android:bottom="2dp" android:right="2dp">
+        <shape android:shape="oval">
+            <gradient
+                android:startColor="@color/colorPrimary"
+                android:endColor="@color/wichinPink"
+                android:angle="135" />
+            <size android:width="48dp" android:height="48dp" />
+        </shape>
+    </item>
     
-    <stroke
-        android:width="3dp"
-        android:color="#FFFFFF" />
+    <!-- 하얀 테두리 -->
+    <item android:top="4dp" android:bottom="6dp" 
+          android:left="4dp" android:right="6dp">
+        <shape android:shape="oval">
+            <solid android:color="#FFFFFF" />
+        </shape>
+    </item>
     
-    <size
-        android:width="40dp"
-        android:height="40dp" />
-        
-</shape> 
+    <!-- 중심 아이콘 -->
+    <item android:top="12dp" android:bottom="14dp" 
+          android:left="12dp" android:right="14dp">
+        <shape android:shape="oval">
+            <gradient
+                android:startColor="@color/colorPrimary"
+                android:endColor="@color/wichinPink"
+                android:angle="135" />
+        </shape>
+    </item>
+</layer-list> 

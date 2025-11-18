@@ -32,7 +32,7 @@ import com.example.gps.utils.TokenManager;
 public class LoginActivity extends AppCompatActivity {
 
     private EditText editTextUsername, editTextPassword;
-    private Button buttonLogin, buttonGuestMode;
+    private Button buttonLogin;
     private TextView textViewSignup, textViewFindId, textViewFindPassword;
 
     private CheckBox checkBoxRememberMe;
@@ -56,22 +56,18 @@ public class LoginActivity extends AppCompatActivity {
     private void setupLoginView() {
         setContentView(R.layout.activity_login);
 
-        Toolbar toolbar = findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
-        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-        getSupportActionBar().setTitle("로그인");
-
+        // Toolbar 제거됨 - 로그인 페이지에는 뒤로가기 버튼 불필요
+        
         editTextUsername = findViewById(R.id.etId);
         editTextPassword = findViewById(R.id.etPw);
         buttonLogin = findViewById(R.id.btnLogin);
-        buttonGuestMode = findViewById(R.id.btnGuest);
         textViewSignup = findViewById(R.id.tvSignup);
         textViewFindId = findViewById(R.id.tvFindId);
         textViewFindPassword = findViewById(R.id.tvFindPw);
         checkBoxRememberMe = findViewById(R.id.cb_remember_me);
 
-        editTextUsername.setText("ock123");
-        editTextPassword.setText("ock123123");
+        editTextUsername.setText("lcw123");
+        editTextPassword.setText("123456");
 
         buttonLogin.setOnClickListener(v -> login());
         textViewSignup.setOnClickListener(v -> startActivity(new Intent(LoginActivity.this, RegisterActivity.class)));
@@ -184,21 +180,19 @@ public class LoginActivity extends AppCompatActivity {
                             .putString("profileImageUrl", profileImageUrl) // ⭐️ [추가]
                             .apply();
 
-                    Toast.makeText(LoginActivity.this, "로그인 성공!", Toast.LENGTH_SHORT).show();
-
                     Intent intent = new Intent(LoginActivity.this, MapsActivity.class);
                     intent.putExtra("username", username);
                     startActivity(intent);
                     finish();
 
                 } else {
-                    Toast.makeText(LoginActivity.this, "로그인 실패: 아이디 또는 비밀번호를 확인해주세요.", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(LoginActivity.this, "😥 아이디 또는 비밀번호가 올바르지 않아요", Toast.LENGTH_SHORT).show();
                 }
             }
 
             @Override
             public void onFailure(Call<LoginResponse> call, Throwable t) {
-                Toast.makeText(LoginActivity.this, "네트워크 오류: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                Toast.makeText(LoginActivity.this, "🌐 인터넷 연결을 확인해주세요", Toast.LENGTH_SHORT).show();
                 Log.e("LoginActivity", "Login failed", t);
             }
         });

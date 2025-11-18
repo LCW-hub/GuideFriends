@@ -178,7 +178,7 @@ public class FriendsActivity extends AppCompatActivity
             @Override
             public void onFailure(@NonNull Call<Map<String, Object>> call, @NonNull Throwable t) {
                 Log.e(TAG, "Friend request failed: " + t.getMessage());
-                Toast.makeText(FriendsActivity.this, "네트워크 오류가 발생했습니다.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(FriendsActivity.this, "🌐 인터넷 연결을 확인해주세요", Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -283,12 +283,12 @@ public class FriendsActivity extends AppCompatActivity
                     fetchPendingRequests();
                     fetchFriends();
                 } else {
-                    Toast.makeText(FriendsActivity.this, "요청 수락에 실패했습니다.", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(FriendsActivity.this, "😥 친구 요청을 수락할 수 없어요", Toast.LENGTH_SHORT).show();
                 }
             }
             @Override
             public void onFailure(@NonNull Call<Map<String, Object>> call, @NonNull Throwable t) {
-                Toast.makeText(FriendsActivity.this, "네트워크 오류가 발생했습니다.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(FriendsActivity.this, "🌐 인터넷 연결을 확인해주세요", Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -305,12 +305,12 @@ public class FriendsActivity extends AppCompatActivity
                     Toast.makeText(FriendsActivity.this, user.getUsername() + "님의 요청을 거절했습니다.", Toast.LENGTH_SHORT).show();
                     fetchPendingRequests();
                 } else {
-                    Toast.makeText(FriendsActivity.this, "거절에 실패했습니다.", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(FriendsActivity.this, "😥 친구 요청을 거절할 수 없어요", Toast.LENGTH_SHORT).show();
                 }
             }
             @Override
             public void onFailure(@NonNull Call<Map<String, Object>> call, @NonNull Throwable t) {
-                Toast.makeText(FriendsActivity.this, "네트워크 오류가 발생했습니다.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(FriendsActivity.this, "🌐 인터넷 연결을 확인해주세요", Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -327,12 +327,12 @@ public class FriendsActivity extends AppCompatActivity
                     Toast.makeText(FriendsActivity.this, "요청을 취소했습니다.", Toast.LENGTH_SHORT).show();
                     fetchSentRequests();
                 } else {
-                    Toast.makeText(FriendsActivity.this, "취소에 실패했습니다.", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(FriendsActivity.this, "😥 친구 요청을 취소할 수 없어요", Toast.LENGTH_SHORT).show();
                 }
             }
             @Override
             public void onFailure(@NonNull Call<Map<String, Object>> call, @NonNull Throwable t) {
-                Toast.makeText(FriendsActivity.this, "네트워크 오류가 발생했습니다.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(FriendsActivity.this, "🌐 인터넷 연결을 확인해주세요", Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -351,12 +351,12 @@ public class FriendsActivity extends AppCompatActivity
                     Toast.makeText(FriendsActivity.this, friend.getUsername() + "님을 친구 목록에서 삭제했습니다.", Toast.LENGTH_SHORT).show();
                     fetchFriends();
                 } else {
-                    Toast.makeText(FriendsActivity.this, "삭제에 실패했습니다. (코드: " + response.code() + ")", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(FriendsActivity.this, "😥 친구를 삭제할 수 없어요", Toast.LENGTH_SHORT).show();
                 }
             }
             @Override
             public void onFailure(@NonNull Call<Void> call, @NonNull Throwable t) {
-                Toast.makeText(FriendsActivity.this, "네트워크 오류가 발생했습니다.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(FriendsActivity.this, "🌐 인터넷 연결을 확인해주세요", Toast.LENGTH_SHORT).show();
             }
         });
     }

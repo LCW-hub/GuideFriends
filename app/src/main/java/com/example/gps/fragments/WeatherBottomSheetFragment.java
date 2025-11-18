@@ -111,18 +111,22 @@ public class WeatherBottomSheetFragment extends BottomSheetDialogFragment {
     }
 
     private void showHourlyForecast() {
-        tvTabHourly.setTextColor(getResources().getColor(android.R.color.black));
+        tvTabHourly.setTextColor(getResources().getColor(R.color.colorPrimary));
+        tvTabHourly.setTextSize(16);
         tvTabHourly.setBackgroundResource(R.drawable.tab_selected_indicator);
-        tvTabDaily.setTextColor(getResources().getColor(R.color.textColorSecondary));
+        tvTabDaily.setTextColor(getResources().getColor(R.color.textSecondary));
+        tvTabDaily.setTextSize(16);
         tvTabDaily.setBackground(null);
         rvHourlyForecast.setVisibility(View.VISIBLE);
         rvDailyForecast.setVisibility(View.GONE);
     }
 
     private void showDailyForecast() {
-        tvTabDaily.setTextColor(getResources().getColor(android.R.color.black));
+        tvTabDaily.setTextColor(getResources().getColor(R.color.colorPrimary));
+        tvTabDaily.setTextSize(16);
         tvTabDaily.setBackgroundResource(R.drawable.tab_selected_indicator);
-        tvTabHourly.setTextColor(getResources().getColor(R.color.textColorSecondary));
+        tvTabHourly.setTextColor(getResources().getColor(R.color.textSecondary));
+        tvTabHourly.setTextSize(16);
         tvTabHourly.setBackground(null);
         rvHourlyForecast.setVisibility(View.GONE);
         rvDailyForecast.setVisibility(View.VISIBLE);
@@ -222,31 +226,39 @@ public class WeatherBottomSheetFragment extends BottomSheetDialogFragment {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Handler handler = new Handler(Looper.getMainLooper());
 
+        // 좌표를 먼저 표시
+        handler.post(() -> tvLocationName.setText(String.format(Locale.getDefault(), "현재 위치 (%.4f, %.4f)", lat, lon)));
+
         executor.execute(() -> {
             try {
                 List<android.location.Address> addresses = geocoder.getFromLocation(lat, lon, 1);
                 if (addresses != null && !addresses.isEmpty()) {
                     android.location.Address address = addresses.get(0);
 
-                    // ★★★ 상세 주소(동, 도로명) 정보 추가 ★★★
+                    // 상세 주소(동, 도로명) 정보 추가
                     String locality = address.getLocality() != null ? address.getLocality() : ""; // 시
                     String subLocality = address.getSubLocality() != null ? address.getSubLocality() : ""; // 구
                     String thoroughfare = address.getThoroughfare() != null ? address.getThoroughfare() : ""; // 동 또는 도로명
 
-                    // ★★★ 조합 방식 변경 ★★★
+                    // 조합 방식
                     final String locationName = (locality + " " + subLocality + " " + thoroughfare).trim();
 
                     handler.post(() -> {
                         if (!locationName.isEmpty()) {
-                            tvLocationName.setText("📍 " + locationName);
+                            tvLocationName.setText(locationName);
                         } else {
-                            tvLocationName.setText("📍 위치 이름 확인 불가");
+                            // 주소 변환 실패 시 좌표 표시
+                            tvLocationName.setText(String.format(Locale.getDefault(), "위도: %.4f, 경도: %.4f", lat, lon));
                         }
                     });
+                } else {
+                    // 주소를 찾지 못한 경우 좌표 표시
+                    handler.post(() -> tvLocationName.setText(String.format(Locale.getDefault(), "위도: %.4f, 경도: %.4f", lat, lon)));
                 }
             } catch (Exception e) {
                 Log.e("Geocoder", "주소 변환 실패", e);
-                handler.post(() -> tvLocationName.setText("📍 위치 이름 확인 불가"));
+                // 에러 발생 시에도 좌표 표시
+                handler.post(() -> tvLocationName.setText(String.format(Locale.getDefault(), "위도: %.4f, 경도: %.4f", lat, lon)));
             }
         });
     }
