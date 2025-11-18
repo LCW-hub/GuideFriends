@@ -195,7 +195,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private Handler animationHandler;
     private Runnable animationRunnable;
     private LatLng startLatLng = new LatLng(37.5665, 126.9780); // 서울시청
-    private LatLng endLatLng = new LatLng(37.48723, 126.82056); // 유한대학교
+
+    private LatLng endLatLng = null;
+    //private LatLng endLatLng = new LatLng(37.48723, 126.82056); // 유한대학교
     private final long totalDuration = 10000;
     private final int updateInterval = 50;
     private long startTime;
@@ -1076,7 +1078,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
     private void startMockMovement() {
         if (isSimulationRunning) {
-            // --- 시뮬레이션 중지 ---
+            // --- 시뮬레이션 중지 로직 ---
             isSimulationRunning = false;
             if (animationHandler != null) {
                 animationHandler.removeCallbacks(animationRunnable);
@@ -1098,7 +1100,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             return;
         }
 
-        // ⭐️ [수정된 로직 시작] 현재 위치를 가져옵니다.
+        // ⭐️ [핵심 수정 1] 도착지 (endLatLng) 설정 로직
+        if (destinationMarker == null || destinationMarker.getPosition() == null) {
+            Toast.makeText(this, "⚠️ 현재 그룹의 목적지가 설정되지 않았습니다.", Toast.LENGTH_LONG).show();
+            Log.e(TAG, "startMockMovement: 그룹 목적지 마커가 없어 시뮬레이션 중단.");
+            return;
+        }
+        endLatLng = destinationMarker.getPosition(); // ⭐️ 그룹 목적지 좌표를 도착지로 사용
+
+        // --- 출발지 설정 ---
         Location lastKnownLocation = locationSource.getLastLocation();
         if (lastKnownLocation == null) {
             Toast.makeText(this, "📍 현재 위치를 찾을 수 없어요. GPS를 켜주세요", Toast.LENGTH_LONG).show();
@@ -1108,14 +1118,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         // ⭐️ 현재 위치를 출발지로 설정
         startLatLng = new LatLng(lastKnownLocation.getLatitude(), lastKnownLocation.getLongitude());
-        // ⭐️ 도착지는 유한대학교로 유지 (37.48723, 126.82056)
 
         // --- 시뮬레이션 시작 ---
         isSimulationRunning = true;
 
         removeMyLastKnownLocation();
 
-        Toast.makeText(this, "TMap API 가상 이동 시작 (현재 위치->유한대학교)", Toast.LENGTH_LONG).show();
+        // ⭐️ 로그 메시지 수정
+        Toast.makeText(this, "TMap API 가상 이동 시작 (현재 위치 -> 그룹 목적지)", Toast.LENGTH_LONG).show();
         Log.d(TAG, "startMockMovement: TMap API 가상 이동 시작. " + startLatLng.latitude + " -> " + endLatLng.latitude);
 
         // TMap API로 경로 요청
