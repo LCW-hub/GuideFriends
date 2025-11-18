@@ -2,7 +2,6 @@ package com.example.gps.activities;
 
 import android.app.Activity;
 import android.app.DatePickerDialog;
-import android.app.TimePickerDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
@@ -36,6 +35,7 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TimeZone; // TimeZone import 추가
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -56,7 +56,7 @@ public class CreateGroupActivity extends AppCompatActivity {
     private List<User> friendList = new ArrayList<>();
 
     // 사용자 정보
-    private String loggedInUsername; // ⭐ [추가] 클래스 멤버 변수로 선언
+    private String loggedInUsername;
 
     // 목적지 정보 저장 변수
     private String destinationName;
@@ -64,8 +64,9 @@ public class CreateGroupActivity extends AppCompatActivity {
     private double destinationLng = 0.0;
 
     // 시간 정보 저장 변수
-    private Calendar startTimeCalendar = Calendar.getInstance();
-    private Calendar endTimeCalendar = Calendar.getInstance();
+    // Calendar 객체는 onCreate에서 KST TimeZone을 설정하여 초기화됩니다.
+    private Calendar startTimeCalendar;
+    private Calendar endTimeCalendar;
     private SimpleDateFormat serverFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.KOREA);
 
     // --- 기능 구현 ---
@@ -76,7 +77,16 @@ public class CreateGroupActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_create_group);
 
-        // ⭐ [추가] username 초기화 (MapsActivity에서 전달받음)
+        // ⭐ [추가/수정] TimeZone 설정 및 Calendar 객체 초기화 (KST 강제)
+        TimeZone kstZone = TimeZone.getTimeZone("Asia/Seoul");
+
+        // Calendar 객체를 KST TimeZone으로 초기화
+        startTimeCalendar = Calendar.getInstance(kstZone);
+        endTimeCalendar = Calendar.getInstance(kstZone);
+
+        // SimpleDateFormat에도 KST TimeZone 강제 설정
+        serverFormat.setTimeZone(kstZone);
+
         loggedInUsername = getIntent().getStringExtra("username");
 
         // --- UI 요소 초기화 ---
@@ -120,17 +130,17 @@ public class CreateGroupActivity extends AppCompatActivity {
                         if (destinationName != null && !destinationName.isEmpty()) {
                             // 목적지 이름 표시 (📍 아이콘 추가)
                             etDestination.setText("📍 " + destinationName);
-                            
+
                             // 선택되었음을 표시하기 위해 스타일 변경 (초록색 배경)
                             etDestination.setTextColor(getResources().getColor(R.color.white, null));
                             etDestination.setBackgroundResource(R.drawable.button_destination_selected);
                             etDestination.setTextSize(17); // 텍스트 크기 증가
-                            
+
                             // 좌표 정보도 로그로 출력
-                            Log.d("CreateGroupActivity", 
-                                String.format("목적지 선택됨: %s (%.6f, %.6f)", 
-                                    destinationName, destinationLat, destinationLng));
-                            
+                            Log.d("CreateGroupActivity",
+                                    String.format("목적지 선택됨: %s (%.6f, %.6f)",
+                                            destinationName, destinationLat, destinationLng));
+
                             // 사용자에게 피드백
                             Toast.makeText(this, "📍 목적지가 설정되었어요!", Toast.LENGTH_SHORT).show();
                         }
@@ -171,10 +181,10 @@ public class CreateGroupActivity extends AppCompatActivity {
 
         // TimePicker 찾기
         TimePicker timePicker = dialogView.findViewById(R.id.time_picker_spinner);
-        
+
         // 24시간 형식으로 설정
         timePicker.setIs24HourView(true);
-        
+
         // 현재 시간으로 초기화
         timePicker.setHour(currentCalendar.get(Calendar.HOUR_OF_DAY));
         timePicker.setMinute(currentCalendar.get(Calendar.MINUTE));
@@ -199,17 +209,33 @@ public class CreateGroupActivity extends AppCompatActivity {
             int hourOfDay = timePicker.getHour();
             int minute = timePicker.getMinute();
 
-                Calendar selectedCalendar = Calendar.getInstance();
-                selectedCalendar.set(year, month, dayOfMonth, hourOfDay, minute);
+            // 1. Calendar 객체를 현재 시점으로 생성 (TimeZone 정보 유지)
+            Calendar selectedCalendar = Calendar.getInstance();
+            selectedCalendar.setTimeZone(TimeZone.getTimeZone("Asia/Seoul")); // KST TimeZone 강제
 
-                SimpleDateFormat displayFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.KOREA);
-                if (isStart) {
-                    startTimeCalendar = selectedCalendar;
-                    etStartTime.setText(displayFormat.format(startTimeCalendar.getTime()));
-                } else {
-                    endTimeCalendar = selectedCalendar;
-                    etEndTime.setText(displayFormat.format(endTimeCalendar.getTime()));
-                }
+            // 2. 날짜/시간 필드를 명확하게 설정
+            selectedCalendar.set(Calendar.YEAR, year);
+            selectedCalendar.set(Calendar.MONTH, month);
+            selectedCalendar.set(Calendar.DAY_OF_MONTH, dayOfMonth);
+            selectedCalendar.set(Calendar.HOUR_OF_DAY, hourOfDay);
+            selectedCalendar.set(Calendar.MINUTE, minute);
+
+            // ⭐ [핵심 수정 반영] 초와 밀리초를 0으로 강제 초기화하여 날짜 오버플로우 방지
+            selectedCalendar.set(Calendar.SECOND, 0);
+            selectedCalendar.set(Calendar.MILLISECOND, 0);
+
+            SimpleDateFormat displayFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.KOREA);
+
+            // displayFormat도 KST를 사용하도록 강제 (onCreate에서 이미 설정되었지만, 안전을 위해)
+            displayFormat.setTimeZone(TimeZone.getTimeZone("Asia/Seoul"));
+
+            if (isStart) {
+                startTimeCalendar = selectedCalendar;
+                etStartTime.setText(displayFormat.format(startTimeCalendar.getTime()));
+            } else {
+                endTimeCalendar = selectedCalendar;
+                etEndTime.setText(displayFormat.format(endTimeCalendar.getTime()));
+            }
 
             dialog.dismiss();
         });
@@ -250,6 +276,9 @@ public class CreateGroupActivity extends AppCompatActivity {
      * 입력된 정보로 그룹 생성을 서버에 요청하고, 성공 시 MapsActivity로 이동하여 위치 공유를 시작합니다.
      */
     private void createGroup() {
+        // ⭐ [삭제] onCreate에서 이미 설정했으므로 제거했습니다. 중복 설정은 오류를 유발합니다.
+        // serverFormat.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Seoul"));
+
         String groupName = etGroupName.getText().toString().trim();
         List<Long> selectedMemberIds = adapter.getSelectedFriendIds();
 
@@ -258,8 +287,11 @@ public class CreateGroupActivity extends AppCompatActivity {
             return;
         }
 
+        // Calendar 객체에 KST가 강제 설정되어 있으므로, 정확한 KST 기반 TimeStamp와 문자열이 나옵니다.
         String startTimeStr = serverFormat.format(startTimeCalendar.getTime());
         String endTimeStr = serverFormat.format(endTimeCalendar.getTime());
+
+        long endTimeMillis = endTimeCalendar.getTimeInMillis();
 
         CreateGroupRequest request = new CreateGroupRequest();
         request.setName(groupName);
@@ -273,6 +305,7 @@ public class CreateGroupActivity extends AppCompatActivity {
         GroupApiService groupApiService = ApiClient.getGroupApiService(this);
         Call<Map<String, String>> call = groupApiService.createGroup(request);
 
+        // ⭐ [오류 해결] Call<Map<String, String>>에 맞게 onResponse 시그니처 수정
         call.enqueue(new Callback<Map<String, String>>() {
             @Override
             public void onResponse(Call<Map<String, String>> call, Response<Map<String, String>> response) {
@@ -298,6 +331,13 @@ public class CreateGroupActivity extends AppCompatActivity {
                                 destinationData.put("name", destinationName);
                                 destinationData.put("latitude", destinationLat);
                                 destinationData.put("longitude", destinationLng);
+
+                                String startTimeStr = serverFormat.format(startTimeCalendar.getTime()); // 상단에서 선언된 변수 재활용
+                                String endTimeStr = serverFormat.format(endTimeCalendar.getTime()); // 상단에서 선언된 변수 재활용
+
+                                destinationData.put("endTimeMillis", endTimeMillis);
+                                destinationData.put("startTime", startTimeStr);
+                                destinationData.put("endTime", endTimeStr);
 
                                 // Firebase에 데이터 쓰기
                                 destinationRef.setValue(destinationData)
@@ -330,6 +370,7 @@ public class CreateGroupActivity extends AppCompatActivity {
                 } else {
                     String errorBody = "N/A";
                     try {
+                        // errorBody를 가져올 때 response.errorBody()가 null인지 체크합니다.
                         if (response.errorBody() != null) errorBody = response.errorBody().string();
                     } catch (Exception e) {
                         Log.e("CreateGroupActivity", "Error body parsing failed", e);
