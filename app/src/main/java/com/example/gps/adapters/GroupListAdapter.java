@@ -2,6 +2,8 @@ package com.example.gps.adapters;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -120,9 +122,29 @@ public class GroupListAdapter extends RecyclerView.Adapter<GroupListAdapter.Grou
             public void onResponse(@NonNull Call<Map<String, String>> call, @NonNull Response<Map<String, String>> response) {
                 if (response.isSuccessful()) {
                     Toast.makeText(context, "그룹이 삭제되었습니다.", Toast.LENGTH_SHORT).show();
+                    // --- 🔽 [수정/추가] ---
+
+                    // 1. 로컬 목록에서 즉시 제거 (기존 코드)
                     groupList.remove(position);
                     notifyItemRemoved(position);
                     notifyItemRangeChanged(position, groupList.size());
+
+                    // 2. MapsActivity로 돌아가서 버튼을 숨기도록 Intent 전송
+                    Intent intent = new Intent(context, com.example.gps.activities.MapsActivity.class);
+
+                    // 3. (중요) groupId를 -1L로 설정하거나 아예 보내지 않습니다.
+                    // 이렇게 하면 MapsActivity의 onNewIntent가 groupId를 -1L로 인식합니다.
+                    intent.putExtra("groupId", -1L);
+                    intent.putExtra("username", loggedInUsername); // username은 계속 전달
+
+                    SharedPreferences prefs = context.getSharedPreferences("user_info", Context.MODE_PRIVATE);
+                    String savedUsername = prefs.getString("username", null);
+
+                    // 4. MapsActivity의 기존 인스턴스를 재활용
+                    intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    context.startActivity(intent);
+
+                    // --- 🔼 [여기까지 수정/추가] --
                 } else {
                     Toast.makeText(context, "그룹 삭제에 실패했습니다. (권한 없음)", Toast.LENGTH_SHORT).show();
                 }

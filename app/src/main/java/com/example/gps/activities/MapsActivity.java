@@ -257,6 +257,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private Runnable sessionCheckRunnable;
     private static final int SESSION_CHECK_INTERVAL = 10000; // 10초 간격으로 검사
 
+    private Map<Long, Bitmap> profileBitmapCache = new HashMap<>();
+
 
     //==============================================================================================
     // 1. Activity Lifecycle & Setup
@@ -935,7 +937,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // --- ⭐️ [추가 끝] ---
 
 
-    // ... (startLocationSharing 부터 onDestinationSelected 까지 원본과 동일) ...
     private void startLocationSharing() {
         locationUpdateHandler.removeCallbacksAndMessages(null);
         if (loggedInUserId == -1L) {
@@ -946,28 +947,39 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         startMyLocationMarkerListener();
         startDestinationListener();
         Log.d(TAG, "startLocationSharing: 위치 공유 프로세스 시작. 업데이트 주기=" + LOCATION_UPDATE_INTERVAL + "ms");
+
         locationUpdateRunnable = () -> {
+            // 1. 마커 숨김 상태면 전송 안 함
             if (!isMyMarkerVisibleGlobally) {
                 Log.d(TAG, "Location Update: 마커 숨김 상태이므로 위치 전송을 중단합니다.");
                 locationUpdateHandler.postDelayed(locationUpdateRunnable, LOCATION_UPDATE_INTERVAL);
                 return;
             }
 
+            // 2. 전송할 위치 데이터 준비 (아직 전송 안 함!)
+            Location locationToSend = null;
 
-            // ⭐️ [TMap 수정] TMap 시뮬레이션 중이 아닐 때만 실제 위치 업데이트
+            // TMap 시뮬레이션 중이 아닐 때만 실제 GPS 위치 가져오기
             if (locationSource != null && animationHandler == null && !isSimulationRunning) {
-                Location lastKnownLocation = locationSource.getLastLocation();
-                if (lastKnownLocation != null) {
-                    Log.d(TAG, "Location Update: 위치 획득 성공. Latitude=" + lastKnownLocation.getLatitude());
-                    updateMyLocation(lastKnownLocation);
+                locationToSend = locationSource.getLastLocation();
+                if (locationToSend != null) {
+                    Log.d(TAG, "Location Update: 위치 획득 성공. 유효성 검사 후 전송 시도.");
                 } else {
-                    Log.w(TAG, "Location Update: LocationSource에서 마지막 위치 정보를 가져올 수 없습니다. GPS 신호 대기 중.");
+                    Log.w(TAG, "Location Update: 위치 정보를 가져올 수 없습니다.");
                 }
             } else if (animationHandler != null) {
                 Log.d(TAG, "Location Update: 모의(Mock) 이동 중이므로 실제 위치 업데이트는 건너킵니다.");
             }
+
+            // 3. ⭐️ [핵심 수정] "그룹 확인 함수"에 위치 데이터를 넘김
+            // -> 이 함수가 "그룹이 살아있을 때만" updateMyLocation()을 실행해줍니다.
+            // -> 그룹이 삭제되었으면 즉시 handleGroupDeleted()가 실행되고 위치는 전송되지 않습니다.
+            checkGroupValidity(locationToSend);
+
+            // 4. 다음 타이머 예약
             locationUpdateHandler.postDelayed(locationUpdateRunnable, LOCATION_UPDATE_INTERVAL);
         };
+
         locationUpdateHandler.post(locationUpdateRunnable);
         startFirebaseLocationListener();
     }
@@ -1053,8 +1065,22 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
             marker.setPosition(memberPosition);
             marker.setMap(naverMap);
-            fetchAndApplyMemberProfile(userId, marker);
-        }
+            // ⭐️ [수정된 코드] 캐시 확인 로직
+            if (profileBitmapCache.containsKey(userId)) {
+                // 1. 이미 저장된 이미지가 있다면 -> 다운로드 없이 바로 적용! (렉 없음)
+                Bitmap cachedBitmap = profileBitmapCache.get(userId);
+
+                // 테두리가 필요하다면 여기서 addBorderToCircularBitmap 사용 (선택사항)
+                // Bitmap finalIcon = addBorderToCircularBitmap(cachedBitmap, MARKER_BORDER_WIDTH_PX, MARKER_BORDER_COLOR);
+
+                marker.setIcon(OverlayImage.fromBitmap(cachedBitmap));
+                marker.setWidth(100);
+                marker.setHeight(100);
+            } else {
+                // 2. 저장된 이미지가 없다면 -> 서버에서 다운로드 (최초 1회만 실행됨)
+                fetchAndApplyMemberProfile(userId, marker);
+            }        }
+
         boolean markerRemoved = false;
         Iterator<Map.Entry<String, Marker>> iterator = memberMarkers.entrySet().iterator();
         while (iterator.hasNext()) {
@@ -1073,6 +1099,63 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             naverMap.moveCamera(cameraUpdate);
             Log.d(TAG, "updateMemberMarkers: 마커 제거 완료 후 지도 뷰 강제 갱신 시도 완료.");
         }
+    }
+
+    // ⭐️ [수정] 매개변수(Location)를 받도록 변경
+    private void checkGroupValidity(Location locationToSend) {
+        if (currentGroupId == -1L) return;
+
+        // 1. 서버에 그룹 상태 문의 (메서드 이름 getAllGroupMembers 확인)
+        Call<List<User>> call = ApiClient.getGroupApiService(this).getAllGroupMembers(currentGroupId);
+
+        call.enqueue(new Callback<List<User>>() {
+            @Override
+            public void onResponse(@NonNull Call<List<User>> call, @NonNull Response<List<User>> response) {
+                if (!response.isSuccessful()) {
+                    // 2-A. 실패(404 등): 그룹이 삭제됨 -> 앱 종료 처리
+                    Log.w(TAG, "🚨 그룹 유효성 검사 실패. 그룹 삭제 처리 시작.");
+                    handleGroupDeleted();
+                } else {
+                    // 2-B. 성공: 그룹이 살아있음 -> 이때 비로소 위치 전송! (중요)
+                    // locationToSend가 null이 아닐 때만 전송 (onResume 등에서는 null일 수 있음)
+                    if (locationToSend != null) {
+                        updateMyLocation(locationToSend);
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<List<User>> call, @NonNull Throwable t) {
+                Log.e(TAG, "그룹 유효성 검사 네트워크 오류", t);
+            }
+        });
+    }
+
+    // 그룹 삭제 시 처리 로직
+    private void handleGroupDeleted() {
+        // 1. 위치 공유 중단
+        locationUpdateHandler.removeCallbacks(locationUpdateRunnable);
+
+        // 2. Firebase 리스너 제거
+        if (currentGroupId != -1L && memberLocationListener != null) {
+            firebaseDatabase.child(String.valueOf(currentGroupId)).removeEventListener(memberLocationListener);
+        }
+
+        // 3. 내 위치 데이터 Firebase에서 삭제 (중요: 좀비 데이터 방지)
+        removeMyLastKnownLocation();
+
+        // 4. 화면 이동 및 종료
+        runOnUiThread(() -> {
+            Toast.makeText(MapsActivity.this, "그룹이 종료되어 메인 화면으로 이동합니다.", Toast.LENGTH_LONG).show();
+
+            // ⭐️ [추가] 단순히 닫지 말고, 메인 화면(NormalMainActivity)을 새로 띄웁니다.
+            // (만약 메인 액티비티 이름이 NormalMainActivity가 아니라면 해당 이름으로 바꿔주세요)
+            Intent intent = new Intent(MapsActivity.this, MapsActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK); // 기존 스택 비우기
+            startActivity(intent);
+
+            finish(); // 현재 맵 액티비티 종료
+        });
     }
 
     // 🟢 [추가] 주기적 세션 유효성 검사 타이머 시작
@@ -1109,8 +1192,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         updateWeatherWidget(defaultLocation);
     }
     private void startMockMovement() {
+        // 1. 이미 시뮬레이션 중이면 중지
         if (isSimulationRunning) {
-            // --- 시뮬레이션 중지 ---
             isSimulationRunning = false;
             if (animationHandler != null) {
                 animationHandler.removeCallbacks(animationRunnable);
@@ -1120,7 +1203,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             pathOverlays.clear();
 
             removeMyLastKnownLocation();
-
 
             Toast.makeText(this, "TMap 시뮬레이션을 중지합니다.", Toast.LENGTH_SHORT).show();
             Log.d(TAG, "startMockMovement: TMap 시뮬레이션 중지됨.");
@@ -1132,25 +1214,38 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             return;
         }
 
-        // ⭐️ [수정된 로직 시작] 현재 위치를 가져옵니다.
-        Location lastKnownLocation = locationSource.getLastLocation();
-        if (lastKnownLocation == null) {
-            Toast.makeText(this, "📍 현재 위치를 찾을 수 없어요. GPS를 켜주세요", Toast.LENGTH_LONG).show();
-            Log.e(TAG, "startMockMovement: FusedLocationSource에서 위치를 가져오지 못했습니다.");
+        // 2. 도착지 설정 (그룹 목적지 사용)
+        if (destinationMarker != null && destinationMarker.getPosition() != null) {
+            endLatLng = destinationMarker.getPosition(); // ⭐️ 그룹 목적지 좌표 사용
+            Log.d(TAG, "startMockMovement: 그룹 목적지로 설정됨 -> " + endLatLng.toString());
+        } else {
+            Toast.makeText(this, "⚠️ 그룹 목적지가 설정되지 않아 시뮬레이션을 시작할 수 없습니다.", Toast.LENGTH_LONG).show();
+            Log.e(TAG, "startMockMovement: 그룹 목적지 마커 없음.");
             return;
         }
 
-        // ⭐️ 현재 위치를 출발지로 설정
-        startLatLng = new LatLng(lastKnownLocation.getLatitude(), lastKnownLocation.getLongitude());
-        // ⭐️ 도착지는 유한대학교로 유지 (37.48723, 126.82056)
+        // 3. ⭐️ [수정된 부분] 출발지 설정 (내 마커 위치 최우선 사용)
+        // 화면에 보이는 '내 마커'가 있다면 그 위치를 출발지로 잡아야 튀는 현상이 없습니다.
+        if (myLocationMarker != null && myLocationMarker.getPosition() != null) {
+            startLatLng = myLocationMarker.getPosition();
+        } else {
+            // 마커가 아직 없다면 시스템 위치(GPS) 사용
+            Location lastKnownLocation = locationSource.getLastLocation();
+            if (lastKnownLocation != null) {
+                startLatLng = new LatLng(lastKnownLocation.getLatitude(), lastKnownLocation.getLongitude());
+            } else {
+                Toast.makeText(this, "📍 현재 위치를 찾을 수 없어요. GPS를 켜주세요", Toast.LENGTH_LONG).show();
+                Log.e(TAG, "startMockMovement: 위치 정보를 가져올 수 없음.");
+                return;
+            }
+        }
 
         // --- 시뮬레이션 시작 ---
         isSimulationRunning = true;
+        removeMyLastKnownLocation(); // 실제 위치 공유 잠시 중단
 
-        removeMyLastKnownLocation();
-
-        Toast.makeText(this, "TMap API 가상 이동 시작 (현재 위치->유한대학교)", Toast.LENGTH_LONG).show();
-        Log.d(TAG, "startMockMovement: TMap API 가상 이동 시작. " + startLatLng.latitude + " -> " + endLatLng.latitude);
+        Toast.makeText(this, "경로 안내 시뮬레이션을 시작합니다.", Toast.LENGTH_SHORT).show();
+        Log.d(TAG, "startMockMovement: 가상 이동 시작. " + startLatLng.latitude + " -> " + endLatLng.latitude);
 
         // TMap API로 경로 요청
         double totalDistance = calculateDistance(startLatLng, endLatLng);
@@ -1865,6 +1960,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         if (currentGroupId != -1L) {
             Log.d(TAG, "onResume: 유효한 그룹 ID(" + currentGroupId + ")가 있어 위치 공유 재시작.");
+            checkGroupValidity(null);
             startLocationSharing();
             startMapRefreshTimer();
         } else {
@@ -2100,20 +2196,26 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             public void onResponse(Call<Map<String, String>> call, Response<Map<String, String>> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     String imageUrl = response.body().get("profileImageUrl");
-                    loadBitmapForMarker(imageUrl, marker);
+
+                    // ⭐️ [수정] userId 추가
+                    loadBitmapForMarker(imageUrl, marker, userId);
                 } else {
                     Log.e(TAG, "팀원 프로필 URL 획득 실패: ID=" + userId + ", Code=" + response.code());
-                    loadBitmapForMarker(null, marker);
+
+                    // ⭐️ [수정] userId 추가
+                    loadBitmapForMarker(null, marker, userId);
                 }
             }
             @Override
             public void onFailure(Call<Map<String, String>> call, Throwable t) {
                 Log.e(TAG, "팀원 프로필 URL 네트워크 오류: ID=" + userId, t);
-                loadBitmapForMarker(null, marker);
+
+                // ⭐️ [수정] userId 추가
+                loadBitmapForMarker(null, marker, userId);
             }
         });
     }
-    private void loadBitmapForMarker(String imageUrl, final Marker marker) {
+    private void loadBitmapForMarker(String imageUrl, final Marker marker, final Long userId) {
         executor.execute(() -> {
             try {
                 Object loadTarget = null;
@@ -2142,6 +2244,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                             .get();
                 }
                 final Bitmap finalBitmap = bitmap;
+                // ⭐️ [추가] 다운로드 성공한 비트맵을 캐시에 저장 (테두리 작업 후 저장하면 더 좋음)
+                if (finalBitmap != null) {
+                    // 테두리 추가 (선택사항 - 위 addBorderToCircularBitmap 메서드 활용)
+                    Bitmap borderedBitmap = addBorderToCircularBitmap(finalBitmap, MARKER_BORDER_WIDTH_PX, MARKER_BORDER_COLOR);
+
+                    // 캐시에 저장!
+                    profileBitmapCache.put(userId, borderedBitmap);
+                }
+
                 handler.post(() -> {
                     if (naverMap != null && marker.getMap() == naverMap) {
                         if (finalBitmap != null) {

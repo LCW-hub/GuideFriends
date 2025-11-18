@@ -75,8 +75,7 @@ public class FriendAdapter extends RecyclerView.Adapter<FriendAdapter.FriendView
                 .load(loadTarget)
                 .placeholder(R.drawable.ic_person)
                 .error(R.drawable.ic_person)
-                .diskCacheStrategy(DiskCacheStrategy.NONE)
-                .skipMemoryCache(true)
+                .diskCacheStrategy(DiskCacheStrategy.ALL)
                 .into(holder.ivFriendProfile);
         // --- (프로필 이미지 로드 로직 끝) ---
 
