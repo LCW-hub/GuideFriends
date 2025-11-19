@@ -2,6 +2,7 @@ package com.example.gps.api;
 
 import com.example.gps.dto.LoginResponse;
 import com.example.gps.model.User;
+import retrofit2.http.Headers; // 이 import가 필요합니다
 
 import java.util.List;
 import java.util.Map;

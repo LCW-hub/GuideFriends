@@ -66,8 +66,8 @@ public class LoginActivity extends AppCompatActivity {
         textViewFindPassword = findViewById(R.id.tvFindPw);
         checkBoxRememberMe = findViewById(R.id.cb_remember_me);
 
-        editTextUsername.setText("ock123");
-        editTextPassword.setText("ock123123");
+        editTextUsername.setText("");
+        editTextPassword.setText("");
 
         buttonLogin.setOnClickListener(v -> login());
         textViewSignup.setOnClickListener(v -> startActivity(new Intent(LoginActivity.this, RegisterActivity.class)));

@@ -1148,9 +1148,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         runOnUiThread(() -> {
             Toast.makeText(MapsActivity.this, "그룹이 종료되어 메인 화면으로 이동합니다.", Toast.LENGTH_LONG).show();
 
+
             // ⭐️ [추가] 단순히 닫지 말고, 메인 화면(NormalMainActivity)을 새로 띄웁니다.
             // (만약 메인 액티비티 이름이 NormalMainActivity가 아니라면 해당 이름으로 바꿔주세요)
             Intent intent = new Intent(MapsActivity.this, MapsActivity.class);
+            intent.putExtra("username", loggedInUsername);
             intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK); // 기존 스택 비우기
             startActivity(intent);
 
