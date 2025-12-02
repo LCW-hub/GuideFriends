@@ -25,7 +25,7 @@
 
 **WICHIN**은 친구, 가족, 동료들과 함께 그룹을 만들어 실시간으로 위치를 공유할 수 있는 Android 애플리케이션입니다.
 
-**WICHIN** = **위**치를 **공**유하는 **친**구들
+**WICHIN** = **위**치를 공유하는 **친**구들
 
 </div>
 
@@ -320,7 +320,7 @@ Spring Mail: 3.3.11
 | **Android SDK** | API Level 24 이상 |
 | **Maven** | 3.6 이상 (백엔드 빌드) |
 | **MySQL** | 8.0 이상 (백엔드 데이터베이스) |
-| **IDE** | IntelliJ IDEA 또는 Eclipse (백엔드 개발 시 권장) |
+| **IDE** | Eclipse (백엔드 개발 툴) |
 
 ### 🔑 필수 API 키
 
@@ -342,19 +342,7 @@ Spring Mail: 3.3.11
 
 ## 🚀 설치 및 실행
 
-### 1️⃣ 프로젝트 클론
-
-```bash
-# Android 앱 클론
-git clone https://github.com/LCW-hub/GuideFriends.git
-cd GuideFriends
-
-# 백엔드 서버 클론
-git clone https://github.com/johnock/GPS_SpringBoot-MySQL-.git
-cd GPS_SpringBoot-MySQL--main
-```
-
-### 2️⃣ Firebase 설정
+### Firebase 설정
 
 #### Firebase 프로젝트 생성
 1. [Firebase Console](https://console.firebase.google.com/) 접속
@@ -421,12 +409,6 @@ jwt.expiration=86400000
 firebase.database-url=your-firebase-database-url
 ```
 
-#### 서버 실행
-```bash
-cd GPS_SpringBoot-MySQL--main
-mvn spring-boot:run
-```
-
 서버는 기본적으로 `http://localhost:8080`에서 실행됩니다.
 
 ### 6️⃣ Android 앱에서 백엔드 서버 주소 설정
@@ -436,7 +418,7 @@ mvn spring-boot:run
 private static final String BASE_URL = "http://your-server-ip:8080/";
 ```
 
-> 💡 **참고**: 에뮬레이터에서 실행 시 `http://10.0.2.2:8080/` 사용
+> 💡 **참고**: 에뮬레이터에서 실행 시 `http://your-server-ip:8080/` 사용
 
 ### 7️⃣ 앱 빌드 및 실행
 
