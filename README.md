@@ -12,9 +12,6 @@
 
 **친구들과 함께하는 안전한 실시간 위치 공유 서비스**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![GitHub stars](https://img.shields.io/github/stars/LCW-hub/GuideFriends?style=social)](https://github.com/LCW-hub/GuideFriends)
-
 ---
 
 </div>
