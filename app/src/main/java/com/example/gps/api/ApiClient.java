@@ -13,7 +13,7 @@ import retrofit2.converter.gson.GsonConverterFactory;
 
 public class ApiClient {
     // [수정] IP 주소 확인 (백엔드 서버 IP)
-    private static final String BASE_URL = "http:/10.107.1.115:8080/";
+    private static final String BASE_URL = "http:/10.107.0.167:8080/";
 
     // --- 🔽 [이 메소드 추가] ---
     /**
