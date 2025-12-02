@@ -359,7 +359,7 @@ Spring Mail: 3.3.11
 - **Realtime Database**: 프로젝트 설정 → Realtime Database → 데이터베이스 만들기
 - **Firestore**: 프로젝트 설정 → Firestore Database → 데이터베이스 만들기
 
-### 3️⃣ 네이버 지도 API 키 설정
+### 네이버 지도 API 키 설정
 
 #### AndroidManifest.xml 설정
 ```xml
@@ -375,7 +375,7 @@ private static final String NAVER_CLIENT_ID = "YOUR_NCP_CLIENT_ID";
 private static final String NAVER_CLIENT_SECRET = "YOUR_NCP_CLIENT_SECRET";
 ```
 
-### 4️⃣ MySQL 데이터베이스 설정
+### MySQL 데이터베이스 설정
 
 ```sql
 -- 데이터베이스 생성
@@ -387,7 +387,7 @@ GRANT ALL PRIVILEGES ON guidefriends.* TO 'your_username'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
-### 5️⃣ 백엔드 서버 설정
+### 백엔드 서버 설정
 
 백엔드 서버는 별도 프로젝트입니다.
 
@@ -411,7 +411,7 @@ firebase.database-url=your-firebase-database-url
 
 서버는 기본적으로 `http://localhost:8080`에서 실행됩니다.
 
-### 6️⃣ Android 앱에서 백엔드 서버 주소 설정
+### Android 앱에서 백엔드 서버 주소 설정
 
 `app/src/main/java/com/example/gps/api/ApiClient.java`에서 서버 주소 확인:
 ```java
@@ -420,7 +420,7 @@ private static final String BASE_URL = "http://your-server-ip:8080/";
 
 > 💡 **참고**: 에뮬레이터에서 실행 시 `http://your-server-ip:8080/` 사용
 
-### 7️⃣ 앱 빌드 및 실행
+### 앱 빌드 및 실행
 
 #### 에뮬레이터 사용
 1. Android Studio → Tools → AVD Manager
